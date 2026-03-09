@@ -1,0 +1,176 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Gemini Scale Reader</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      max-width: 1000px;
+      margin: 24px auto;
+      padding: 0 16px;
+    }
+    .card {
+      border: 1px solid #ddd;
+      border-radius: 10px;
+      padding: 16px;
+      margin-bottom: 16px;
+    }
+    button {
+      padding: 10px 16px;
+      cursor: pointer;
+    }
+    img {
+      max-width: 100%;
+      max-height: 420px;
+      border: 1px solid #ddd;
+      border-radius: 8px;
+      display: none;
+      margin-top: 12px;
+    }
+    .row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+      align-items: start;
+    }
+    .value {
+      font-size: 34px;
+      font-weight: bold;
+      margin-top: 8px;
+    }
+    .muted {
+      color: #666;
+      font-size: 14px;
+    }
+    .ok {
+      color: #0b7a0b;
+    }
+    .warn {
+      color: #b35c00;
+    }
+    pre {
+      background: #f7f7f7;
+      padding: 12px;
+      border-radius: 8px;
+      overflow: auto;
+      white-space: pre-wrap;
+      word-wrap: break-word;
+    }
+    @media (max-width: 760px) {
+      .row {
+        grid-template-columns: 1fr;
+      }
+    }
+  </style>
+</head>
+<body>
+  <h1>Gemini Scale Reader</h1>
+  <p class="muted">Upload one image. Backend sends original + enhanced image to Gemini in a single request.</p>
+
+  <div class="card">
+    <input id="fileInput" type="file" accept="image/*" />
+    <br /><br />
+    <button id="runBtn">Read Display</button>
+  </div>
+
+  <div class="card">
+    <div class="row">
+      <div>
+        <div><strong>Original</strong></div>
+        <img id="previewOriginal" alt="original preview" />
+      </div>
+      <div>
+        <div><strong>Client Preview</strong></div>
+        <img id="previewSecondary" alt="secondary preview" />
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div id="statusLine" class="muted">No result yet.</div>
+    <div id="valueLine" class="value"></div>
+    <pre id="jsonOutput">{}</pre>
+  </div>
+
+<script>
+  const fileInput = document.getElementById("fileInput");
+  const runBtn = document.getElementById("runBtn");
+  const previewOriginal = document.getElementById("previewOriginal");
+  const previewSecondary = document.getElementById("previewSecondary");
+  const statusLine = document.getElementById("statusLine");
+  const valueLine = document.getElementById("valueLine");
+  const jsonOutput = document.getElementById("jsonOutput");
+
+  fileInput.addEventListener("change", () => {
+    const file = fileInput.files?.[0];
+    if (!file) {
+      previewOriginal.style.display = "none";
+      previewSecondary.style.display = "none";
+      return;
+    }
+    const url = URL.createObjectURL(file);
+    previewOriginal.src = url;
+    previewSecondary.src = url;
+    previewOriginal.style.display = "block";
+    previewSecondary.style.display = "block";
+  });
+
+  runBtn.addEventListener("click", async () => {
+    const file = fileInput.files?.[0];
+    if (!file) {
+      alert("Please select an image.");
+      return;
+    }
+
+    statusLine.textContent = "Reading image...";
+    statusLine.className = "muted";
+    valueLine.textContent = "";
+    jsonOutput.textContent = "{}";
+
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+
+      const res = await fetch("/api/read-scale", {
+        method: "POST",
+        body: formData
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        throw new Error(data.detail || "Request failed");
+      }
+
+      if (data.previews?.original) {
+        previewOriginal.src = data.previews.original;
+        previewOriginal.style.display = "block";
+      }
+      if (data.previews?.enhanced) {
+        previewSecondary.src = data.previews.enhanced;
+        previewSecondary.style.display = "block";
+      }
+
+      const finalResult = data.final || {};
+      jsonOutput.textContent = JSON.stringify(data, null, 2);
+
+      if (finalResult.status === "ok") {
+        statusLine.textContent = `Status: ${finalResult.status} | confidence=${finalResult.confidence}`;
+        statusLine.className = "ok";
+        valueLine.textContent = finalResult.value_text ?? "";
+      } else {
+        statusLine.textContent = `Status: ${finalResult.status} | ${finalResult.reason}`;
+        statusLine.className = "warn";
+        valueLine.textContent = finalResult.value_text || "Needs review";
+      }
+    } catch (err) {
+      statusLine.textContent = `Error: ${err.message}`;
+      statusLine.className = "warn";
+      jsonOutput.textContent = "{}";
+    }
+  });
+</script>
+</body>
+</html>
