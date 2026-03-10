@@ -45,12 +45,16 @@ Open `http://127.0.0.1:8000`.
 HOST=0.0.0.0
 PORT=8000
 MAX_IMAGE_MB=10
-FIXED_DECIMALS=3
 
 # Gemini fallback (optional)
 ENABLE_GEMINI_FALLBACK=1
 GEMINI_API_KEY=your_gemini_api_key_here
 MODEL_NAME=gemini-2.5-flash
+VERIFY_MODEL_NAME=gemini-2.5-pro
+LOCAL_DECODER_MIN_CONFIDENCE=0.90
+
+# Optional: only configure this for a known machine with fixed precision.
+# EXPECTED_DECIMALS=3
 ```
 
 ## Health endpoint

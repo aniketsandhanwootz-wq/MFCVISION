@@ -7,7 +7,7 @@
   <style>
     body {
       font-family: Arial, sans-serif;
-      max-width: 1000px;
+      max-width: 1250px;
       margin: 24px auto;
       padding: 0 16px;
     }
@@ -22,21 +22,23 @@
       cursor: pointer;
     }
     img {
-      max-width: 100%;
+      width: 100%;
       max-height: 420px;
+      object-fit: contain;
       border: 1px solid #ddd;
       border-radius: 8px;
       display: none;
       margin-top: 12px;
+      background: #fafafa;
     }
-    .row {
+    .grid4 {
       display: grid;
       grid-template-columns: 1fr 1fr;
       gap: 16px;
       align-items: start;
     }
     .value {
-      font-size: 34px;
+      font-size: 36px;
       font-weight: bold;
       margin-top: 8px;
     }
@@ -59,7 +61,7 @@
       word-wrap: break-word;
     }
     @media (max-width: 760px) {
-      .row {
+      .grid4 {
         grid-template-columns: 1fr;
       }
     }
@@ -67,7 +69,7 @@
 </head>
 <body>
   <h1>Gemini Scale Reader</h1>
-  <p class="muted">Upload one image. Backend sends original + enhanced image to Gemini in a single request.</p>
+  <p class="muted">Upload one image. Backend localizes display and sends crop + context images to Gemini.</p>
 
   <div class="card">
     <input id="fileInput" type="file" accept="image/*" />
@@ -76,14 +78,22 @@
   </div>
 
   <div class="card">
-    <div class="row">
+    <div class="grid4">
       <div>
         <div><strong>Original</strong></div>
         <img id="previewOriginal" alt="original preview" />
       </div>
       <div>
-        <div><strong>Client Preview</strong></div>
-        <img id="previewSecondary" alt="secondary preview" />
+        <div><strong>Enhanced Full</strong></div>
+        <img id="previewEnhanced" alt="enhanced preview" />
+      </div>
+      <div>
+        <div><strong>Localized Crop</strong></div>
+        <img id="previewCrop" alt="crop preview" />
+      </div>
+      <div>
+        <div><strong>Detection Debug</strong></div>
+        <img id="previewDebug" alt="debug preview" />
       </div>
     </div>
   </div>
@@ -94,83 +104,92 @@
     <pre id="jsonOutput">{}</pre>
   </div>
 
-<script>
-  const fileInput = document.getElementById("fileInput");
-  const runBtn = document.getElementById("runBtn");
-  const previewOriginal = document.getElementById("previewOriginal");
-  const previewSecondary = document.getElementById("previewSecondary");
-  const statusLine = document.getElementById("statusLine");
-  const valueLine = document.getElementById("valueLine");
-  const jsonOutput = document.getElementById("jsonOutput");
+  <script>
+    const fileInput = document.getElementById("fileInput");
+    const runBtn = document.getElementById("runBtn");
+    const previewOriginal = document.getElementById("previewOriginal");
+    const previewEnhanced = document.getElementById("previewEnhanced");
+    const previewCrop = document.getElementById("previewCrop");
+    const previewDebug = document.getElementById("previewDebug");
+    const statusLine = document.getElementById("statusLine");
+    const valueLine = document.getElementById("valueLine");
+    const jsonOutput = document.getElementById("jsonOutput");
 
-  fileInput.addEventListener("change", () => {
-    const file = fileInput.files?.[0];
-    if (!file) {
-      previewOriginal.style.display = "none";
-      previewSecondary.style.display = "none";
-      return;
-    }
-    const url = URL.createObjectURL(file);
-    previewOriginal.src = url;
-    previewSecondary.src = url;
-    previewOriginal.style.display = "block";
-    previewSecondary.style.display = "block";
-  });
+    fileInput.addEventListener("change", () => {
+      const file = fileInput.files?.[0];
+      if (!file) return;
+      const url = URL.createObjectURL(file);
+      previewOriginal.src = url;
+      previewOriginal.style.display = "block";
+    });
 
-  runBtn.addEventListener("click", async () => {
-    const file = fileInput.files?.[0];
-    if (!file) {
-      alert("Please select an image.");
-      return;
-    }
-
-    statusLine.textContent = "Reading image...";
-    statusLine.className = "muted";
-    valueLine.textContent = "";
-    jsonOutput.textContent = "{}";
-
-    try {
-      const formData = new FormData();
-      formData.append("file", file);
-
-      const res = await fetch("/api/read-scale", {
-        method: "POST",
-        body: formData
-      });
-
-      const data = await res.json();
-
-      if (!res.ok) {
-        throw new Error(data.detail || "Request failed");
+    runBtn.addEventListener("click", async () => {
+      const file = fileInput.files?.[0];
+      if (!file) {
+        alert("Please select an image.");
+        return;
       }
 
-      if (data.previews?.original) {
-        previewOriginal.src = data.previews.original;
-        previewOriginal.style.display = "block";
-      }
-      if (data.previews?.enhanced) {
-        previewSecondary.src = data.previews.enhanced;
-        previewSecondary.style.display = "block";
-      }
-
-      const finalResult = data.final || {};
-      jsonOutput.textContent = JSON.stringify(data, null, 2);
-
-      if (finalResult.status === "ok") {
-        statusLine.textContent = `Status: ${finalResult.status} | confidence=${finalResult.confidence}`;
-        statusLine.className = "ok";
-        valueLine.textContent = finalResult.value_text ?? "";
-      } else {
-        statusLine.textContent = `Status: ${finalResult.status} | ${finalResult.reason}`;
-        statusLine.className = "warn";
-        valueLine.textContent = finalResult.value_text || "Needs review";
-      }
-    } catch (err) {
-      statusLine.textContent = `Error: ${err.message}`;
-      statusLine.className = "warn";
+      statusLine.textContent = "Reading image...";
+      statusLine.className = "muted";
+      valueLine.textContent = "";
       jsonOutput.textContent = "{}";
-    }
-  });
-</script>
+
+      try {
+        const formData = new FormData();
+        formData.append("file", file);
+
+        const res = await fetch("/api/read-scale", {
+          method: "POST",
+          body: formData
+        });
+
+        const data = await res.json();
+
+        if (!res.ok) {
+          throw new Error(data.detail || "Request failed");
+        }
+
+        const t = Date.now();
+
+        if (data.preview_urls?.original) {
+          previewOriginal.src = data.preview_urls.original + `?t=${t}`;
+          previewOriginal.style.display = "block";
+        }
+        if (data.preview_urls?.enhanced) {
+          previewEnhanced.src = data.preview_urls.enhanced + `?t=${t}`;
+          previewEnhanced.style.display = "block";
+        }
+        if (data.preview_urls?.crop) {
+          previewCrop.src = data.preview_urls.crop + `?t=${t}`;
+          previewCrop.style.display = "block";
+        }
+        if (data.preview_urls?.debug) {
+          previewDebug.src = data.preview_urls.debug + `?t=${t}`;
+          previewDebug.style.display = "block";
+        }
+
+        const finalResult = data.final || {};
+        jsonOutput.textContent = JSON.stringify({
+          final: finalResult,
+          crop_diagnostics: data.crop_diagnostics || null
+        }, null, 2);
+
+        if (finalResult.status === "ok") {
+          statusLine.textContent = `Status: ${finalResult.status} | confidence=${finalResult.confidence}`;
+          statusLine.className = "ok";
+          valueLine.textContent = finalResult.value_text ?? "";
+        } else {
+          statusLine.textContent = `Status: ${finalResult.status} | ${finalResult.reason}`;
+          statusLine.className = "warn";
+          valueLine.textContent = finalResult.value_text || "Needs review";
+        }
+      } catch (err) {
+        statusLine.textContent = `Error: ${err.message}`;
+        statusLine.className = "warn";
+        jsonOutput.textContent = "{}";
+      }
+    });
+  </script>
 </body>
 </html>
