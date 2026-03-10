@@ -3,9 +3,10 @@
 FastAPI service that reads weighing-scale values from images using:
 
 1. Full-image preprocessing
-2. Adaptive display localization (no fixed crop)
-3. Deterministic 7-segment decoding
-4. Optional Gemini fallback for uncertain cases
+2. Gemini VLM-first display localization
+3. CV fallback localization when VLM localization is weak
+4. Gemini `2.5-flash` reading with verification for uncertain cases
+5. Deterministic 7-segment hints for LED crops
 
 ## Project structure
 
@@ -36,8 +37,9 @@ Open `http://127.0.0.1:8000`.
 
 ## Runtime behavior
 
-- Local adaptive pipeline from `vision.py` runs first on every request.
-- If Gemini fallback is enabled/configured, Gemini reads the adaptively localized ROI (not full image) and result reconciliation is applied.
+- A low-cost Gemini localizer (`LOCALIZER_MODEL_NAME`) first finds the display window.
+- If that localization is weak or invalid, the existing CV localizer from `vision.py` is used as fallback.
+- Gemini reads the resulting ROI and can verify against the original photo when the crop-first answer is suspicious.
 
 ## Environment variables
 
@@ -46,11 +48,13 @@ HOST=0.0.0.0
 PORT=8000
 MAX_IMAGE_MB=10
 
-# Gemini fallback (optional)
-ENABLE_GEMINI_FALLBACK=1
+# Gemini localization + reading
 GEMINI_API_KEY=your_gemini_api_key_here
+LOCALIZER_MODEL_NAME=gemini-2.5-flash-lite
 MODEL_NAME=gemini-2.5-flash
 VERIFY_MODEL_NAME=gemini-2.5-pro
+LOCALIZER_MAX_DIMENSION=1024
+LOCALIZER_MIN_CONFIDENCE=0.45
 LOCAL_DECODER_MIN_CONFIDENCE=0.90
 
 # Optional: only configure this for a known machine with fixed precision.
@@ -59,4 +63,4 @@ LOCAL_DECODER_MIN_CONFIDENCE=0.90
 
 ## Health endpoint
 
-`GET /health` returns whether adaptive localization is active and Gemini fallback state.
+`GET /health` returns the read model, verify model, localizer model, and relevant thresholds.

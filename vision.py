@@ -36,6 +36,13 @@ class DisplayCandidate:
     crop_y2: int
 
 
+def _crop_roi(
+    arr: np.ndarray,
+    candidate: DisplayCandidate,
+) -> np.ndarray:
+    return arr[candidate.crop_y1:candidate.crop_y2, candidate.crop_x1:candidate.crop_x2]
+
+
 @dataclass
 class LocalDecodeResult:
     ok: bool
@@ -125,21 +132,29 @@ def _build_lit_mask(bgr: np.ndarray) -> np.ndarray:
     s = hsv[:, :, 1]
     v = hsv[:, :, 2]
     l = lab[:, :, 0]
+    blue, green, red = cv2.split(bgr)
 
     clahe = cv2.createCLAHE(clipLimit=1.6, tileGridSize=(8, 8))
     l2 = clahe.apply(l)
     local_contrast = cv2.absdiff(l2, cv2.GaussianBlur(l2, (11, 11), 0))
+    max_rb = cv2.max(red, blue)
+    green_excess = cv2.subtract(green, max_rb)
+    green_dominant = cv2.inRange(green_excess, 10, 255) & cv2.inRange(green, 70, 255)
+    faint_green = cv2.inRange(green_excess, 4, 255) & cv2.inRange(green, 58, 255)
 
     # Active display segments are usually colored, bright, and locally contrasted.
     green_led = (
         cv2.inRange(h, 35, 100)
         & cv2.inRange(s, 22, 255)
         & cv2.inRange(v, 80, 255)
+        & cv2.inRange(local_contrast, 10, 255)
+        & green_dominant
     )
     vivid_led = (
         cv2.inRange(s, 45, 255)
         & cv2.inRange(v, 110, 255)
         & cv2.inRange(local_contrast, 18, 255)
+        & green_dominant
     )
 
     adap = cv2.adaptiveThreshold(
@@ -147,9 +162,10 @@ def _build_lit_mask(bgr: np.ndarray) -> np.ndarray:
     )
     structural_led = (
         adap
-        & cv2.inRange(local_contrast, 20, 255)
-        & cv2.inRange(v, 75, 255)
-        & cv2.inRange(s, 12, 255)
+        & cv2.inRange(local_contrast, 24, 255)
+        & cv2.inRange(v, 72, 255)
+        & cv2.inRange(h, 25, 110)
+        & faint_green
     )
 
     mask = green_led | vivid_led | structural_led
@@ -198,6 +214,130 @@ def _compute_green_ratio(bgr: np.ndarray) -> float:
         & cv2.inRange(hsv[:, :, 2], 70, 255)
     )
     return float(np.count_nonzero(green_mask)) / float(max(green_mask.size, 1))
+
+
+def _lcd_window_stats(
+    group: list[dict[str, float]],
+    gray: np.ndarray,
+    dark_mask: np.ndarray,
+    bgr: np.ndarray,
+) -> dict[str, float]:
+    height, width = gray.shape[:2]
+    x1 = int(min(comp["x"] for comp in group))
+    y1 = int(min(comp["y"] for comp in group))
+    x2 = int(max(comp["x"] + comp["w"] for comp in group))
+    y2 = int(max(comp["y"] + comp["h"] for comp in group))
+    w = max(1, x2 - x1)
+    h = max(1, y2 - y1)
+
+    pad_x = max(8, int(w * 0.30))
+    pad_top = max(6, int(h * 0.75))
+    pad_bottom = max(6, int(h * 0.65))
+    wx1 = max(0, x1 - pad_x)
+    wy1 = max(0, y1 - pad_top)
+    wx2 = min(width, x2 + pad_x)
+    wy2 = min(height, y2 + pad_bottom)
+
+    region_bgr = bgr[wy1:wy2, wx1:wx2]
+    region_gray = gray[wy1:wy2, wx1:wx2]
+    region_mask = dark_mask[wy1:wy2, wx1:wx2]
+    if region_bgr.size == 0 or region_gray.size == 0 or region_mask.size == 0:
+        return {
+            "sat_mean": 255.0,
+            "low_sat_ratio": 0.0,
+            "blue_ratio": 1.0,
+            "dark_ratio": 0.0,
+            "gray_mean": 255.0,
+            "gray_std": 0.0,
+            "window_x1": float(wx1),
+            "window_y1": float(wy1),
+            "window_x2": float(wx2),
+            "window_y2": float(wy2),
+        }
+
+    hsv = cv2.cvtColor(region_bgr, cv2.COLOR_BGR2HSV)
+    sat = hsv[:, :, 1]
+    hue = hsv[:, :, 0]
+    val = hsv[:, :, 2]
+
+    low_sat_ratio = float(np.count_nonzero(sat <= 72)) / float(max(sat.size, 1))
+    blue_ratio = float(
+        np.count_nonzero(
+            cv2.inRange(hue, 85, 135)
+            & cv2.inRange(sat, 40, 255)
+            & cv2.inRange(val, 35, 255)
+        )
+    ) / float(max(sat.size, 1))
+    dark_ratio = float(np.count_nonzero(region_mask)) / float(max(region_mask.size, 1))
+
+    return {
+        "sat_mean": float(sat.mean()),
+        "low_sat_ratio": low_sat_ratio,
+        "blue_ratio": blue_ratio,
+        "dark_ratio": dark_ratio,
+        "gray_mean": float(region_gray.mean()),
+        "gray_std": float(region_gray.std()),
+        "window_x1": float(wx1),
+        "window_y1": float(wy1),
+        "window_x2": float(wx2),
+        "window_y2": float(wy2),
+    }
+
+
+def _led_window_stats(
+    group: list[dict[str, float]],
+    gray: np.ndarray,
+    lit_mask: np.ndarray,
+    bgr: np.ndarray,
+) -> dict[str, float]:
+    height, width = gray.shape[:2]
+    x1 = int(min(comp["x"] for comp in group))
+    y1 = int(min(comp["y"] for comp in group))
+    x2 = int(max(comp["x"] + comp["w"] for comp in group))
+    y2 = int(max(comp["y"] + comp["h"] for comp in group))
+    w = max(1, x2 - x1)
+    h = max(1, y2 - y1)
+
+    pad_x = max(10, int(w * 0.22))
+    pad_top = max(8, int(h * 1.10))
+    pad_bottom = max(6, int(h * 0.80))
+    wx1 = max(0, x1 - pad_x)
+    wy1 = max(0, y1 - pad_top)
+    wx2 = min(width, x2 + pad_x)
+    wy2 = min(height, y2 + pad_bottom)
+
+    region_bgr = bgr[wy1:wy2, wx1:wx2]
+    region_gray = gray[wy1:wy2, wx1:wx2]
+    region_lit = lit_mask[wy1:wy2, wx1:wx2]
+    if region_bgr.size == 0 or region_gray.size == 0 or region_lit.size == 0:
+        return {
+            "dark_ratio": 0.0,
+            "blue_ratio": 1.0,
+            "green_on_dark_ratio": 0.0,
+            "lit_fill_ratio": 0.0,
+        }
+
+    hsv = cv2.cvtColor(region_bgr, cv2.COLOR_BGR2HSV)
+    green_mask = (
+        cv2.inRange(hsv[:, :, 0], 35, 100)
+        & cv2.inRange(hsv[:, :, 1], 18, 255)
+        & cv2.inRange(hsv[:, :, 2], 70, 255)
+    )
+    blue_mask = (
+        cv2.inRange(hsv[:, :, 0], 85, 135)
+        & cv2.inRange(hsv[:, :, 1], 35, 255)
+        & cv2.inRange(hsv[:, :, 2], 30, 255)
+    )
+    dark_mask = cv2.inRange(region_gray, 0, 105)
+    dark_support = cv2.dilate(dark_mask, cv2.getStructuringElement(cv2.MORPH_RECT, (5, 5)), iterations=1)
+
+    total = float(max(region_gray.size, 1))
+    return {
+        "dark_ratio": float(np.count_nonzero(dark_mask)) / total,
+        "blue_ratio": float(np.count_nonzero(blue_mask)) / total,
+        "green_on_dark_ratio": float(np.count_nonzero(green_mask & dark_support)) / total,
+        "lit_fill_ratio": float(np.count_nonzero(region_lit)) / total,
+    }
 
 
 def _extract_components(mask: np.ndarray) -> list[dict[str, float]]:
@@ -359,6 +499,239 @@ def _projection_runs(
     return runs
 
 
+def _build_window_edge_mask(gray: np.ndarray) -> np.ndarray:
+    blur = cv2.GaussianBlur(gray, (5, 5), 0)
+    edges = cv2.Canny(blur, 40, 120)
+    edges = cv2.morphologyEx(
+        edges,
+        cv2.MORPH_CLOSE,
+        cv2.getStructuringElement(cv2.MORPH_RECT, (5, 5)),
+        iterations=2,
+    )
+    edges = cv2.dilate(
+        edges,
+        cv2.getStructuringElement(cv2.MORPH_RECT, (3, 3)),
+        iterations=1,
+    )
+    return edges
+
+
+def _candidate_from_rect(
+    x: int,
+    y: int,
+    w: int,
+    h: int,
+    shape: tuple[int, int],
+    mode: str,
+) -> DisplayCandidate:
+    height, width = shape[:2]
+    if mode == "lcd":
+        pad_left = max(6, int(w * 0.10))
+        pad_right = max(6, int(w * 0.10))
+        pad_top = max(6, int(h * 0.18))
+        pad_bottom = max(6, int(h * 0.18))
+    else:
+        pad_left = max(10, int(w * 0.12))
+        pad_right = max(8, int(w * 0.10))
+        pad_top = max(8, int(h * 0.22))
+        pad_bottom = max(6, int(h * 0.18))
+
+    x1 = max(0, x - pad_left)
+    y1 = max(0, y - pad_top)
+    x2 = min(width, x + w + pad_right)
+    y2 = min(height, y + h + pad_bottom)
+    return DisplayCandidate(
+        mode=mode,
+        score=0.0,
+        group_size=0,
+        raw_x1=x,
+        raw_y1=y,
+        raw_x2=x + w,
+        raw_y2=y + h,
+        crop_x1=x1,
+        crop_y1=y1,
+        crop_x2=x2,
+        crop_y2=y2,
+    )
+
+
+def _rect_contains(candidate: DisplayCandidate, x: int, y: int, w: int, h: int, slack: int = 6) -> bool:
+    return (
+        x <= candidate.raw_x1 + slack
+        and y <= candidate.raw_y1 + slack
+        and x + w >= candidate.raw_x2 - slack
+        and y + h >= candidate.raw_y2 - slack
+    )
+
+
+def _score_lcd_window_rect(
+    x: int,
+    y: int,
+    w: int,
+    h: int,
+    area: float,
+    gray: np.ndarray,
+    bgr: np.ndarray,
+    dark_mask: np.ndarray,
+    edge_mask: np.ndarray,
+) -> float:
+    height, width = gray.shape[:2]
+    if w < max(36, int(width * 0.06)) or h < max(14, int(height * 0.02)):
+        return -1e9
+    if w > int(width * 0.60) or h > int(height * 0.25):
+        return -1e9
+
+    aspect = w / max(h, 1)
+    if aspect < 1.2 or aspect > 5.2:
+        return -1e9
+
+    rect_area = float(max(w * h, 1))
+    fill_ratio = float(area) / rect_area
+    if fill_ratio < 0.08:
+        return -1e9
+
+    pad = max(2, min(w, h) // 12)
+    ix1 = min(x + pad, x + w - 1)
+    iy1 = min(y + pad, y + h - 1)
+    ix2 = max(ix1 + 1, x + w - pad)
+    iy2 = max(iy1 + 1, y + h - pad)
+
+    region_gray = gray[y:y + h, x:x + w]
+    region_bgr = bgr[y:y + h, x:x + w]
+    region_dark = dark_mask[y:y + h, x:x + w]
+    region_edge = edge_mask[y:y + h, x:x + w]
+    inner_gray = gray[iy1:iy2, ix1:ix2]
+    inner_dark = dark_mask[iy1:iy2, ix1:ix2]
+    if region_gray.size == 0 or region_bgr.size == 0 or inner_gray.size == 0:
+        return -1e9
+
+    hsv = cv2.cvtColor(region_bgr, cv2.COLOR_BGR2HSV)
+    low_sat_ratio = float(np.count_nonzero(hsv[:, :, 1] <= 72)) / float(max(region_gray.size, 1))
+    blue_ratio = float(
+        np.count_nonzero(
+            cv2.inRange(hsv[:, :, 0], 85, 135)
+            & cv2.inRange(hsv[:, :, 1], 40, 255)
+            & cv2.inRange(hsv[:, :, 2], 35, 255)
+        )
+    ) / float(max(region_gray.size, 1))
+    dark_ratio = float(np.count_nonzero(inner_dark)) / float(max(inner_dark.size, 1))
+
+    ring_mask = np.ones(region_gray.shape[:2], dtype=np.uint8)
+    ring_mask[pad:max(pad, h - pad), pad:max(pad, w - pad)] = 0
+    ring_values = region_gray[ring_mask > 0]
+    border_mean = float(ring_values.mean()) if ring_values.size else float(region_gray.mean())
+    inner_mean = float(inner_gray.mean())
+    border_contrast = max(0.0, inner_mean - border_mean)
+
+    edge_density = float(np.count_nonzero(region_edge)) / float(max(region_edge.size, 1))
+    cx = (x + (w / 2.0)) / max(width, 1)
+    cy = (y + (h / 2.0)) / max(height, 1)
+    center_bias_x = 1.0 - abs(cx - 0.50) / 0.50
+    center_bias_y = 1.0 - abs(cy - 0.34) / 0.34
+
+    score = 0.0
+    score += min(low_sat_ratio / 0.70, 1.0) * 26.0
+    score += _range_score(dark_ratio, 0.010, 0.20) * 28.0
+    score += min(border_contrast / 32.0, 1.0) * 24.0
+    score += min(edge_density / 0.12, 1.0) * 18.0
+    score += max(0.0, 1.0 - (blue_ratio / 0.20)) * 26.0
+    score += max(0.0, center_bias_x) * 8.0
+    score += max(0.0, center_bias_y) * 14.0
+    score += min(fill_ratio / 0.45, 1.0) * 8.0
+
+    if cy > 0.60:
+        score -= 44.0
+    if cy < 0.12:
+        score -= 16.0
+    if blue_ratio > 0.18:
+        score -= 38.0
+    if low_sat_ratio < 0.38:
+        score -= 28.0
+    if border_contrast < 6.0:
+        score -= 22.0
+
+    return score
+
+
+def _score_led_window_rect(
+    x: int,
+    y: int,
+    w: int,
+    h: int,
+    area: float,
+    gray: np.ndarray,
+    bgr: np.ndarray,
+    lit_mask: np.ndarray,
+    edge_mask: np.ndarray,
+    anchor: DisplayCandidate,
+) -> float:
+    height, width = gray.shape[:2]
+    anchor_w = anchor.raw_x2 - anchor.raw_x1
+    anchor_h = anchor.raw_y2 - anchor.raw_y1
+    if w < max(anchor_w, int(width * 0.08)) or h < max(anchor_h, int(height * 0.03)):
+        return -1e9
+    if w > int(anchor_w * 4.8) or h > int(anchor_h * 5.2):
+        return -1e9
+    if not _rect_contains(anchor, x, y, w, h, slack=max(6, anchor_h // 3)):
+        return -1e9
+
+    aspect = w / max(h, 1)
+    if aspect < 2.0 or aspect > 8.0:
+        return -1e9
+
+    region_gray = gray[y:y + h, x:x + w]
+    region_bgr = bgr[y:y + h, x:x + w]
+    region_lit = lit_mask[y:y + h, x:x + w]
+    region_edge = edge_mask[y:y + h, x:x + w]
+    if region_gray.size == 0 or region_bgr.size == 0 or region_lit.size == 0:
+        return -1e9
+
+    hsv = cv2.cvtColor(region_bgr, cv2.COLOR_BGR2HSV)
+    green_ratio = float(
+        np.count_nonzero(
+            cv2.inRange(hsv[:, :, 0], 35, 100)
+            & cv2.inRange(hsv[:, :, 1], 18, 255)
+            & cv2.inRange(hsv[:, :, 2], 70, 255)
+        )
+    ) / float(max(region_gray.size, 1))
+    blue_ratio = float(
+        np.count_nonzero(
+            cv2.inRange(hsv[:, :, 0], 85, 135)
+            & cv2.inRange(hsv[:, :, 1], 35, 255)
+            & cv2.inRange(hsv[:, :, 2], 30, 255)
+        )
+    ) / float(max(region_gray.size, 1))
+    lit_ratio = float(np.count_nonzero(region_lit)) / float(max(region_lit.size, 1))
+    dark_ratio = float(np.count_nonzero(cv2.inRange(region_gray, 0, 110))) / float(max(region_gray.size, 1))
+    edge_density = float(np.count_nonzero(region_edge)) / float(max(region_edge.size, 1))
+    cx = (x + (w / 2.0)) / max(width, 1)
+    cy = (y + (h / 2.0)) / max(height, 1)
+    center_bias_x = 1.0 - abs(cx - 0.50) / 0.50
+    center_bias_y = 1.0 - abs(cy - 0.58) / 0.42
+    left_margin_ratio = float(anchor.raw_x1 - x) / float(max(w, 1))
+
+    score = 0.0
+    score += min(green_ratio / 0.06, 1.0) * 28.0
+    score += min(lit_ratio / 0.08, 1.0) * 24.0
+    score += min(dark_ratio / 0.22, 1.0) * 22.0
+    score += min(edge_density / 0.10, 1.0) * 14.0
+    score += max(0.0, 1.0 - (blue_ratio / 0.24)) * 18.0
+    score += _range_score(left_margin_ratio, 0.08, 0.38) * 20.0
+    score += max(0.0, center_bias_x) * 6.0
+    score += max(0.0, center_bias_y) * 8.0
+
+    if cy > 0.78:
+        score -= 30.0
+    if dark_ratio < 0.10:
+        score -= 24.0
+    if green_ratio < 0.018:
+        score -= 22.0
+    if left_margin_ratio < 0.05:
+        score -= 18.0
+
+    return score
+
+
 def _score_group(
     group: list[dict[str, float]],
     gray: np.ndarray,
@@ -404,6 +777,7 @@ def _score_group(
             & cv2.inRange(hsv[:, :, 2], 70, 255)
         )
     ) / float(max(region_mask.size, 1))
+    window_stats = _led_window_stats(group, gray, lit_mask, bgr)
 
     cx = (x1 + x2) / 2.0
     cy = (y1 + y2) / 2.0
@@ -419,6 +793,9 @@ def _score_group(
     score += max(0.0, 180.0 - mean_gray) / 180.0 * 24.0
     score += center_bias_x * 8.0
     score += center_bias_y * 10.0
+    score += min(window_stats["dark_ratio"] / 0.24, 1.0) * 24.0
+    score += min(window_stats["green_on_dark_ratio"] / 0.05, 1.0) * 24.0
+    score += max(0.0, 1.0 - (window_stats["blue_ratio"] / 0.20)) * 16.0
 
     if 4 <= len(group) <= 7:
         score += 20.0
@@ -434,11 +811,22 @@ def _score_group(
         score -= 45.0
     if green_ratio < 0.025 and cy > H * 0.55:
         score -= 24.0
+    if window_stats["dark_ratio"] < 0.12:
+        score -= 30.0
+    if window_stats["green_on_dark_ratio"] < 0.010:
+        score -= 26.0
+    if window_stats["blue_ratio"] > 0.20 and window_stats["dark_ratio"] < 0.16:
+        score -= 42.0
 
     return score
 
 
-def _score_lcd_group(group: list[dict[str, float]], gray: np.ndarray, dark_mask: np.ndarray) -> float:
+def _score_lcd_group(
+    group: list[dict[str, float]],
+    gray: np.ndarray,
+    dark_mask: np.ndarray,
+    bgr: np.ndarray,
+) -> float:
     H, W = gray.shape[:2]
     if len(group) < 3:
         return -1e9
@@ -469,6 +857,7 @@ def _score_lcd_group(group: list[dict[str, float]], gray: np.ndarray, dark_mask:
 
     mask_ratio = float(np.count_nonzero(region_mask)) / float(max(region_mask.size, 1))
     contrast = float(region_gray.std())
+    window_stats = _lcd_window_stats(group, gray, dark_mask, bgr)
 
     cx = (x1 + x2) / 2.0
     cy = (y1 + y2) / 2.0
@@ -483,6 +872,12 @@ def _score_lcd_group(group: list[dict[str, float]], gray: np.ndarray, dark_mask:
     score += min(contrast / 28.0, 1.0) * 20.0
     score += center_bias_x * 8.0
     score += center_bias_y * 18.0
+    score += min(window_stats["low_sat_ratio"] / 0.72, 1.0) * 28.0
+    score += _range_score(window_stats["gray_mean"], 55.0, 190.0) * 8.0
+    score += _range_score(window_stats["gray_std"], 8.0, 60.0) * 8.0
+    score += _range_score(window_stats["dark_ratio"], 0.010, 0.18) * 14.0
+    score += max(0.0, 1.0 - (window_stats["sat_mean"] / 110.0)) * 20.0
+    score += max(0.0, 1.0 - (window_stats["blue_ratio"] / 0.18)) * 34.0
 
     if 3 <= len(group) <= 8:
         score += 14.0
@@ -492,6 +887,14 @@ def _score_lcd_group(group: list[dict[str, float]], gray: np.ndarray, dark_mask:
         score -= 20.0
     if h > H * 0.12:
         score -= 8.0
+    if window_stats["blue_ratio"] > 0.20:
+        score -= 46.0
+    if window_stats["sat_mean"] > 95.0 and window_stats["low_sat_ratio"] < 0.45:
+        score -= 30.0
+    if window_stats["dark_ratio"] < 0.008:
+        score -= 22.0
+    if y1 > H * 0.55:
+        score -= 26.0
 
     return score
 
@@ -530,7 +933,7 @@ def _refine_bounds_from_mask(
         rx1, rx2 = col_span
         band_w = max(rx2 - rx1, 1)
         base_x1 = x1
-        x1 = max(base_x1, base_x1 + rx1 - int(band_w * 0.26))
+        x1 = max(base_x1, base_x1 + rx1 - int(band_w * 0.40))
         x2 = min(x2, base_x1 + rx2 + int(band_w * 0.16))
 
     return x1, y1, x2, y2
@@ -555,7 +958,7 @@ def _candidate_from_group(
         pad_top = max(10, int(h * 0.85))
         pad_bottom = max(8, int(h * 0.75))
     else:
-        pad_left = max(18, int(avg_comp_w * 1.8), int(w * 0.24))
+        pad_left = max(24, int(avg_comp_w * 2.35), int(w * 0.32))
         pad_right = max(12, int(avg_comp_w * 0.9), int(w * 0.12))
         pad_top = max(8, int(h * 0.50))
         pad_bottom = max(6, int(h * 0.28))
@@ -607,14 +1010,14 @@ def _find_led_candidate(bgr: np.ndarray, gray: np.ndarray, lit_mask: np.ndarray)
     return candidate
 
 
-def _find_lcd_candidate(gray: np.ndarray, dark_mask: np.ndarray) -> DisplayCandidate | None:
+def _find_lcd_candidate(bgr: np.ndarray, gray: np.ndarray, dark_mask: np.ndarray) -> DisplayCandidate | None:
     components = _extract_components(dark_mask)
     row_groups = _group_components_into_rows(components)
 
     best_group: list[dict[str, float]] | None = None
     best_score = -1e18
     for group in row_groups:
-        sc = _score_lcd_group(group, gray, dark_mask)
+        sc = _score_lcd_group(group, gray, dark_mask, bgr)
         if sc > best_score:
             best_score = sc
             best_group = group
@@ -625,6 +1028,156 @@ def _find_lcd_candidate(gray: np.ndarray, dark_mask: np.ndarray) -> DisplayCandi
     candidate = _candidate_from_group(best_group, gray.shape, "lcd", None)
     candidate.score = float(best_score)
     return candidate
+
+
+def _find_led_window_candidate(
+    bgr: np.ndarray,
+    gray: np.ndarray,
+    lit_mask: np.ndarray,
+    anchor: DisplayCandidate | None,
+) -> DisplayCandidate | None:
+    if anchor is None:
+        return None
+
+    edge_mask = _build_window_edge_mask(gray)
+    contours, _ = cv2.findContours(edge_mask, cv2.RETR_LIST, cv2.CHAIN_APPROX_SIMPLE)
+    best_candidate: DisplayCandidate | None = None
+    best_score = -1e18
+    image_area = float(gray.shape[0] * gray.shape[1])
+
+    for contour in contours:
+        area = float(cv2.contourArea(contour))
+        if area < image_area * 0.0006:
+            continue
+        x, y, w, h = cv2.boundingRect(contour)
+        score = _score_led_window_rect(x, y, w, h, area, gray, bgr, lit_mask, edge_mask, anchor)
+        if score > best_score:
+            cand = _candidate_from_rect(x, y, w, h, gray.shape, "led")
+            cand.group_size = anchor.group_size
+            cand.score = float(score)
+            best_candidate = cand
+            best_score = score
+
+    return best_candidate
+
+
+def _find_lcd_window_candidate(
+    bgr: np.ndarray,
+    gray: np.ndarray,
+    dark_mask: np.ndarray,
+) -> DisplayCandidate | None:
+    edge_mask = _build_window_edge_mask(gray)
+    contours, _ = cv2.findContours(edge_mask, cv2.RETR_LIST, cv2.CHAIN_APPROX_SIMPLE)
+    best_candidate: DisplayCandidate | None = None
+    best_score = -1e18
+    image_area = float(gray.shape[0] * gray.shape[1])
+
+    for contour in contours:
+        area = float(cv2.contourArea(contour))
+        if area < image_area * 0.0005:
+            continue
+        x, y, w, h = cv2.boundingRect(contour)
+        score = _score_lcd_window_rect(x, y, w, h, area, gray, bgr, dark_mask, edge_mask)
+        if score > best_score:
+            cand = _candidate_from_rect(x, y, w, h, gray.shape, "lcd")
+            cand.score = float(score)
+            best_candidate = cand
+            best_score = score
+
+    return best_candidate
+
+
+def _rescore_led_candidate(
+    candidate: DisplayCandidate,
+    bgr: np.ndarray,
+    gray: np.ndarray,
+    lit_mask: np.ndarray,
+) -> float:
+    crop_bgr = _crop_roi(bgr, candidate)
+    crop_gray = _crop_roi(gray, candidate)
+    crop_mask = _crop_roi(lit_mask, candidate)
+    if crop_bgr.size == 0 or crop_gray.size == 0 or crop_mask.size == 0:
+        return -1e9
+
+    metrics = _analyze_mask_structure(crop_mask, crop_gray, "led")
+    green_ratio = _compute_green_ratio(crop_bgr)
+    height, width = gray.shape[:2]
+    cx = (candidate.raw_x1 + candidate.raw_x2) / 2.0 / max(width, 1)
+    cy = (candidate.raw_y1 + candidate.raw_y2) / 2.0 / max(height, 1)
+
+    score = float(candidate.score)
+    score += float(metrics["quality_score"]) * 72.0
+    score += min(green_ratio / 0.08, 1.0) * 40.0
+    score += max(0.0, 1.0 - abs(cx - 0.5) / 0.5) * 8.0
+
+    if not bool(metrics["is_reliable"]):
+        score -= 46.0
+    if green_ratio < 0.010:
+        score -= 90.0
+    elif green_ratio < 0.020:
+        score -= 40.0
+    if cy > 0.82:
+        score -= 65.0
+    elif cy > 0.74:
+        score -= 32.0
+    if cy < 0.22:
+        score -= 18.0
+
+    return score
+
+
+def _rescore_lcd_candidate(
+    candidate: DisplayCandidate,
+    bgr: np.ndarray,
+    gray: np.ndarray,
+    dark_mask: np.ndarray,
+) -> float:
+    crop_bgr = _crop_roi(bgr, candidate)
+    crop_gray = _crop_roi(gray, candidate)
+    crop_mask = _crop_roi(dark_mask, candidate)
+    if crop_bgr.size == 0 or crop_gray.size == 0 or crop_mask.size == 0:
+        return -1e9
+
+    metrics = _analyze_mask_structure(crop_mask, crop_gray, "lcd")
+    hsv = cv2.cvtColor(crop_bgr, cv2.COLOR_BGR2HSV)
+    sat = hsv[:, :, 1]
+    hue = hsv[:, :, 0]
+    val = hsv[:, :, 2]
+    low_sat_ratio = float(np.count_nonzero(sat <= 72)) / float(max(sat.size, 1))
+    blue_ratio = float(
+        np.count_nonzero(
+            cv2.inRange(hue, 85, 135)
+            & cv2.inRange(sat, 40, 255)
+            & cv2.inRange(val, 35, 255)
+        )
+    ) / float(max(sat.size, 1))
+
+    height, width = gray.shape[:2]
+    cx = (candidate.raw_x1 + candidate.raw_x2) / 2.0 / max(width, 1)
+    cy = (candidate.raw_y1 + candidate.raw_y2) / 2.0 / max(height, 1)
+
+    score = float(candidate.score)
+    score += float(metrics["quality_score"]) * 78.0
+    score += min(low_sat_ratio / 0.75, 1.0) * 34.0
+    score += max(0.0, 1.0 - (blue_ratio / 0.20)) * 28.0
+    score += max(0.0, 1.0 - abs(cx - 0.5) / 0.5) * 8.0
+
+    if not bool(metrics["is_reliable"]):
+        score -= 42.0
+    if blue_ratio > 0.22:
+        score -= 80.0
+    elif blue_ratio > 0.14:
+        score -= 32.0
+    if low_sat_ratio < 0.38:
+        score -= 38.0
+    if cy > 0.68:
+        score -= 70.0
+    elif cy > 0.58:
+        score -= 28.0
+    if cy < 0.12:
+        score -= 20.0
+
+    return score
 
 
 def _range_score(value: float, low: float, high: float) -> float:
@@ -702,7 +1255,7 @@ def _analyze_mask_structure(mask: np.ndarray, gray: np.ndarray, mode: str) -> di
     quality_score = 0.0
     quality_score += min(best_group_size / (3.0 if mode == "lcd" else 4.0), 1.0) * 0.34
     quality_score += _range_score(active_span_ratio, 0.18 if mode == "lcd" else 0.28, 0.95) * 0.20
-    quality_score += _range_score(active_band_height_ratio, 0.07 if mode == "lcd" else 0.12, 0.75) * 0.14
+    quality_score += _range_score(active_band_height_ratio, 0.07 if mode == "lcd" else 0.12, 0.58 if mode == "lcd" else 0.60) * 0.14
     quality_score += _range_score(lit_ratio, 0.004 if mode == "lcd" else 0.012, 0.34) * 0.10
     quality_score += _range_score(1.0 - leading_blank_ratio, 0.20, 1.00) * 0.06
     quality_score += max(0.0, best_group_score) * 0.16
@@ -715,6 +1268,8 @@ def _analyze_mask_structure(mask: np.ndarray, gray: np.ndarray, mode: str) -> di
         failures.append("active row too narrow")
     if active_band_height_ratio < (0.07 if mode == "lcd" else 0.12):
         failures.append("active band too thin")
+    if active_band_height_ratio > (0.58 if mode == "lcd" else 0.60):
+        failures.append("active band too tall for a display row")
     if lit_ratio < (0.004 if mode == "lcd" else 0.012):
         failures.append("too little display structure")
     if leading_blank_ratio > 0.80:
@@ -734,6 +1289,7 @@ def _analyze_mask_structure(mask: np.ndarray, gray: np.ndarray, mode: str) -> di
             and best_group_size >= min_group
             and active_span_ratio >= (0.18 if mode == "lcd" else 0.28)
             and active_band_height_ratio >= (0.07 if mode == "lcd" else 0.12)
+            and active_band_height_ratio <= (0.58 if mode == "lcd" else 0.60)
         ),
         "reason": "localized crop contains a coherent active display row"
         if quality_score >= (0.54 if mode == "lcd" else 0.58) and best_group_size >= min_group
@@ -745,9 +1301,18 @@ def analyze_crop_diagnostics(crop_img: Image.Image) -> CropDiagnostics:
     crop_img = resize_keep_aspect(crop_img, max_dim=900)
     bgr = pil_to_bgr(crop_img)
     gray = cv2.cvtColor(bgr, cv2.COLOR_BGR2GRAY)
+    hsv = cv2.cvtColor(bgr, cv2.COLOR_BGR2HSV)
     lit_mask = _build_lit_mask(bgr)
     dark_mask = _build_dark_digit_mask(gray)
     green_ratio = _compute_green_ratio(bgr)
+    blue_ratio = float(
+        np.count_nonzero(
+            cv2.inRange(hsv[:, :, 0], 85, 135)
+            & cv2.inRange(hsv[:, :, 1], 35, 255)
+            & cv2.inRange(hsv[:, :, 2], 30, 255)
+        )
+    ) / float(max(gray.size, 1))
+    dark_ratio = float(np.count_nonzero(cv2.inRange(gray, 0, 105))) / float(max(gray.size, 1))
 
     led_metrics = _analyze_mask_structure(lit_mask, gray, "led")
     lcd_metrics = _analyze_mask_structure(dark_mask, gray, "lcd")
@@ -762,6 +1327,10 @@ def analyze_crop_diagnostics(crop_img: Image.Image) -> CropDiagnostics:
         is_reliable = False
         quality_score = min(quality_score, 0.42)
         reason = "crop lacks enough green LED signal and is likely not a readable LED display row"
+    if mode == "led" and blue_ratio > 0.20 and dark_ratio < 0.14:
+        is_reliable = False
+        quality_score = min(quality_score, 0.38)
+        reason = "crop looks like green reflections on a blue machine panel, not a dark LED display window"
 
     return CropDiagnostics(
         is_reliable=is_reliable,
@@ -1087,17 +1656,44 @@ def locate_display_crop(img: Image.Image, max_dim: int = 1600) -> tuple[Image.Im
     lit_mask = _build_lit_mask(bgr)
     dark_mask = _build_dark_digit_mask(gray)
 
-    led_candidate = _find_led_candidate(bgr, gray, lit_mask)
-    lcd_candidate = _find_lcd_candidate(gray, dark_mask)
+    led_row_candidate = _find_led_candidate(bgr, gray, lit_mask)
+    led_window_candidate = _find_led_window_candidate(bgr, gray, lit_mask, led_row_candidate)
+    lcd_row_candidate = _find_lcd_candidate(bgr, gray, dark_mask)
+    lcd_window_candidate = _find_lcd_window_candidate(bgr, gray, dark_mask)
+
+    led_candidate = led_window_candidate or led_row_candidate
+    lcd_candidate = (
+        lcd_window_candidate
+        if lcd_window_candidate is not None and (
+            lcd_row_candidate is None or lcd_window_candidate.score >= lcd_row_candidate.score - 8.0
+        )
+        else lcd_row_candidate
+    )
+
+    led_final_score = (
+        _rescore_led_candidate(led_candidate, bgr, gray, lit_mask)
+        if led_candidate is not None
+        else -1e18
+    )
+    lcd_final_score = (
+        _rescore_lcd_candidate(lcd_candidate, bgr, gray, dark_mask)
+        if lcd_candidate is not None
+        else -1e18
+    )
 
     chosen: DisplayCandidate | None = None
     if led_candidate and lcd_candidate:
-        chosen = led_candidate if led_candidate.score >= lcd_candidate.score else lcd_candidate
+        chosen = led_candidate if led_final_score >= lcd_final_score else lcd_candidate
     else:
         chosen = led_candidate or lcd_candidate
 
     # Fallback if nothing reasonable
-    if chosen is None or chosen.score < 45:
+    chosen_score = (
+        led_final_score if chosen is led_candidate else lcd_final_score
+        if chosen is not None
+        else -1e18
+    )
+    if chosen is None or chosen_score < 45:
         H, W = gray.shape[:2]
         x1 = int(W * 0.18)
         y1 = int(H * 0.48)
@@ -1105,15 +1701,30 @@ def locate_display_crop(img: Image.Image, max_dim: int = 1600) -> tuple[Image.Im
         y2 = int(H * 0.72)
         cv2.rectangle(dbg, (x1, y1), (x2, y2), (0, 255, 255), 2)
         crop = bgr[y1:y2, x1:x2]
-        crop = enhance_display_crop(crop)
         return bgr_to_pil(crop), bgr_to_pil(dbg)
 
+    if led_row_candidate is not None and led_row_candidate is not led_candidate:
+        cv2.rectangle(
+            dbg,
+            (led_row_candidate.crop_x1, led_row_candidate.crop_y1),
+            (led_row_candidate.crop_x2, led_row_candidate.crop_y2),
+            (255, 128, 0),
+            1,
+        )
     if led_candidate is not None:
         cv2.rectangle(
             dbg,
             (led_candidate.crop_x1, led_candidate.crop_y1),
             (led_candidate.crop_x2, led_candidate.crop_y2),
             (0, 255, 255),
+            1,
+        )
+    if lcd_row_candidate is not None and lcd_row_candidate is not lcd_candidate:
+        cv2.rectangle(
+            dbg,
+            (lcd_row_candidate.crop_x1, lcd_row_candidate.crop_y1),
+            (lcd_row_candidate.crop_x2, lcd_row_candidate.crop_y2),
+            (255, 0, 255),
             1,
         )
     if lcd_candidate is not None:
@@ -1141,6 +1752,5 @@ def locate_display_crop(img: Image.Image, max_dim: int = 1600) -> tuple[Image.Im
     )
 
     crop = bgr[chosen.crop_y1:chosen.crop_y2, chosen.crop_x1:chosen.crop_x2]
-    crop = enhance_display_crop(crop)
 
     return bgr_to_pil(crop), bgr_to_pil(dbg)

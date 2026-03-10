@@ -69,7 +69,7 @@
 </head>
 <body>
   <h1>Gemini Scale Reader</h1>
-  <p class="muted">Upload one image. Backend localizes display and sends crop + context images to Gemini.</p>
+  <p class="muted">Upload one image. Backend uses Gemini Flash-Lite to localize the display, then Gemini Flash reads the value with fallback verification.</p>
 
   <div class="card">
     <input id="fileInput" type="file" accept="image/*" />
@@ -172,6 +172,7 @@
         const finalResult = data.final || {};
         jsonOutput.textContent = JSON.stringify({
           final: finalResult,
+          localization: data.localization || null,
           crop_diagnostics: data.crop_diagnostics || null
         }, null, 2);
 
