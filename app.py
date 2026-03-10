@@ -22,7 +22,6 @@ from vision import (
     LocalDecodeResult,
     analyze_crop_diagnostics,
     decode_display_crop,
-    locate_display_crop,
     resize_keep_aspect,
 )
 
@@ -33,12 +32,13 @@ PROMPT_PATH = BASE_DIR / "prompts" / "scale_reader.txt"
 STATIC_DIR = BASE_DIR / "static"
 
 MODEL_NAME = os.getenv("MODEL_NAME", "gemini-2.5-flash")
-VERIFY_MODEL_NAME = os.getenv("VERIFY_MODEL_NAME", "gemini-2.5-pro")
 LOCALIZER_MODEL_NAME = os.getenv("LOCALIZER_MODEL_NAME", "gemini-2.5-flash-lite")
 MAX_IMAGE_MB = int(os.getenv("MAX_IMAGE_MB", "10"))
 MAX_IMAGE_BYTES = MAX_IMAGE_MB * 1024 * 1024
 MAX_DIMENSION = int(os.getenv("MAX_DIMENSION", "1200"))
 LOCALIZER_MAX_DIMENSION = int(os.getenv("LOCALIZER_MAX_DIMENSION", "1024"))
+READ_TEMPERATURE = float(os.getenv("READ_TEMPERATURE", "0.0"))
+LOCALIZER_TEMPERATURE = float(os.getenv("LOCALIZER_TEMPERATURE", "0.0"))
 EXPECTED_DECIMALS = (os.getenv("EXPECTED_DECIMALS") or os.getenv("FIXED_DECIMALS") or "").strip()
 LOCAL_DECODER_MIN_CONFIDENCE = float(os.getenv("LOCAL_DECODER_MIN_CONFIDENCE", "0.90"))
 LOCALIZER_MIN_CONFIDENCE = float(os.getenv("LOCALIZER_MIN_CONFIDENCE", "0.45"))
@@ -104,17 +104,32 @@ def pil_to_jpeg_bytes(img: Image.Image, quality: int = 92) -> bytes:
     return buf.getvalue()
 
 
+def make_placeholder_preview(
+    size: tuple[int, int],
+    message: str,
+) -> Image.Image:
+    width, height = size
+    canvas = Image.new("RGB", (max(320, width), max(120, height)), (245, 245, 245))
+    draw = ImageDraw.Draw(canvas)
+    draw.rectangle((0, 0, canvas.width - 1, canvas.height - 1), outline=(210, 210, 210), width=2)
+    draw.text((18, max(18, canvas.height // 2 - 10)), message, fill=(120, 120, 120))
+    return canvas
+
+
 def call_gemini_localizer(localizer_img: Image.Image) -> LocalizationResult:
     instructions = (
-        "Locate the numeric display window only. "
-        "Return one bounding box tightly enclosing the full display screen/window that contains the numeric reading. "
-        "Do not return the machine body, bowl, buttons, blue base, watermark/date text, brand text, or reflections. "
-        "For LED displays, include the full dark display window including faint inactive left slots. "
-        "For LCD displays, include the full rectangular LCD screen. "
+        "Role: display-window localizer only. Do not read or infer the numeric value. "
+        "Return exactly one bounding box around the full physical display window or screen. "
+        "Good box: contains the complete readable row, the leftmost and rightmost digit edges, any tiny decimal dot, and a small safe border. "
+        "Bad box: only bright digit blobs, only the center digits, only one digit, only the top strip of the display, bowl rim, steel ring, machine body, blue base, buttons, labels, branding, watermark/date text, reflections, or empty background. "
+        "For LED devices, box the full dark display panel, including faint aligned placeholder cells if they belong to the same panel. "
+        "For LCD devices, box the full inner LCD screen rectangle, not just the digits. "
+        "If a candidate box would clip any digit edge or decimal dot, reject that box. If no complete display window is clearly visible, set found=false rather than returning a partial box. "
+        "If multiple candidate windows exist, choose the one that contains the complete row, not the brightest or tightest crop. "
         "Coordinates must be integers normalized from 0 to 1000 relative to the full input image. "
-        "If no display window is visible, set found=false. "
         "display_kind must be one of: led, lcd, unknown. "
-        "confidence is localization confidence only."
+        "confidence is localization confidence only. "
+        "In reason, describe location only and never mention an inferred reading."
     )
 
     selected_model = LOCALIZER_MODEL_NAME
@@ -125,7 +140,7 @@ def call_gemini_localizer(localizer_img: Image.Image) -> LocalizationResult:
             config=types.GenerateContentConfig(
                 response_mime_type="application/json",
                 response_schema=LocalizationResult,
-                temperature=0.0,
+                temperature=LOCALIZER_TEMPERATURE,
             ),
         )
     except Exception:
@@ -136,7 +151,7 @@ def call_gemini_localizer(localizer_img: Image.Image) -> LocalizationResult:
                 config=types.GenerateContentConfig(
                     response_mime_type="application/json",
                     response_schema=LocalizationResult,
-                    temperature=0.0,
+                    temperature=LOCALIZER_TEMPERATURE,
                 ),
             )
         else:
@@ -215,19 +230,19 @@ def expand_localization_box(
 
     if display_kind == "led":
         left_pad = int(round(bw * 0.22))
-        right_pad = int(round(bw * 0.12))
+        right_pad = max(int(round(bw * 0.18)), 12)
         top_pad = int(round(bh * 0.20))
-        bottom_pad = int(round(bh * 0.20))
+        bottom_pad = max(int(round(bh * 0.26)), 8)
     elif display_kind == "lcd":
         left_pad = int(round(bw * 0.10))
-        right_pad = int(round(bw * 0.10))
+        right_pad = max(int(round(bw * 0.15)), 10)
         top_pad = int(round(bh * 0.16))
-        bottom_pad = int(round(bh * 0.16))
+        bottom_pad = max(int(round(bh * 0.22)), 8)
     else:
         left_pad = int(round(bw * 0.14))
-        right_pad = int(round(bw * 0.12))
+        right_pad = max(int(round(bw * 0.16)), 10)
         top_pad = int(round(bh * 0.18))
-        bottom_pad = int(round(bh * 0.18))
+        bottom_pad = max(int(round(bh * 0.24)), 8)
 
     return (
         max(0, x1 - left_pad),
@@ -256,6 +271,16 @@ def draw_localization_debug(
     }.get(display_kind, (255, 64, 64))
     draw.rectangle(box, outline=color, width=max(2, img.width // 300))
     draw.text((box[0] + 4, max(0, box[1] - 18)), f"{source}:{display_kind}", fill=color)
+    return debug
+
+
+def draw_fallback_debug(
+    img: Image.Image,
+    text: str,
+) -> Image.Image:
+    debug = img.copy()
+    draw = ImageDraw.Draw(debug)
+    draw.text((12, 12), text, fill=(255, 64, 64))
     return debug
 
 
@@ -526,7 +551,7 @@ def call_gemini_with_instructions(
             config=types.GenerateContentConfig(
                 response_mime_type="application/json",
                 response_schema=ReadingResult,
-                temperature=0.0,
+                temperature=READ_TEMPERATURE,
             ),
         )
     except Exception:
@@ -537,7 +562,7 @@ def call_gemini_with_instructions(
                 config=types.GenerateContentConfig(
                     response_mime_type="application/json",
                     response_schema=ReadingResult,
-                    temperature=0.0,
+                    temperature=READ_TEMPERATURE,
                 ),
             )
         else:
@@ -560,30 +585,6 @@ def call_gemini_with_instructions(
         return post_process_result(result)
     except (json.JSONDecodeError, ValidationError) as e:
         raise HTTPException(status_code=502, detail=f"Invalid Gemini JSON response: {e}")
-
-
-def choose_result(
-    primary_result: ReadingResult,
-    secondary_result: ReadingResult,
-    crop_diagnostics: CropDiagnostics,
-    expected_digit_count: int | None = None,
-) -> ReadingResult:
-    primary_suspicious = is_suspicious_read(primary_result, crop_diagnostics, expected_digit_count)
-    secondary_suspicious = is_suspicious_read(secondary_result, crop_diagnostics, expected_digit_count)
-
-    if primary_suspicious and not secondary_suspicious:
-        return secondary_result
-    if secondary_suspicious and not primary_suspicious:
-        return primary_result
-
-    if primary_result.status == "ok" and secondary_result.status != "ok":
-        return primary_result
-    if secondary_result.status == "ok" and primary_result.status != "ok":
-        return secondary_result
-
-    if secondary_result.confidence > primary_result.confidence + 0.12:
-        return secondary_result
-    return primary_result
 
 
 def mark_suspicious_for_review(
@@ -639,6 +640,9 @@ def call_gemini_on_crop(
                 "Count only bright illuminated segments as real digits. "
                 "Dim gray placeholder 8-shapes on the left are inactive slots and must be ignored. "
                 "Do not let the full photo override a clean crop. "
+                "However, if the crop trims any digit edge, clips the top or bottom of a digit, or clips a tiny decimal dot near the right side, use the original full photo only to recover the missing boundary and decimal placement. "
+                "A tiny isolated decimal dot near the right edge or lower-right edge of the crop is part of the reading and must not be dropped. "
+                "Never convert a clipped crop into an integer-looking token such as 18660 or 0670 when the full display in context shows a decimal point. "
                 "Read every active digit slot; do not drop a visible middle digit such as 18.730 into 18.30. "
                 f"{local_hint}{local_value_hint}"
                 f"Crop diagnostics: score={crop_diagnostics.quality_score}, reason={crop_diagnostics.reason}."
@@ -647,7 +651,7 @@ def call_gemini_on_crop(
             original_img,
             model_name=MODEL_NAME,
             primary_source="crop",
-            include_secondary=False,
+            include_secondary=True,
         )
 
         if use_local_decoder and local_result.ok and local_result.confidence >= LOCAL_DECODER_MIN_CONFIDENCE and not is_suspicious_read(local_reading, crop_diagnostics, expected_digit_count):
@@ -663,40 +667,10 @@ def call_gemini_on_crop(
         if not is_suspicious_read(primary_result, crop_diagnostics, expected_digit_count):
             return primary_result
 
-        verification_result = call_gemini_with_instructions(
-            (
-                "The crop-first answer looked suspicious. "
-                "Re-read using the ORIGINAL full photo as primary and the crop as confirmation. "
-                "If the crop shows dim gray placeholder 8-shapes before bright green digits, ignore the gray placeholders. "
-                "Do not convert a visible display like 18.670 into 88.600 or 88830. "
-                "Do not drop the middle digit from a five-digit read like 18.730 into 18.30. "
-                f"{local_hint}{local_value_hint}"
-                f"Previous answer was {primary_result.value_text!r}. "
-                f"Crop diagnostics: score={crop_diagnostics.quality_score}, reason={crop_diagnostics.reason}."
-            ),
-            crop_img,
-            original_img,
-            model_name=VERIFY_MODEL_NAME,
-            primary_source="original",
-            include_secondary=True,
+        return mark_suspicious_for_review(
+            primary_result,
+            "Single-pass crop read remained suspicious. Marked for review.",
         )
-        chosen = choose_result(primary_result, verification_result, crop_diagnostics, expected_digit_count)
-        if use_local_decoder and local_result.ok and local_result.confidence >= LOCAL_DECODER_MIN_CONFIDENCE and not is_suspicious_read(local_reading, crop_diagnostics, expected_digit_count):
-            if is_suspicious_read(chosen, crop_diagnostics, expected_digit_count):
-                return local_reading
-            if local_reading.confidence >= chosen.confidence + 0.08:
-                return local_reading
-            if local_reading.value_text == chosen.value_text:
-                chosen.confidence = max(chosen.confidence, local_reading.confidence)
-                chosen.reason = f"{chosen.reason} Confirmed by deterministic seven-segment decoder."
-        if is_suspicious_read(chosen, crop_diagnostics, expected_digit_count):
-            return mark_suspicious_for_review(
-                chosen,
-                "Both crop-first and full-photo verification remained suspicious. Marked for review.",
-            )
-        if chosen is verification_result and chosen.status == "ok":
-            chosen.reason = f"{chosen.reason} Replaced suspicious crop-first read using full-photo verification."
-        return chosen
 
     weak_crop_hint = (
         f"The weak crop still suggests about {led_local_result.digit_count} active digit slots and "
@@ -709,8 +683,9 @@ def call_gemini_on_crop(
         (
             "Localized crop quality is LOW or partial. "
             "Use the ORIGINAL full photo as the only source of truth for this pass. "
-            "Ignore the localized crop unless a later verification step explicitly asks for it. "
+            "Ignore the localized crop completely. "
             "If the crop looks like bezel, machine body, or a blue strip, ignore it completely. "
+            "If the crop likely clipped a tiny decimal dot near the right edge or lower-right edge of the display, treat the crop as incomplete and recover the full reading from the original photo. "
             "Do not drop a faint but aligned leading digit on the left edge of the display row. "
             "If the full display row is `18540` with a visible decimal after the second digit, return `18.540`, not `8.540`. "
             f"{weak_crop_hint}"
@@ -732,32 +707,45 @@ def call_gemini_on_crop(
     if not is_suspicious_read(primary_result, crop_diagnostics, expected_digit_count):
         return primary_result
 
-    verification_result = call_gemini_with_instructions(
+    return mark_suspicious_for_review(
+        primary_result,
+        "Single-pass original-photo read remained suspicious after rejecting the weak crop. Marked for review.",
+    )
+
+
+def call_gemini_on_full_image(
+    original_img: Image.Image,
+    fallback_reason: str,
+    *,
+    display_kind: str = "unknown",
+) -> ReadingResult:
+    kind_hint = ""
+    if display_kind in {"led", "lcd"}:
+        kind_hint = f"The device likely uses a {display_kind.upper()} display. "
+
+    primary_result = call_gemini_with_instructions(
         (
-            "Second pass: the localized crop is unreliable, so ignore it unless it clearly shows the display window. "
-            "Read the value from the ORIGINAL full photo only. "
-            "Re-check for a faint but real leading `1` on the left of the bright digits. "
-            "If the display row is visibly `18.540`, do not return `8.540`. "
-            "Return needs_review if the display cannot be cleanly read. "
-            f"Previous answer was {primary_result.value_text!r}. "
-            f"{weak_crop_hint}"
-            f"Crop diagnostics: score={crop_diagnostics.quality_score}, reason={crop_diagnostics.reason}."
+            "No trustworthy localized ROI is available. "
+            "Read the value directly from the ORIGINAL full photo only. "
+            "Ignore any imagined crop or display box. "
+            "Look carefully for a tiny isolated decimal dot near the numeric row baseline, especially near the right side of the display. "
+            f"{kind_hint}"
+            f"Localization fallback reason: {fallback_reason}"
         ),
-        crop_img,
         original_img,
-        model_name=VERIFY_MODEL_NAME,
+        original_img,
+        model_name=MODEL_NAME,
         primary_source="original",
         include_secondary=False,
     )
-    chosen = choose_result(primary_result, verification_result, crop_diagnostics, expected_digit_count)
-    if is_suspicious_read(chosen, crop_diagnostics, expected_digit_count):
-        return mark_suspicious_for_review(
-            chosen,
-            "Both context-first passes remained suspicious after rejecting the weak crop. Marked for review.",
-        )
-    if chosen is verification_result and chosen.status == "ok":
-        chosen.reason = f"{chosen.reason} Used context-first fallback because crop was unreliable."
-    return chosen
+
+    if not is_suspicious_read(primary_result):
+        return primary_result
+
+    return mark_suspicious_for_review(
+        primary_result,
+        "Single-pass full-image fallback remained suspicious. Marked for review.",
+    )
 
 
 @app.get("/")
@@ -770,7 +758,6 @@ def health() -> dict:
     return {
         "ok": True,
         "model": MODEL_NAME,
-        "verify_model": VERIFY_MODEL_NAME,
         "localizer_model": LOCALIZER_MODEL_NAME,
         "localizer_min_confidence": LOCALIZER_MIN_CONFIDENCE,
         "localizer_max_dimension": LOCALIZER_MAX_DIMENSION,
@@ -798,16 +785,17 @@ async def read_scale(file: UploadFile = File(...)) -> JSONResponse:
     enhanced_full_img = make_enhanced_display_image(original_img, max_dim=MAX_DIMENSION)
     localizer_img = resize_keep_aspect(original_img, max_dim=LOCALIZER_MAX_DIMENSION)
     localization_payload: dict[str, object] = {
-        "source": "cv_fallback",
+        "source": "full_image_fallback",
         "model": LOCALIZER_MODEL_NAME,
         "found": False,
         "confidence": 0.0,
         "display_kind": "unknown",
-        "reason": "Gemini localizer was not used.",
+        "reason": "Gemini localizer did not produce a usable ROI.",
     }
 
     crop_img: Image.Image
     debug_img: Image.Image
+    result: ReadingResult
     try:
         localization = call_gemini_localizer(localizer_img)
         raw_box = localization_box_to_pixels(localization, original_img.size)
@@ -847,10 +835,18 @@ async def read_scale(file: UploadFile = File(...)) -> JSONResponse:
                     "y2": expanded_box[3],
                 },
             }
+            crop_diagnostics = analyze_crop_diagnostics(crop_img)
+            crop_diagnostics = apply_localization_mode_hint(
+                crop_diagnostics,
+                str(localization_payload.get("display_kind", "unknown")),
+                float(localization_payload.get("confidence", 0.0)),
+            )
+            result = call_gemini_on_crop(crop_img, original_img, crop_diagnostics)
         else:
-            crop_img, debug_img = locate_display_crop(original_img, max_dim=MAX_DIMENSION)
+            crop_img = make_placeholder_preview((720, 180), "No localized ROI used")
+            debug_img = draw_fallback_debug(original_img, "full-image fallback")
             localization_payload = {
-                "source": "cv_fallback",
+                "source": "full_image_fallback",
                 "model": LOCALIZER_MODEL_NAME,
                 "found": localization.found,
                 "confidence": round(localization.confidence, 3),
@@ -860,30 +856,52 @@ async def read_scale(file: UploadFile = File(...)) -> JSONResponse:
                     f"Localizer reason: {localization.reason}"
                 ),
             }
+            crop_diagnostics = CropDiagnostics(
+                is_reliable=False,
+                mode=localization.display_kind,
+                quality_score=0.0,
+                lit_ratio=0.0,
+                green_ratio=0.0,
+                component_count=0,
+                active_span_ratio=0.0,
+                active_band_height_ratio=0.0,
+                leading_blank_ratio=0.0,
+                reason="No localized ROI was used. Reading fell back to original-only Gemini analysis.",
+            )
+            result = call_gemini_on_full_image(
+                original_img,
+                str(localization_payload["reason"]),
+                display_kind=localization.display_kind,
+            )
     except Exception as e:
-        crop_img, debug_img = locate_display_crop(original_img, max_dim=MAX_DIMENSION)
+        crop_img = make_placeholder_preview((720, 180), "No localized ROI used")
+        debug_img = draw_fallback_debug(original_img, "full-image fallback")
         localization_payload = {
-            "source": "cv_fallback",
+            "source": "full_image_fallback",
             "model": LOCALIZER_MODEL_NAME,
             "found": False,
             "confidence": 0.0,
             "display_kind": "unknown",
             "reason": f"Gemini localization failed: {e}",
         }
-
-    crop_diagnostics = analyze_crop_diagnostics(crop_img)
-    crop_diagnostics = apply_localization_mode_hint(
-        crop_diagnostics,
-        str(localization_payload.get("display_kind", "unknown")),
-        float(localization_payload.get("confidence", 0.0)),
-    )
+        crop_diagnostics = CropDiagnostics(
+            is_reliable=False,
+            mode="unknown",
+            quality_score=0.0,
+            lit_ratio=0.0,
+            green_ratio=0.0,
+            component_count=0,
+            active_span_ratio=0.0,
+            active_band_height_ratio=0.0,
+            leading_blank_ratio=0.0,
+            reason="Gemini localization failed. Reading fell back to original-only Gemini analysis.",
+        )
+        result = call_gemini_on_full_image(original_img, str(localization_payload["reason"]))
 
     _LAST_PREVIEWS["original"] = pil_to_jpeg_bytes(original_img)
     _LAST_PREVIEWS["enhanced"] = pil_to_jpeg_bytes(enhanced_full_img)
     _LAST_PREVIEWS["crop"] = pil_to_jpeg_bytes(crop_img)
     _LAST_PREVIEWS["debug"] = pil_to_jpeg_bytes(debug_img)
-
-    result = call_gemini_on_crop(crop_img, original_img, crop_diagnostics)
 
     return JSONResponse(
         content={
