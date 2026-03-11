@@ -4,6 +4,7 @@ import io
 import json
 import os
 import re
+import time
 from pathlib import Path
 from typing import Literal, Optional
 
@@ -32,7 +33,10 @@ PROMPT_PATH = BASE_DIR / "prompts" / "scale_reader.txt"
 STATIC_DIR = BASE_DIR / "static"
 
 MODEL_NAME = os.getenv("MODEL_NAME", "gemini-2.5-flash")
-LOCALIZER_MODEL_NAME = os.getenv("LOCALIZER_MODEL_NAME", "gemini-2.5-flash-lite")
+_raw_localizer = os.getenv("LOCALIZER_MODEL_NAME", "gemini-2.5-flash")
+# Safety: never allow the lite model for localization — it consistently mislocalizes
+LOCALIZER_MODEL_NAME = MODEL_NAME if "lite" in _raw_localizer.lower() else _raw_localizer
+
 MAX_IMAGE_MB = int(os.getenv("MAX_IMAGE_MB", "10"))
 MAX_IMAGE_BYTES = MAX_IMAGE_MB * 1024 * 1024
 MAX_DIMENSION = int(os.getenv("MAX_DIMENSION", "1200"))
@@ -42,16 +46,31 @@ LOCALIZER_TEMPERATURE = float(os.getenv("LOCALIZER_TEMPERATURE", "0.0"))
 EXPECTED_DECIMALS = (os.getenv("EXPECTED_DECIMALS") or os.getenv("FIXED_DECIMALS") or "").strip()
 LOCAL_DECODER_MIN_CONFIDENCE = float(os.getenv("LOCAL_DECODER_MIN_CONFIDENCE", "0.90"))
 LOCALIZER_MIN_CONFIDENCE = float(os.getenv("LOCALIZER_MIN_CONFIDENCE", "0.45"))
+# Confidence threshold above which we skip the region-refiner pass (saves ~1s latency)
+LOCALIZER_SKIP_REFINE_THRESHOLD = float(os.getenv("LOCALIZER_SKIP_REFINE_THRESHOLD", "0.90"))
 
 if not os.getenv("GEMINI_API_KEY"):
     raise RuntimeError("Missing GEMINI_API_KEY in environment.")
 
 client = genai.Client(api_key=os.getenv("GEMINI_API_KEY"))
 
-app = FastAPI(title="Gemini Scale Reader", version="6.0.0")
+app = FastAPI(title="Gemini Scale Reader", version="9.0.0")
 app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
 
 _LAST_PREVIEWS: dict[str, bytes] = {}
+
+# ------------------------------------------------------------------ #
+# Prompt cache — load once, never hit disk again                       #
+# ------------------------------------------------------------------ #
+_PROMPT_CACHE: str | None = None
+
+def load_prompt_text() -> str:
+    global _PROMPT_CACHE
+    if _PROMPT_CACHE is None:
+        if not PROMPT_PATH.exists():
+            raise RuntimeError(f"Prompt file not found: {PROMPT_PATH}")
+        _PROMPT_CACHE = PROMPT_PATH.read_text(encoding="utf-8").strip()
+    return _PROMPT_CACHE
 
 
 class ReadingResult(BaseModel):
@@ -72,12 +91,6 @@ class LocalizationResult(BaseModel):
     confidence: float = Field(ge=0.0, le=1.0)
     display_kind: Literal["led", "lcd", "unknown"] = "unknown"
     reason: str
-
-
-def load_prompt() -> str:
-    if not PROMPT_PATH.exists():
-        raise RuntimeError(f"Prompt file not found: {PROMPT_PATH}")
-    return PROMPT_PATH.read_text(encoding="utf-8").strip()
 
 
 def validate_upload(file: UploadFile, data: bytes) -> None:
@@ -104,10 +117,7 @@ def pil_to_jpeg_bytes(img: Image.Image, quality: int = 92) -> bytes:
     return buf.getvalue()
 
 
-def make_placeholder_preview(
-    size: tuple[int, int],
-    message: str,
-) -> Image.Image:
+def make_placeholder_preview(size: tuple[int, int], message: str) -> Image.Image:
     width, height = size
     canvas = Image.new("RGB", (max(320, width), max(120, height)), (245, 245, 245))
     draw = ImageDraw.Draw(canvas)
@@ -116,27 +126,28 @@ def make_placeholder_preview(
     return canvas
 
 
-def call_gemini_localizer(localizer_img: Image.Image) -> LocalizationResult:
-    instructions = (
-        "Role: display-window localizer only. Do not read or infer the numeric value. "
-        "Return exactly one bounding box around the full physical display window or screen. "
-        "Good box: contains the complete readable row, the leftmost and rightmost digit edges, any tiny decimal dot, and a small safe border. "
-        "Bad box: only bright digit blobs, only the center digits, only one digit, only the top strip of the display, bowl rim, steel ring, machine body, blue base, buttons, labels, branding, watermark/date text, reflections, or empty background. "
-        "For LED devices, box the full dark display panel, including faint aligned placeholder cells if they belong to the same panel. "
-        "For LCD devices, box the full inner LCD screen rectangle, not just the digits. "
-        "If a candidate box would clip any digit edge or decimal dot, reject that box. If no complete display window is clearly visible, set found=false rather than returning a partial box. "
-        "If multiple candidate windows exist, choose the one that contains the complete row, not the brightest or tightest crop. "
-        "Coordinates must be integers normalized from 0 to 1000 relative to the full input image. "
-        "display_kind must be one of: led, lcd, unknown. "
-        "confidence is localization confidence only. "
-        "In reason, describe location only and never mention an inferred reading."
-    )
+# ----------------------------
+# Gemini localizer helpers
+# ----------------------------
 
-    selected_model = LOCALIZER_MODEL_NAME
+def _call_gemini_localizer_once(
+    localizer_original_img: Image.Image,
+    localizer_enhanced_img: Image.Image,
+    instructions: str,
+    *,
+    model_name: str | None = None,
+) -> LocalizationResult:
+    selected_model = model_name or LOCALIZER_MODEL_NAME
     try:
         response = client.models.generate_content(
             model=selected_model,
-            contents=[instructions, localizer_img],
+            contents=[
+                instructions,
+                "PRIMARY image: ORIGINAL full photo. Use this as the source of truth for physical display location.",
+                localizer_original_img,
+                "CONTEXT image: ENHANCED full photo. Use this only to help visibility of the display window, not to invent a location.",
+                localizer_enhanced_img,
+            ],
             config=types.GenerateContentConfig(
                 response_mime_type="application/json",
                 response_schema=LocalizationResult,
@@ -147,7 +158,13 @@ def call_gemini_localizer(localizer_img: Image.Image) -> LocalizationResult:
         if selected_model != MODEL_NAME:
             response = client.models.generate_content(
                 model=MODEL_NAME,
-                contents=[instructions, localizer_img],
+                contents=[
+                    instructions,
+                    "PRIMARY image: ORIGINAL full photo. Use this as the source of truth for physical display location.",
+                    localizer_original_img,
+                    "CONTEXT image: ENHANCED full photo. Use this only to help visibility of the display window, not to invent a location.",
+                    localizer_enhanced_img,
+                ],
                 config=types.GenerateContentConfig(
                     response_mime_type="application/json",
                     response_schema=LocalizationResult,
@@ -175,6 +192,152 @@ def call_gemini_localizer(localizer_img: Image.Image) -> LocalizationResult:
         raise HTTPException(status_code=502, detail=f"Invalid Gemini localization JSON response: {e}")
 
 
+def _primary_localizer_instructions() -> str:
+    return (
+        "You are a precision bounding-box locator. Your ONLY job is to find the numeric display window. "
+        "Do NOT read or report any numbers.\n\n"
+        "WHAT YOU ARE LOOKING FOR — the display window is ONE of these:\n"
+        "  (A) LED display: a DARK rectangular panel/window with BRIGHT GREEN or orange digit segments "
+        "glowing in a horizontal row. The dark background is part of the window. "
+        "It is typically in the LOWER portion of the scale body, BELOW the weighing bowl/pan.\n"
+        "  (B) LCD display: a rectangular screen with DARK digit segments on a GRAY/LIGHT background. "
+        "Common on micrometers, calipers, gauges. Typically in the CENTER or UPPER part of the device body.\n\n"
+        "HOW TO LOCATE IT:\n"
+        "1. First identify what type of measuring device is in the image.\n"
+        "2. For a PRECISION BALANCE / WEIGHING SCALE with a bowl or pan on top:\n"
+        "   - The bowl/pan is at the TOP. Ignore it.\n"
+        "   - The LED display is BELOW the bowl, embedded in the scale body.\n"
+        "   - Look for a dark rectangular cutout in the scale body with glowing green digits.\n"
+        "   - It is ABOVE the control buttons.\n"
+        "   - It is in the LOWER half of the overall image, not the upper half.\n"
+        "   - The box height should be ONLY the display panel — do NOT include the bowl or buttons.\n"
+        "3. For a THICKNESS GAUGE / MICROMETER / CALIPER:\n"
+        "   - The LCD screen is a small rectangle, usually in the upper or middle section of the device.\n"
+        "   - It has dark digits on a light gray/silver background.\n"
+        "   - Box ONLY the screen rectangle — do NOT include buttons below the screen.\n\n"
+        "CRITICAL BOX SIZE RULES:\n"
+        "  - The box width should NOT span the full image width (x1=0, x2=1000 is always wrong).\n"
+        "  - The box height (y2-y1) should be roughly 8-20% of the image height for a typical display.\n"
+        "  - A box taller than 30% of the image height is always wrong — it includes non-display content.\n"
+        "  - Tightly box ONLY the display window rectangle, not the surrounding machine body.\n\n"
+        "FORBIDDEN — your box must NOT cover:\n"
+        "  - The weighing bowl, pan, dish, or its metal support ring\n"
+        "  - Any blank white, gray, or light-colored strip without visible digit segments\n"
+        "  - Physical push buttons (round/oval colored buttons)\n"
+        "  - Brand name, model number, or label text areas\n"
+        "  - The blue or black machine body without a screen\n\n"
+        "OUTPUT RULES:\n"
+        "  - Coordinates are integers 0..1000, normalized relative to the full image width/height.\n"
+        "  - x1,y1 = top-left corner of the display window. x2,y2 = bottom-right corner.\n"
+        "  - The box must be WIDER than it is tall (landscape rectangle).\n"
+        "  - For LED scales: the display window center y-coordinate should be BELOW 400.\n"
+        "  - For LCD gauges: box ONLY the screen, stop BEFORE any buttons below it.\n"
+        "  - If you cannot find a clear display window, return found=false.\n"
+        "  - display_kind: 'led' for glowing segments, 'lcd' for dark-on-light segments, 'unknown' if unsure.\n"
+        "  - confidence: your confidence that the box correctly surrounds the DISPLAY WINDOW ONLY.\n"
+        "  - reason: describe the physical location only.\n"
+        "  - NEVER mention any numeric value in the reason field."
+    )
+
+
+def _refine_localizer_instructions(previous: LocalizationResult) -> str:
+    return (
+        "Role: display-window localizer refinement only. Do NOT read digits. "
+        "You are verifying and correcting a previous display-window box proposal. "
+        f"Previous proposal (normalized 0..1000): x1={previous.x1}, y1={previous.y1}, x2={previous.x2}, y2={previous.y2}, "
+        f"kind={previous.display_kind}, confidence={previous.confidence}. "
+        "Return a corrected box around the FULL PHYSICAL DISPLAY WINDOW / SCREEN only. "
+        "If the previous box covers bowl rim, metal ring, blue strip, labels, branding, device face without screen, or only part of the display, correct it. "
+        "For LED devices: box the full dark display panel/window with the whole row inside. "
+        "For LCD devices: box the full inner LCD screen rectangle only — stop before any buttons below the screen. "
+        "CRITICAL: The box must NOT span the full image width (x1=0, x2=1000 is always wrong). "
+        "CRITICAL: The box height (y2-y1) must be roughly 8-20% of image height — never more than 30%. "
+        "For LED scales, the display center should be in the lower half of the image (y center > 400 on 0-1000 scale). "
+        "If the display is genuinely not localizable, return found=false rather than a bad partial box. "
+        "Coordinates must be integers normalized 0..1000 relative to the full input image. "
+        "display_kind must be one of: led, lcd, unknown. "
+        "In reason, describe location only and never mention an inferred reading."
+    )
+
+
+def _region_refine_instructions(display_kind_hint: str) -> str:
+    if display_kind_hint == "led":
+        what_to_find = (
+            "You are looking for a DARK rectangular panel with BRIGHT GREEN or orange glowing digit segments. "
+            "The dark background panel is part of the display — box it fully, not just the bright digits. "
+            "It is typically a horizontal strip embedded in the machine body."
+        )
+    elif display_kind_hint == "lcd":
+        what_to_find = (
+            "You are looking for a rectangular LCD screen with DARK digit segments on a LIGHT/GRAY background. "
+            "Box the full screen rectangle including its frame. "
+            "Stop before any physical buttons below the screen."
+        )
+    else:
+        what_to_find = (
+            "You are looking for either: (A) a dark panel with bright glowing digit segments (LED), "
+            "or (B) a light rectangle with dark digit segments (LCD). "
+            "Scan the entire image carefully for either type."
+        )
+
+    return (
+        "You are a precision bounding-box locator operating on a CROPPED SEARCH REGION. "
+        "Your ONLY job is to find the numeric display window within this crop. "
+        "Do NOT read or report any numbers.\n\n"
+        f"{what_to_find}\n\n"
+        "FORBIDDEN boxes — do NOT return a box around:\n"
+        "  - Blank white or light areas with no digit segments\n"
+        "  - Physical buttons or controls\n"
+        "  - Weighing bowl, pan, or metal ring\n"
+        "  - Brand labels or text-only areas\n"
+        "  - Machine body without a screen\n\n"
+        "OUTPUT RULES:\n"
+        "  - Coordinates are integers 0..1000 relative to THIS CROPPED IMAGE (not the original).\n"
+        "  - The box must be landscape (wider than tall).\n"
+        "  - The box height should be 8-25% of this cropped image height.\n"
+        "  - If no clear display window is visible here, return found=false.\n"
+        "  - display_kind: 'led', 'lcd', or 'unknown'.\n"
+        "  - NEVER mention any numeric value in the reason field."
+    )
+
+
+def call_gemini_localizer(
+    localizer_original_img: Image.Image,
+    localizer_enhanced_img: Image.Image,
+    *,
+    previous: LocalizationResult | None = None,
+) -> LocalizationResult:
+    instructions = (
+        _primary_localizer_instructions()
+        if previous is None
+        else _refine_localizer_instructions(previous)
+    )
+    return _call_gemini_localizer_once(
+        localizer_original_img,
+        localizer_enhanced_img,
+        instructions,
+        model_name=LOCALIZER_MODEL_NAME,
+    )
+
+
+def call_gemini_region_localizer(
+    region_original_img: Image.Image,
+    region_enhanced_img: Image.Image,
+    *,
+    display_kind_hint: str = "unknown",
+) -> LocalizationResult:
+    return _call_gemini_localizer_once(
+        region_original_img,
+        region_enhanced_img,
+        _region_refine_instructions(display_kind_hint),
+        model_name=LOCALIZER_MODEL_NAME,
+    )
+
+
+# ----------------------------
+# Box / crop utilities
+# ----------------------------
+
 def localization_box_to_pixels(
     localization: LocalizationResult,
     original_size: tuple[int, int],
@@ -192,29 +355,132 @@ def localization_box_to_pixels(
     return (x1, y1, x2, y2)
 
 
+def pixels_to_norm1000(
+    box: tuple[int, int, int, int],
+    image_size: tuple[int, int],
+) -> dict[str, int]:
+    width, height = image_size
+    x1, y1, x2, y2 = box
+    return {
+        "x1": int(round((x1 / max(width, 1)) * 1000)),
+        "y1": int(round((y1 / max(height, 1)) * 1000)),
+        "x2": int(round((x2 / max(width, 1)) * 1000)),
+        "y2": int(round((y2 / max(height, 1)) * 1000)),
+    }
+
+
 def is_valid_localization_box(
     box: tuple[int, int, int, int] | None,
     image_size: tuple[int, int],
 ) -> bool:
     if box is None:
         return False
-
     x1, y1, x2, y2 = box
     width, height = image_size
     bw = x2 - x1
     bh = y2 - y1
     if bw <= 0 or bh <= 0:
         return False
-
     area_ratio = (bw * bh) / float(max(width * height, 1))
     aspect = bw / float(max(bh, 1))
-
     if bw < max(20, int(width * 0.04)) or bh < max(14, int(height * 0.02)):
         return False
-    if area_ratio < 0.0008 or area_ratio > 0.28:
+    if area_ratio < 0.0008 or area_ratio > 0.40:
         return False
-    if aspect < 1.0 or aspect > 9.5:
+    if aspect < 0.8 or aspect > 9.5:
         return False
+    return True
+
+
+def _is_bad_localization_box(
+    box: tuple[int, int, int, int],
+    image_size: tuple[int, int],
+    display_kind: str,
+) -> bool:
+    """
+    Returns True if the box is almost certainly NOT a display window.
+    Any single rule triggering = reject.
+    """
+    x1, y1, x2, y2 = box
+    img_w, img_h = image_size
+    bw = x2 - x1
+    bh = y2 - y1
+    if bw <= 0 or bh <= 0:
+        return True
+
+    w_frac = bw / max(img_w, 1)
+    h_frac = bh / max(img_h, 1)
+    cy_frac = ((y1 + y2) / 2.0) / max(img_h, 1)
+    aspect = bw / max(bh, 1)
+
+    # Rule 1: Spans nearly the full image width — never a tight display box
+    if w_frac > 0.92:
+        return True
+
+    # Rule 2: Very wide + very thin + in top half = bowl rim or strip
+    if w_frac > 0.60 and h_frac < 0.10 and cy_frac < 0.50:
+        return True
+
+    # Rule 3: Any box thinner than 4% of image height
+    if h_frac < 0.04:
+        return True
+
+    # Rule 4: Box taller than 30% of image — includes non-display content
+    if h_frac > 0.30:
+        return True
+
+    # Rule 5: For LED scales, display is never in the very top quarter
+    if display_kind == "led" and cy_frac < 0.25:
+        return True
+
+    # Rule 5b: Wide LED box in the upper 45% = bowl platform, not display.
+    # On bowl scales the display sits in the lower half; a box that is
+    # wide (>65% of image) AND centred above the midpoint is the bowl/rim.
+    if display_kind == "led" and w_frac > 0.65 and cy_frac < 0.45:
+        return True
+
+    # Rule 6: Extremely high aspect + top half = rim/strip
+    if aspect > 6.5 and cy_frac < 0.45:
+        return True
+
+    # Rule 7: Box covers more than 30% of total image area
+    area_frac = (bw * bh) / max(img_w * img_h, 1)
+    if area_frac > 0.30:
+        return True
+
+    return False
+
+
+def _is_high_quality_localization(
+    box: tuple[int, int, int, int],
+    image_size: tuple[int, int],
+    confidence: float,
+    display_kind: str,
+) -> bool:
+    """
+    Returns True when the localization is good enough to skip the
+    region-refiner pass (saves ~1 full Gemini API call).
+    """
+    if confidence < LOCALIZER_SKIP_REFINE_THRESHOLD:
+        return False
+
+    x1, y1, x2, y2 = box
+    img_w, img_h = image_size
+    bw = x2 - x1
+    bh = y2 - y1
+
+    w_frac = bw / max(img_w, 1)
+    h_frac = bh / max(img_h, 1)
+    aspect = bw / max(bh, 1)
+
+    # Good boxes: reasonably sized, good aspect, not edge-to-edge
+    if w_frac < 0.12 or w_frac > 0.85:
+        return False
+    if h_frac < 0.05 or h_frac > 0.22:
+        return False
+    if aspect < 1.5 or aspect > 8.0:
+        return False
+
     return True
 
 
@@ -231,13 +497,16 @@ def expand_localization_box(
     if display_kind == "led":
         left_pad = int(round(bw * 0.22))
         right_pad = max(int(round(bw * 0.18)), 12)
-        top_pad = int(round(bh * 0.20))
         bottom_pad = max(int(round(bh * 0.26)), 8)
+        # TOP PAD: for LED scales the bowl is directly above the display.
+        # Cap upward expansion to a small fixed margin (6% of bh, max 12px)
+        # to avoid pulling the crop into the bowl/rim above the display.
+        top_pad = min(int(round(bh * 0.06)), 12)
     elif display_kind == "lcd":
-        left_pad = int(round(bw * 0.10))
-        right_pad = max(int(round(bw * 0.15)), 10)
-        top_pad = int(round(bh * 0.16))
-        bottom_pad = max(int(round(bh * 0.22)), 8)
+        left_pad = int(round(bw * 0.06))
+        right_pad = max(int(round(bw * 0.06)), 6)
+        top_pad = int(round(bh * 0.08))
+        bottom_pad = max(int(round(bh * 0.08)), 5)
     else:
         left_pad = int(round(bw * 0.14))
         right_pad = max(int(round(bw * 0.16)), 10)
@@ -250,6 +519,42 @@ def expand_localization_box(
         min(width, x2 + right_pad),
         min(height, y2 + bottom_pad),
     )
+
+
+def make_search_region_box(
+    box: tuple[int, int, int, int],
+    image_size: tuple[int, int],
+) -> tuple[int, int, int, int]:
+    x1, y1, x2, y2 = box
+    width, height = image_size
+    bw = x2 - x1
+    bh = y2 - y1
+
+    left_pad  = int(round(bw * 1.6))
+    right_pad = int(round(bw * 1.6))
+    top_pad    = int(round(bh * 4.5))
+    bottom_pad = int(round(bh * 4.5))
+
+    left_pad   = max(left_pad,   int(width  * 0.12))
+    right_pad  = max(right_pad,  int(width  * 0.12))
+    top_pad    = max(top_pad,    int(height * 0.18))
+    bottom_pad = max(bottom_pad, int(height * 0.18))
+
+    return (
+        max(0, x1 - left_pad),
+        max(0, y1 - top_pad),
+        min(width,  x2 + right_pad),
+        min(height, y2 + bottom_pad),
+    )
+
+
+def map_child_box_to_parent(
+    parent_box: tuple[int, int, int, int],
+    child_box: tuple[int, int, int, int],
+) -> tuple[int, int, int, int]:
+    px1, py1, _, _ = parent_box
+    cx1, cy1, cx2, cy2 = child_box
+    return (px1 + cx1, py1 + cy1, px1 + cx2, py1 + cy2)
 
 
 def crop_from_box(img: Image.Image, box: tuple[int, int, int, int]) -> Image.Image:
@@ -274,44 +579,16 @@ def draw_localization_debug(
     return debug
 
 
-def draw_fallback_debug(
-    img: Image.Image,
-    text: str,
-) -> Image.Image:
+def draw_fallback_debug(img: Image.Image, text: str) -> Image.Image:
     debug = img.copy()
     draw = ImageDraw.Draw(debug)
     draw.text((12, 12), text, fill=(255, 64, 64))
     return debug
 
 
-def apply_localization_mode_hint(
-    crop_diagnostics: CropDiagnostics,
-    display_kind: str,
-    confidence: float,
-) -> CropDiagnostics:
-    if display_kind not in {"led", "lcd"}:
-        return crop_diagnostics
-
-    is_reliable = crop_diagnostics.is_reliable
-    reason = crop_diagnostics.reason
-
-    if confidence >= 0.75 and crop_diagnostics.quality_score >= 0.30:
-        is_reliable = True
-        reason = f"{reason}; promoted by high-confidence VLM localization"
-
-    return CropDiagnostics(
-        is_reliable=is_reliable,
-        mode=display_kind,
-        quality_score=crop_diagnostics.quality_score,
-        lit_ratio=crop_diagnostics.lit_ratio,
-        green_ratio=crop_diagnostics.green_ratio,
-        component_count=crop_diagnostics.component_count,
-        active_span_ratio=crop_diagnostics.active_span_ratio,
-        active_band_height_ratio=crop_diagnostics.active_band_height_ratio,
-        leading_blank_ratio=crop_diagnostics.leading_blank_ratio,
-        reason=reason,
-    )
-
+# ----------------------------
+# Read validation / post-processing
+# ----------------------------
 
 def validate_numeric_shape(result: ReadingResult) -> ReadingResult:
     if result.value_text:
@@ -348,17 +625,13 @@ def validate_numeric_shape(result: ReadingResult) -> ReadingResult:
                         result.status = "needs_review"
                         result.value_number = None
                         result.confidence = min(result.confidence, 0.25)
-                        result.reason = (
-                            f"Decimal precision did not match expected {expected} places."
-                        )
+                        result.reason = f"Decimal precision did not match expected {expected} places."
                         return result
                 elif expected > 0:
                     result.status = "needs_review"
                     result.value_number = None
                     result.confidence = min(result.confidence, 0.25)
-                    result.reason = (
-                        f"Expected {expected} decimal places but none were found."
-                    )
+                    result.reason = f"Expected {expected} decimal places but none were found."
                     return result
             except ValueError:
                 pass
@@ -392,10 +665,8 @@ def has_probable_missing_leading_digit(
 ) -> bool:
     if not text or "." not in text:
         return False
-
     left, _ = text.split(".", 1)
     digit_count = count_numeric_digits(text)
-
     if expected_digit_count is not None and expected_digit_count > 0:
         if (
             digit_count == expected_digit_count - 1
@@ -406,10 +677,8 @@ def has_probable_missing_leading_digit(
             and crop_diagnostics.active_span_ratio >= 0.64
         ):
             return True
-
     if crop_diagnostics is None or crop_diagnostics.mode != "led":
         return False
-
     return (
         len(left) == 1
         and digit_count >= 4
@@ -429,16 +698,13 @@ def is_suspicious_read(
         return True
     if not result.value_text:
         return True
-
     text = result.value_text.strip()
     if not re.fullmatch(r"\d+(\.\d+)?", text):
         return True
-
     try:
         expected = int(EXPECTED_DECIMALS) if EXPECTED_DECIMALS else 0
     except ValueError:
         expected = 0
-
     if expected > 0:
         if "." not in text:
             return True
@@ -448,6 +714,11 @@ def is_suspicious_read(
     if text.startswith("88") and "." not in text:
         return True
     if text.startswith("888"):
+        return True
+    # Catch placeholder-segment bleed-through like 887.530, 88.530, 881.xxx
+    # Real scale readings virtually never start with 88 at all (88x implies
+    # two placeholder cells were misread as lit 8s)
+    if re.match(r"^88\d", text):
         return True
     if expected_digit_count is not None and expected_digit_count > 0:
         if count_numeric_digits(text) != expected_digit_count:
@@ -468,80 +739,37 @@ def post_process_result(result: ReadingResult) -> ReadingResult:
             expected = int(EXPECTED_DECIMALS) if EXPECTED_DECIMALS else 0
         except ValueError:
             expected = 0
-
-        if expected > 0 and "." not in result.value_text and not result.value_text.startswith("88"):
+        if expected > 0 and "." not in result.value_text and not result.value_text.startswith("88") and not re.match(r"^88\d", result.value_text):
             result.value_text = infer_fixed_decimal_text(result.value_text, expected)
-            result.reason = (
-                f"{result.reason} Decimal inferred using fixed {expected}-decimal display format."
-            )
+            result.reason = f"{result.reason} Decimal inferred using fixed {expected}-decimal display format."
             result.confidence = min(result.confidence, 0.88)
-
     return validate_numeric_shape(result)
 
 
-def local_result_to_reading_result(local_result: LocalDecodeResult) -> ReadingResult:
-    if not local_result.ok or not local_result.value_text:
-        return ReadingResult(
-            status="needs_review",
-            value_text=None,
-            value_number=None,
-            confidence=max(0.0, min(local_result.confidence, 1.0)),
-            reason=local_result.reason,
-            ignored_text_present=True,
-        )
-
-    return post_process_result(
-        ReadingResult(
-            status="ok",
-            value_text=local_result.value_text,
-            value_number=None,
-            confidence=max(0.0, min(local_result.confidence, 1.0)),
-            reason=local_result.reason,
-            ignored_text_present=True,
-        )
-    )
-
+# ----------------------------
+# Reader
+# ----------------------------
 
 def call_gemini_with_instructions(
     instructions: str,
-    crop_img: Image.Image, 
+    crop_img: Image.Image,
     original_img: Image.Image,
     *,
     model_name: str | None = None,
     primary_source: Literal["crop", "original"] = "crop",
     include_secondary: bool = True,
 ) -> ReadingResult:
-    prompt = load_prompt()
+    prompt = load_prompt_text()
     contents: list[object] = [prompt, instructions]
 
     if primary_source == "crop":
-        contents.extend(
-            [
-                "PRIMARY image: LOCALIZED display crop.",
-                crop_img,
-            ]
-        )
+        contents.extend(["PRIMARY image: LOCALIZED display crop.", crop_img])
         if include_secondary:
-            contents.extend(
-                [
-                    "CONTEXT image: ORIGINAL full photo.",
-                    original_img,
-                ]
-            )
+            contents.extend(["CONTEXT image: ORIGINAL full photo.", original_img])
     else:
-        contents.extend(
-            [
-                "PRIMARY image: ORIGINAL full photo.",
-                original_img,
-            ]
-        )
+        contents.extend(["PRIMARY image: ORIGINAL full photo.", original_img])
         if include_secondary:
-            contents.extend(
-                [
-                    "CONTEXT image: LOCALIZED display crop.",
-                    crop_img,
-                ]
-            )
+            contents.extend(["CONTEXT image: LOCALIZED display crop.", crop_img])
 
     selected_model = model_name or MODEL_NAME
     try:
@@ -581,136 +809,17 @@ def call_gemini_with_instructions(
 
     try:
         payload = json.loads(raw_text)
-        result = ReadingResult(**payload)
-        return post_process_result(result)
+        return post_process_result(ReadingResult(**payload))
     except (json.JSONDecodeError, ValidationError) as e:
         raise HTTPException(status_code=502, detail=f"Invalid Gemini JSON response: {e}")
 
 
-def mark_suspicious_for_review(
-    result: ReadingResult,
-    reason: str,
-) -> ReadingResult:
+def mark_suspicious_for_review(result: ReadingResult, reason: str) -> ReadingResult:
     result.status = "needs_review"
     result.value_number = None
     result.confidence = min(result.confidence, 0.35)
     result.reason = reason
     return result
-
-
-def call_gemini_on_crop(
-    crop_img: Image.Image,
-    original_img: Image.Image,
-    crop_diagnostics: CropDiagnostics,
-) -> ReadingResult:
-    led_local_result = (
-        decode_display_crop(crop_img)
-        if crop_diagnostics.mode == "led"
-        else LocalDecodeResult(
-            ok=False,
-            value_text=None,
-            confidence=0.0,
-            digit_count=0,
-            decimal_count=0,
-            reason="local seven-segment decoder disabled for non-LED crop",
-        )
-    )
-
-    if crop_diagnostics.is_reliable:
-        use_local_decoder = crop_diagnostics.mode == "led"
-        local_result = led_local_result
-        local_reading = local_result_to_reading_result(local_result)
-        expected_digit_count = local_result.digit_count if use_local_decoder and local_result.digit_count > 0 else None
-        local_hint = f"Crop mode is {crop_diagnostics.mode}. "
-        if use_local_decoder:
-            local_hint += (
-                f"The crop contains about {local_result.digit_count} active digit slots and "
-                f"{local_result.decimal_count} visible decimal dots. "
-            )
-        local_value_hint = ""
-        if use_local_decoder and local_result.ok and local_result.confidence >= LOCAL_DECODER_MIN_CONFIDENCE:
-            local_value_hint = f"The deterministic decoder proposes {local_result.value_text!r}. "
-        if use_local_decoder and local_result.ok and local_result.confidence >= LOCAL_DECODER_MIN_CONFIDENCE:
-            return local_reading
-
-        primary_result = call_gemini_with_instructions(
-            (
-                "Localized crop quality is HIGH and contains a coherent display row. "
-                "Use the crop as the authoritative source. "
-                "Count only bright illuminated segments as real digits. "
-                "Dim gray placeholder 8-shapes on the left are inactive slots and must be ignored. "
-                "Do not let the full photo override a clean crop. "
-                "However, if the crop trims any digit edge, clips the top or bottom of a digit, or clips a tiny decimal dot near the right side, use the original full photo only to recover the missing boundary and decimal placement. "
-                "A tiny isolated decimal dot near the right edge or lower-right edge of the crop is part of the reading and must not be dropped. "
-                "Never convert a clipped crop into an integer-looking token such as 18660 or 0670 when the full display in context shows a decimal point. "
-                "Read every active digit slot; do not drop a visible middle digit such as 18.730 into 18.30. "
-                f"{local_hint}{local_value_hint}"
-                f"Crop diagnostics: score={crop_diagnostics.quality_score}, reason={crop_diagnostics.reason}."
-            ),
-            crop_img,
-            original_img,
-            model_name=MODEL_NAME,
-            primary_source="crop",
-            include_secondary=True,
-        )
-
-        if use_local_decoder and local_result.ok and local_result.confidence >= LOCAL_DECODER_MIN_CONFIDENCE and not is_suspicious_read(local_reading, crop_diagnostics, expected_digit_count):
-            if is_suspicious_read(primary_result, crop_diagnostics, expected_digit_count):
-                return local_reading
-            if local_reading.value_text == primary_result.value_text:
-                primary_result.confidence = max(primary_result.confidence, local_reading.confidence)
-                primary_result.reason = f"{primary_result.reason} Confirmed by deterministic seven-segment decoder."
-                return primary_result
-            if local_reading.confidence >= primary_result.confidence + 0.08:
-                return local_reading
-
-        if not is_suspicious_read(primary_result, crop_diagnostics, expected_digit_count):
-            return primary_result
-
-        return mark_suspicious_for_review(
-            primary_result,
-            "Single-pass crop read remained suspicious. Marked for review.",
-        )
-
-    weak_crop_hint = (
-        f"The weak crop still suggests about {led_local_result.digit_count} active digit slots and "
-        f"{led_local_result.decimal_count} visible decimal dots. "
-        if crop_diagnostics.mode == "led" and led_local_result.digit_count > 0
-        else ""
-    )
-
-    primary_result = call_gemini_with_instructions(
-        (
-            "Localized crop quality is LOW or partial. "
-            "Use the ORIGINAL full photo as the only source of truth for this pass. "
-            "Ignore the localized crop completely. "
-            "If the crop looks like bezel, machine body, or a blue strip, ignore it completely. "
-            "If the crop likely clipped a tiny decimal dot near the right edge or lower-right edge of the display, treat the crop as incomplete and recover the full reading from the original photo. "
-            "Do not drop a faint but aligned leading digit on the left edge of the display row. "
-            "If the full display row is `18540` with a visible decimal after the second digit, return `18.540`, not `8.540`. "
-            f"{weak_crop_hint}"
-            f"Crop diagnostics: score={crop_diagnostics.quality_score}, reason={crop_diagnostics.reason}."
-        ),
-        crop_img,
-        original_img,
-        model_name=MODEL_NAME,
-        primary_source="original",
-        include_secondary=False,
-    )
-
-    expected_digit_count = (
-        led_local_result.digit_count
-        if crop_diagnostics.mode == "led" and led_local_result.digit_count > 0
-        else None
-    )
-
-    if not is_suspicious_read(primary_result, crop_diagnostics, expected_digit_count):
-        return primary_result
-
-    return mark_suspicious_for_review(
-        primary_result,
-        "Single-pass original-photo read remained suspicious after rejecting the weak crop. Marked for review.",
-    )
 
 
 def call_gemini_on_full_image(
@@ -719,10 +828,7 @@ def call_gemini_on_full_image(
     *,
     display_kind: str = "unknown",
 ) -> ReadingResult:
-    kind_hint = ""
-    if display_kind in {"led", "lcd"}:
-        kind_hint = f"The device likely uses a {display_kind.upper()} display. "
-
+    kind_hint = f"The device likely uses a {display_kind.upper()} display. " if display_kind in {"led", "lcd"} else ""
     primary_result = call_gemini_with_instructions(
         (
             "No trustworthy localized ROI is available. "
@@ -738,13 +844,10 @@ def call_gemini_on_full_image(
         primary_source="original",
         include_secondary=False,
     )
-
     if not is_suspicious_read(primary_result):
         return primary_result
-
     return mark_suspicious_for_review(
-        primary_result,
-        "Single-pass full-image fallback remained suspicious. Marked for review.",
+        primary_result, "Single-pass full-image fallback remained suspicious. Marked for review."
     )
 
 
@@ -760,6 +863,7 @@ def health() -> dict:
         "model": MODEL_NAME,
         "localizer_model": LOCALIZER_MODEL_NAME,
         "localizer_min_confidence": LOCALIZER_MIN_CONFIDENCE,
+        "localizer_skip_refine_threshold": LOCALIZER_SKIP_REFINE_THRESHOLD,
         "localizer_max_dimension": LOCALIZER_MAX_DIMENSION,
         "local_decoder_min_confidence": LOCAL_DECODER_MIN_CONFIDENCE,
         "expected_decimals": EXPECTED_DECIMALS or None,
@@ -778,125 +882,184 @@ def api_preview(kind: str):
 
 @app.post("/api/read-scale")
 async def read_scale(file: UploadFile = File(...)) -> JSONResponse:
+    t_start = time.monotonic()
     data = await file.read()
     validate_upload(file, data)
 
     original_img = open_image(data)
-    enhanced_full_img = make_enhanced_display_image(original_img, max_dim=MAX_DIMENSION)
-    localizer_img = resize_keep_aspect(original_img, max_dim=LOCALIZER_MAX_DIMENSION)
-    localization_payload: dict[str, object] = {
-        "source": "full_image_fallback",
-        "model": LOCALIZER_MODEL_NAME,
-        "found": False,
-        "confidence": 0.0,
-        "display_kind": "unknown",
-        "reason": "Gemini localizer did not produce a usable ROI.",
-    }
 
-    crop_img: Image.Image
-    debug_img: Image.Image
+    # ------------------------------------------------------------------ #
+    # Enhancement: do it at localizer resolution directly — avoids        #
+    # enhancing a large image then shrinking it (bilateral filter is slow) #
+    # ------------------------------------------------------------------ #
+    localizer_img = resize_keep_aspect(original_img, max_dim=LOCALIZER_MAX_DIMENSION)
+    localizer_enhanced_img = make_enhanced_display_image(localizer_img, max_dim=LOCALIZER_MAX_DIMENSION)
+    # Full-res enhanced still needed for the reader context image
+    enhanced_full_img = make_enhanced_display_image(original_img, max_dim=MAX_DIMENSION)
+
+    crop_img: Image.Image = make_placeholder_preview((720, 180), "No localized ROI")
+    debug_img: Image.Image = original_img.copy()
     result: ReadingResult
+    localization_payload: dict[str, object]
+    skipped_refine = False
+
+    # ------------------------------------------------------------------ #
+    # Pass 1: primary localization                                         #
+    # ------------------------------------------------------------------ #
+    best_box_pixels: tuple[int, int, int, int] | None = None
+    best_localization: LocalizationResult | None = None
+    best_confidence: float = 0.0
+    primary_localization: LocalizationResult
+
     try:
-        localization = call_gemini_localizer(localizer_img)
-        raw_box = localization_box_to_pixels(localization, original_img.size)
-        if (
-            localization.confidence >= LOCALIZER_MIN_CONFIDENCE
-            and is_valid_localization_box(raw_box, original_img.size)
-        ):
-            expanded_box = expand_localization_box(
-                raw_box,
-                original_img.size,
-                localization.display_kind,
-            )
-            crop_img = crop_from_box(original_img, expanded_box)
-            debug_img = draw_localization_debug(
-                original_img,
-                expanded_box,
-                localization.display_kind,
-                "vlm",
-            )
-            localization_payload = {
-                "source": "vlm",
-                "model": LOCALIZER_MODEL_NAME,
-                "found": localization.found,
-                "confidence": round(localization.confidence, 3),
-                "display_kind": localization.display_kind,
-                "reason": localization.reason,
-                "box_norm_1000": {
-                    "x1": localization.x1,
-                    "y1": localization.y1,
-                    "x2": localization.x2,
-                    "y2": localization.y2,
-                },
-                "box_pixels": {
-                    "x1": expanded_box[0],
-                    "y1": expanded_box[1],
-                    "x2": expanded_box[2],
-                    "y2": expanded_box[3],
-                },
-            }
-            crop_diagnostics = analyze_crop_diagnostics(crop_img)
-            crop_diagnostics = apply_localization_mode_hint(
-                crop_diagnostics,
-                str(localization_payload.get("display_kind", "unknown")),
-                float(localization_payload.get("confidence", 0.0)),
-            )
-            result = call_gemini_on_crop(crop_img, original_img, crop_diagnostics)
-        else:
-            crop_img = make_placeholder_preview((720, 180), "No localized ROI used")
-            debug_img = draw_fallback_debug(original_img, "full-image fallback")
-            localization_payload = {
-                "source": "full_image_fallback",
-                "model": LOCALIZER_MODEL_NAME,
-                "found": localization.found,
-                "confidence": round(localization.confidence, 3),
-                "display_kind": localization.display_kind,
-                "reason": (
-                    "Gemini localization was missing or below threshold. "
-                    f"Localizer reason: {localization.reason}"
-                ),
-            }
-            crop_diagnostics = CropDiagnostics(
-                is_reliable=False,
-                mode=localization.display_kind,
-                quality_score=0.0,
-                lit_ratio=0.0,
-                green_ratio=0.0,
-                component_count=0,
-                active_span_ratio=0.0,
-                active_band_height_ratio=0.0,
-                leading_blank_ratio=0.0,
-                reason="No localized ROI was used. Reading fell back to original-only Gemini analysis.",
-            )
-            result = call_gemini_on_full_image(
-                original_img,
-                str(localization_payload["reason"]),
-                display_kind=localization.display_kind,
-            )
+        primary_localization = call_gemini_localizer(
+            localizer_img,
+            localizer_enhanced_img,
+            previous=None,
+        )
+
+        if primary_localization.found and primary_localization.confidence >= LOCALIZER_MIN_CONFIDENCE:
+            raw_box = localization_box_to_pixels(primary_localization, original_img.size)
+            if raw_box and is_valid_localization_box(raw_box, original_img.size):
+                if not _is_bad_localization_box(raw_box, original_img.size, primary_localization.display_kind):
+                    expanded = expand_localization_box(raw_box, original_img.size, primary_localization.display_kind)
+                    best_box_pixels = expanded
+                    best_localization = primary_localization
+                    best_confidence = primary_localization.confidence
+
+        # ------------------------------------------------------------------ #
+        # Pass 2: region-refiner — SKIP if pass 1 is already high quality     #
+        # This is the largest single latency saving: ~1 full Gemini API call  #
+        # ------------------------------------------------------------------ #
+        if best_box_pixels is not None:
+            if _is_high_quality_localization(
+                best_box_pixels, original_img.size, best_confidence, primary_localization.display_kind
+            ):
+                skipped_refine = True
+            else:
+                search_box = make_search_region_box(best_box_pixels, original_img.size)
+                search_original = crop_from_box(original_img, search_box)
+                search_enhanced = crop_from_box(enhanced_full_img, search_box)
+
+                refined = call_gemini_region_localizer(
+                    search_original,
+                    search_enhanced,
+                    display_kind_hint=primary_localization.display_kind,
+                )
+                if refined.found and refined.confidence >= LOCALIZER_MIN_CONFIDENCE:
+                    refined_local_box = localization_box_to_pixels(refined, search_original.size)
+                    if refined_local_box and is_valid_localization_box(refined_local_box, search_original.size):
+                        mapped = map_child_box_to_parent(search_box, refined_local_box)
+                        if not _is_bad_localization_box(mapped, original_img.size, refined.display_kind):
+                            expanded_mapped = expand_localization_box(mapped, original_img.size, refined.display_kind)
+                            if refined.confidence >= best_confidence:
+                                best_box_pixels = expanded_mapped
+                                best_localization = refined
+                                best_confidence = refined.confidence
+
     except Exception as e:
-        crop_img = make_placeholder_preview((720, 180), "No localized ROI used")
-        debug_img = draw_fallback_debug(original_img, "full-image fallback")
+        primary_localization = LocalizationResult(
+            found=False, confidence=0.0, display_kind="unknown",
+            reason=f"Localization failed: {e}"
+        )
+        best_localization = primary_localization
+
+    # ------------------------------------------------------------------ #
+    # Build crop and debug image from best box (if any)                   #
+    # ------------------------------------------------------------------ #
+    display_kind = best_localization.display_kind if best_localization else "unknown"
+
+    if best_box_pixels is not None and best_localization is not None:
+        crop_img = crop_from_box(original_img, best_box_pixels)
+        debug_img = draw_localization_debug(
+            original_img, best_box_pixels, display_kind, best_localization.reason[:40]
+        )
+        localization_payload = {
+            "source": "vlm_full" if skipped_refine else (
+                "vlm_region" if best_localization.reason.startswith("Region") else "vlm_full"
+            ),
+            "model": LOCALIZER_MODEL_NAME,
+            "found": True,
+            "confidence": round(best_confidence, 3),
+            "display_kind": display_kind,
+            "reason": best_localization.reason,
+            "skipped_refine": skipped_refine,
+            "box_norm_1000": pixels_to_norm1000(best_box_pixels, original_img.size),
+            "box_pixels": {
+                "x1": best_box_pixels[0], "y1": best_box_pixels[1],
+                "x2": best_box_pixels[2], "y2": best_box_pixels[3],
+            },
+        }
+    else:
+        debug_img = draw_fallback_debug(original_img, "localization failed — full image read")
         localization_payload = {
             "source": "full_image_fallback",
             "model": LOCALIZER_MODEL_NAME,
             "found": False,
             "confidence": 0.0,
             "display_kind": "unknown",
-            "reason": f"Gemini localization failed: {e}",
+            "reason": best_localization.reason if best_localization else "Localization not attempted",
+            "skipped_refine": False,
         }
-        crop_diagnostics = CropDiagnostics(
-            is_reliable=False,
-            mode="unknown",
-            quality_score=0.0,
-            lit_ratio=0.0,
-            green_ratio=0.0,
-            component_count=0,
-            active_span_ratio=0.0,
-            active_band_height_ratio=0.0,
-            leading_blank_ratio=0.0,
-            reason="Gemini localization failed. Reading fell back to original-only Gemini analysis.",
+
+    # ------------------------------------------------------------------ #
+    # Read: always send both crop and full image.                          #
+    # ------------------------------------------------------------------ #
+    crop_diagnostics = CropDiagnostics(
+        is_reliable=False,
+        mode=display_kind if display_kind in {"led", "lcd"} else "unknown",
+        quality_score=0.0, lit_ratio=0.0, green_ratio=0.0, component_count=0,
+        active_span_ratio=0.0, active_band_height_ratio=0.0, leading_blank_ratio=0.0,
+        reason="Crop diagnostics skipped — reader uses full-image fallback.",
+    )
+
+    if best_box_pixels is not None:
+        kind_hint = f"Display type: {display_kind.upper()}. " if display_kind in {"led", "lcd"} else ""
+        result = call_gemini_with_instructions(
+            (
+                f"{kind_hint}"
+                "You have TWO images: PRIMARY = localized display crop, CONTEXT = full original photo.\n"
+                "\n"
+                "STEP 1 — ASSESS THE PRIMARY CROP:\n"
+                "Does the PRIMARY crop show a rectangular display window containing visible numeric digit segments? "
+                "A valid crop shows: (a) bright green/orange glowing segments on a dark background (LED), "
+                "or (b) dark numeric digit segments on a light/gray background (LCD).\n"
+                "\n"
+                "STEP 2 — CHOOSE YOUR SOURCE:\n"
+                "  • VALID CROP → read from the crop (it is the authoritative source).\n"
+                "  • INVALID CROP → DISCARD IT ENTIRELY and read from the CONTEXT photo instead.\n"
+                "    An INVALID crop is any of:\n"
+                "    - A blank, featureless, or nearly uniform area (no digit shapes visible)\n"
+                "    - A weighing bowl, pan, dish, or metal rim/ring\n"
+                "    - Physical control buttons (round colored buttons)\n"
+                "    - Machine casing, body, or label area without an actual screen\n"
+                "    - A blurry region with no identifiable digit structure\n"
+                "\n"
+                "STEP 3 — READ THE VALUE:\n"
+                "  - LED: count ONLY bright illuminated segments. "
+                "Dim gray 8-shaped outlines are INACTIVE PLACEHOLDERS — ignore them completely.\n"
+                "  - LCD: read dark segments on the light screen. "
+                "Do not include buttons, labels, or areas outside the screen rectangle.\n"
+                "  - Include decimal point only if a small isolated dot is clearly visible.\n"
+                "  - Return exactly one numeric token: digits and at most one decimal point."
+            ),
+            crop_img,
+            original_img,
+            model_name=MODEL_NAME,
+            primary_source="crop",
+            include_secondary=True,
         )
-        result = call_gemini_on_full_image(original_img, str(localization_payload["reason"]))
+    else:
+        result = call_gemini_on_full_image(
+            original_img,
+            localization_payload.get("reason", "localization failed"),
+            display_kind=display_kind,
+        )
+
+    if is_suspicious_read(result):
+        result = mark_suspicious_for_review(result, f"Read flagged as suspicious: {result.reason}")
+
+    t_elapsed = round(time.monotonic() - t_start, 2)
 
     _LAST_PREVIEWS["original"] = pil_to_jpeg_bytes(original_img)
     _LAST_PREVIEWS["enhanced"] = pil_to_jpeg_bytes(enhanced_full_img)
@@ -919,6 +1082,7 @@ async def read_scale(file: UploadFile = File(...)) -> JSONResponse:
                 "leading_blank_ratio": crop_diagnostics.leading_blank_ratio,
                 "reason": crop_diagnostics.reason,
             },
+            "elapsed_seconds": t_elapsed,
             "preview_urls": {
                 "original": "/api/preview/original",
                 "enhanced": "/api/preview/enhanced",
@@ -931,7 +1095,6 @@ async def read_scale(file: UploadFile = File(...)) -> JSONResponse:
 
 if __name__ == "__main__":
     import uvicorn
-
     host = os.getenv("HOST", "0.0.0.0")
     port = int(os.getenv("PORT", "8000"))
     uvicorn.run("app:app", host=host, port=port, reload=True)
