@@ -1,11 +1,31 @@
-# MFCVISION
+# 📊 MFCVISION
 
-FastAPI service for reading numeric values from photos of weighing scales and similar LED/LCD instrument displays.
+> A **FastAPI service** for reading numeric values from photos of weighing scales and similar LED/LCD instrument displays using Google's Gemini API.
 
-The current backend uses Gemini for two jobs:
+### How It Works
 
-1. Find the display window in the full image.
-2. Read a single numeric value from either the localized crop or the full image fallback.
+The backend leverages Gemini for two critical tasks:
+
+1. **Display Localization** — Find the display window in the full image
+2. **Value Extraction** — Read numeric values from the localized crop or full image fallback
+
+## Quick Start
+
+```bash
+# Clone and set up the environment
+python -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+
+# Configure API key
+cp .env.example .env
+# Edit .env and set your GEMINI_API_KEY
+
+# Run the service
+python app.py
+```
+
+Visit `http://127.0.0.1:8000` in your browser to access the web UI.
 
 ## Current Request Flow
 
@@ -36,11 +56,15 @@ pip install -r requirements.txt
 cp .env.example .env
 ```
 
-Set at least:
+### Environment Configuration
+
+Edit `.env` and set at least:
 
 ```env
 GEMINI_API_KEY=your_api_key_here
 ```
+
+For reference, `.env.example` contains all available configuration options with defaults. Keys not set in `.env` will use hardcoded defaults from `app.py`.
 
 ## Run
 
@@ -202,6 +226,29 @@ These previews are stored in process memory and only represent the most recent r
 - `crop_diagnostics` is currently returned as placeholder metadata; the live request path does not populate it from `vision.py`.
 - The seven-segment decoder and crop-analysis helpers exist in `vision.py`, but they are not active in the current `/api/read-scale` route.
 - Preview endpoints are not persistent storage and are shared across requests handled by the same process.
+
+## Troubleshooting
+
+### Module Not Found Errors
+Ensure you're running from the activated virtual environment:
+```bash
+source .venv/bin/activate
+```
+
+### API Key Issues
+- Verify `GEMINI_API_KEY` is set in `.env`
+- Check that your API key is valid and has Gemini access enabled
+- The key should be from `https://aistudio.google.com/`
+
+### Poor Localization Results
+- Ensure the scale/display is clearly visible in the photo
+- Try adjusting `LOCALIZER_MIN_CONFIDENCE` in `.env` (lower = more aggressive)
+- Check that `LOCALIZER_MODEL_NAME` is not a lite model; the app will auto-correct it
+
+### Performance Tuning
+- Increase `LOCALIZER_MAX_DIMENSION` if localization is missing small displays
+- Decrease it if latency is an issue
+- Raise `LOCALIZER_SKIP_REFINE_THRESHOLD` to skip refinement more often (saves ~1s per request)
 
 ## Development Notes
 
