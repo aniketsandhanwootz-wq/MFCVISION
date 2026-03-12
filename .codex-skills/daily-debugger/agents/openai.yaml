@@ -1,6 +1,0 @@
-interface:
-  display_name: "Daily Debugger"
-  short_description: "Root-cause analysis and triage"
-  default_prompt: "Use $daily-debugger to diagnose the failure, identify the first violated invariant, and propose the narrowest safe fix."
-policy:
-  allow_implicit_invocation: true

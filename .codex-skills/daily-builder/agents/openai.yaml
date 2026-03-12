@@ -1,6 +1,0 @@
-interface:
-  display_name: "Daily Builder"
-  short_description: "Small-scope implementation skill"
-  default_prompt: "Use $daily-builder to implement the requested change with a minimal, technically correct diff."
-policy:
-  allow_implicit_invocation: true

@@ -1,6 +1,0 @@
-interface:
-  display_name: "Daily Reviewer"
-  short_description: "Diff-focused senior review skill"
-  default_prompt: "Use $daily-reviewer to review the change for correctness, regressions, security issues, and missing tests."
-policy:
-  allow_implicit_invocation: true

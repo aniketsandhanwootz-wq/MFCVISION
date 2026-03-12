@@ -5,8 +5,9 @@ import json
 import os
 import re
 import time
+import requests
 from pathlib import Path
-from typing import Literal, Optional
+from typing import Any, Literal, Optional
 
 from dotenv import load_dotenv
 from fastapi import FastAPI, File, HTTPException, UploadFile, Response
@@ -92,8 +93,20 @@ class LocalizationResult(BaseModel):
     display_kind: Literal["led", "lcd", "unknown"] = "unknown"
     reason: str
 
+class ClappiaAnalyzeRequest(BaseModel):
+    submission_id: Optional[str] = None
+    targets: dict[str, str] = Field(default_factory=dict)
 
-def validate_upload(file: UploadFile, data: bytes) -> None:
+
+class ClappiaSingleResult(BaseModel):
+    value: Optional[float] = None
+    value_text: Optional[str] = None
+    status: str
+    confidence: float
+    reason: str
+    ignored_text_present: bool
+
+def validate_upload(file: Any, data: bytes) -> None:
     if not file.content_type or not file.content_type.startswith("image/"):
         raise HTTPException(status_code=400, detail="Only image uploads are allowed.")
     if len(data) > MAX_IMAGE_BYTES:
@@ -110,7 +123,37 @@ def open_image(data: bytes) -> Image.Image:
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"Invalid image: {e}")
 
+def fetch_image_bytes_from_url(url: str) -> tuple[bytes, str]:
+    if not url or not isinstance(url, str):
+        raise HTTPException(status_code=400, detail="Image URL is missing.")
 
+    try:
+        resp = requests.get(url, timeout=30)
+    except requests.RequestException as e:
+        raise HTTPException(status_code=400, detail=f"Could not fetch image URL: {e}")
+
+    if resp.status_code != 200:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Image URL returned HTTP {resp.status_code}.",
+        )
+
+    content_type = resp.headers.get("content-type", "image/jpeg")
+    data = resp.content or b""
+
+    if not content_type.startswith("image/"):
+        raise HTTPException(
+            status_code=400,
+            detail=f"Remote URL is not an image. content-type={content_type}",
+        )
+
+    if len(data) > MAX_IMAGE_BYTES:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Remote image too large. Max allowed size is {MAX_IMAGE_MB} MB.",
+        )
+
+    return data, content_type
 def pil_to_jpeg_bytes(img: Image.Image, quality: int = 92) -> bytes:
     buf = io.BytesIO()
     img.save(buf, format="JPEG", quality=quality)
@@ -878,52 +921,24 @@ def call_gemini_on_full_image(
     return mark_suspicious_for_review(
         primary_result, "Single-pass full-image fallback remained suspicious. Marked for review."
     )
-
-
-@app.get("/")
-def home() -> FileResponse:
-    return FileResponse(STATIC_DIR / "index.html")
-
-
-@app.get("/health")
-def health() -> dict:
-    return {
-        "ok": True,
-        "model": MODEL_NAME,
-        "localizer_model": LOCALIZER_MODEL_NAME,
-        "localizer_min_confidence": LOCALIZER_MIN_CONFIDENCE,
-        "localizer_skip_refine_threshold": LOCALIZER_SKIP_REFINE_THRESHOLD,
-        "localizer_max_dimension": LOCALIZER_MAX_DIMENSION,
-        "local_decoder_min_confidence": LOCAL_DECODER_MIN_CONFIDENCE,
-        "expected_decimals": EXPECTED_DECIMALS or None,
-    }
-
-
-@app.get("/api/preview/{kind}")
-def api_preview(kind: str):
-    if kind not in ("original", "enhanced", "crop", "debug"):
-        raise HTTPException(status_code=404, detail="Preview not found.")
-    img_bytes = _LAST_PREVIEWS.get(kind)
-    if img_bytes is None:
-        raise HTTPException(status_code=404, detail="No preview available yet.")
-    return Response(content=img_bytes, media_type="image/jpeg")
-
-
-@app.post("/api/read-scale")
-async def read_scale(file: UploadFile = File(...)) -> JSONResponse:
+def run_scale_reader_pipeline(
+    data: bytes,
+    *,
+    content_type: str = "image/jpeg",
+) -> dict[str, Any]:
     t_start = time.monotonic()
-    data = await file.read()
-    validate_upload(file, data)
 
+    class _TempFile:
+        def __init__(self, content_type: str):
+            self.content_type = content_type
+
+    validate_upload(_TempFile(content_type), data)
     original_img = open_image(data)
 
-    # ------------------------------------------------------------------ #
-    # Enhancement: do it at localizer resolution directly — avoids        #
-    # enhancing a large image then shrinking it (bilateral filter is slow) #
-    # ------------------------------------------------------------------ #
     localizer_img = resize_keep_aspect(original_img, max_dim=LOCALIZER_MAX_DIMENSION)
-    localizer_enhanced_img = make_enhanced_display_image(localizer_img, max_dim=LOCALIZER_MAX_DIMENSION)
-    # Full-res enhanced still needed for the reader context image
+    localizer_enhanced_img = make_enhanced_display_image(
+        localizer_img, max_dim=LOCALIZER_MAX_DIMENSION
+    )
     enhanced_full_img = make_enhanced_display_image(original_img, max_dim=MAX_DIMENSION)
 
     crop_img: Image.Image = make_placeholder_preview((720, 180), "No localized ROI")
@@ -932,9 +947,6 @@ async def read_scale(file: UploadFile = File(...)) -> JSONResponse:
     localization_payload: dict[str, object]
     skipped_refine = False
 
-    # ------------------------------------------------------------------ #
-    # Pass 1: primary localization                                         #
-    # ------------------------------------------------------------------ #
     best_box_pixels: tuple[int, int, int, int] | None = None
     best_localization: LocalizationResult | None = None
     best_confidence: float = 0.0
@@ -950,23 +962,28 @@ async def read_scale(file: UploadFile = File(...)) -> JSONResponse:
         if primary_localization.found and primary_localization.confidence >= LOCALIZER_MIN_CONFIDENCE:
             raw_box = localization_box_to_pixels(primary_localization, original_img.size)
             if raw_box and is_valid_localization_box(raw_box, original_img.size):
-                if not _is_bad_localization_box(raw_box, original_img.size, primary_localization.display_kind):
-                    expanded = expand_localization_box(raw_box, original_img.size, primary_localization.display_kind)
+                if not _is_bad_localization_box(
+                    raw_box,
+                    original_img.size,
+                    primary_localization.display_kind,
+                ):
+                    expanded = expand_localization_box(
+                        raw_box,
+                        original_img.size,
+                        primary_localization.display_kind,
+                    )
                     best_box_pixels = expanded
                     best_localization = primary_localization
                     best_confidence = primary_localization.confidence
 
-        # ------------------------------------------------------------------ #
-        # Pass 2: region-refiner — SKIP if pass 1 is already high quality     #
-        # For LED boxes in the upper image half we ALWAYS run pass 2 because  #
-        # the primary localizer consistently lands on the bowl, not the display#
-        # ------------------------------------------------------------------ #
         if best_box_pixels is not None:
-            # Compute cy_frac of the current best box for the position hint
             _bcy = ((best_box_pixels[1] + best_box_pixels[3]) / 2.0) / max(original_img.size[1], 1)
 
             if _is_high_quality_localization(
-                best_box_pixels, original_img.size, best_confidence, primary_localization.display_kind
+                best_box_pixels,
+                original_img.size,
+                best_confidence,
+                primary_localization.display_kind,
             ):
                 skipped_refine = True
             else:
@@ -982,10 +999,21 @@ async def read_scale(file: UploadFile = File(...)) -> JSONResponse:
                 )
                 if refined.found and refined.confidence >= LOCALIZER_MIN_CONFIDENCE:
                     refined_local_box = localization_box_to_pixels(refined, search_original.size)
-                    if refined_local_box and is_valid_localization_box(refined_local_box, search_original.size):
+                    if refined_local_box and is_valid_localization_box(
+                        refined_local_box,
+                        search_original.size,
+                    ):
                         mapped = map_child_box_to_parent(search_box, refined_local_box)
-                        if not _is_bad_localization_box(mapped, original_img.size, refined.display_kind):
-                            expanded_mapped = expand_localization_box(mapped, original_img.size, refined.display_kind)
+                        if not _is_bad_localization_box(
+                            mapped,
+                            original_img.size,
+                            refined.display_kind,
+                        ):
+                            expanded_mapped = expand_localization_box(
+                                mapped,
+                                original_img.size,
+                                refined.display_kind,
+                            )
                             if refined.confidence >= best_confidence:
                                 best_box_pixels = expanded_mapped
                                 best_localization = refined
@@ -993,22 +1021,27 @@ async def read_scale(file: UploadFile = File(...)) -> JSONResponse:
 
     except Exception as e:
         primary_localization = LocalizationResult(
-            found=False, confidence=0.0, display_kind="unknown",
-            reason=f"Localization failed: {e}"
+            found=False,
+            confidence=0.0,
+            display_kind="unknown",
+            reason=f"Localization failed: {e}",
         )
         best_localization = primary_localization
 
-    # ------------------------------------------------------------------ #
-    # Build crop and debug image from best box (if any)                   #
-    # ------------------------------------------------------------------ #
     display_kind = best_localization.display_kind if best_localization else "unknown"
 
     if best_box_pixels is not None and best_localization is not None:
         crop_img = crop_from_box(original_img, best_box_pixels)
         debug_img = draw_localization_debug(
-            original_img, best_box_pixels, display_kind, best_localization.reason[:40]
+            original_img,
+            best_box_pixels,
+            display_kind,
+            best_localization.reason[:40],
         )
-        _box_cy = round(((best_box_pixels[1] + best_box_pixels[3]) / 2.0) / max(original_img.size[1], 1), 3)
+        _box_cy = round(
+            ((best_box_pixels[1] + best_box_pixels[3]) / 2.0) / max(original_img.size[1], 1),
+            3,
+        )
         localization_payload = {
             "source": "vlm_pass1" if skipped_refine else "vlm_pass2",
             "model": LOCALIZER_MODEL_NAME,
@@ -1020,8 +1053,10 @@ async def read_scale(file: UploadFile = File(...)) -> JSONResponse:
             "box_cy_frac": _box_cy,
             "box_norm_1000": pixels_to_norm1000(best_box_pixels, original_img.size),
             "box_pixels": {
-                "x1": best_box_pixels[0], "y1": best_box_pixels[1],
-                "x2": best_box_pixels[2], "y2": best_box_pixels[3],
+                "x1": best_box_pixels[0],
+                "y1": best_box_pixels[1],
+                "x2": best_box_pixels[2],
+                "y2": best_box_pixels[3],
             },
         }
     else:
@@ -1036,14 +1071,16 @@ async def read_scale(file: UploadFile = File(...)) -> JSONResponse:
             "skipped_refine": False,
         }
 
-    # ------------------------------------------------------------------ #
-    # Read: always send both crop and full image.                          #
-    # ------------------------------------------------------------------ #
     crop_diagnostics = CropDiagnostics(
         is_reliable=False,
         mode=display_kind if display_kind in {"led", "lcd"} else "unknown",
-        quality_score=0.0, lit_ratio=0.0, green_ratio=0.0, component_count=0,
-        active_span_ratio=0.0, active_band_height_ratio=0.0, leading_blank_ratio=0.0,
+        quality_score=0.0,
+        lit_ratio=0.0,
+        green_ratio=0.0,
+        component_count=0,
+        active_span_ratio=0.0,
+        active_band_height_ratio=0.0,
+        leading_blank_ratio=0.0,
         reason="Crop diagnostics skipped — reader uses full-image fallback.",
     )
 
@@ -1104,32 +1141,128 @@ async def read_scale(file: UploadFile = File(...)) -> JSONResponse:
     _LAST_PREVIEWS["crop"] = pil_to_jpeg_bytes(crop_img)
     _LAST_PREVIEWS["debug"] = pil_to_jpeg_bytes(debug_img)
 
-    return JSONResponse(
-        content={
-            "final": result.model_dump(),
-            "localization": localization_payload,
-            "crop_diagnostics": {
-                "is_reliable": crop_diagnostics.is_reliable,
-                "mode": crop_diagnostics.mode,
-                "quality_score": crop_diagnostics.quality_score,
-                "lit_ratio": crop_diagnostics.lit_ratio,
-                "green_ratio": crop_diagnostics.green_ratio,
-                "component_count": crop_diagnostics.component_count,
-                "active_span_ratio": crop_diagnostics.active_span_ratio,
-                "active_band_height_ratio": crop_diagnostics.active_band_height_ratio,
-                "leading_blank_ratio": crop_diagnostics.leading_blank_ratio,
-                "reason": crop_diagnostics.reason,
-            },
-            "elapsed_seconds": t_elapsed,
-            "preview_urls": {
-                "original": "/api/preview/original",
-                "enhanced": "/api/preview/enhanced",
-                "crop": "/api/preview/crop",
-                "debug": "/api/preview/debug",
-            },
-        }
-    )
+    return {
+        "final": result.model_dump(),
+        "localization": localization_payload,
+        "crop_diagnostics": {
+            "is_reliable": crop_diagnostics.is_reliable,
+            "mode": crop_diagnostics.mode,
+            "quality_score": crop_diagnostics.quality_score,
+            "lit_ratio": crop_diagnostics.lit_ratio,
+            "green_ratio": crop_diagnostics.green_ratio,
+            "component_count": crop_diagnostics.component_count,
+            "active_span_ratio": crop_diagnostics.active_span_ratio,
+            "active_band_height_ratio": crop_diagnostics.active_band_height_ratio,
+            "leading_blank_ratio": crop_diagnostics.leading_blank_ratio,
+            "reason": crop_diagnostics.reason,
+        },
+        "elapsed_seconds": t_elapsed,
+        "preview_urls": {
+            "original": "/api/preview/original",
+            "enhanced": "/api/preview/enhanced",
+            "crop": "/api/preview/crop",
+            "debug": "/api/preview/debug",
+        },
+    }
 
+@app.get("/")
+def home() -> FileResponse:
+    return FileResponse(STATIC_DIR / "index.html")
+
+
+@app.get("/health")
+def health() -> dict:
+    return {
+        "ok": True,
+        "model": MODEL_NAME,
+        "localizer_model": LOCALIZER_MODEL_NAME,
+        "localizer_min_confidence": LOCALIZER_MIN_CONFIDENCE,
+        "localizer_skip_refine_threshold": LOCALIZER_SKIP_REFINE_THRESHOLD,
+        "localizer_max_dimension": LOCALIZER_MAX_DIMENSION,
+        "local_decoder_min_confidence": LOCAL_DECODER_MIN_CONFIDENCE,
+        "expected_decimals": EXPECTED_DECIMALS or None,
+        "clappia_endpoint": "/api/clappia/analyze",
+    }
+
+
+@app.get("/api/preview/{kind}")
+def api_preview(kind: str):
+    if kind not in ("original", "enhanced", "crop", "debug"):
+        raise HTTPException(status_code=404, detail="Preview not found.")
+    img_bytes = _LAST_PREVIEWS.get(kind)
+    if img_bytes is None:
+        raise HTTPException(status_code=404, detail="No preview available yet.")
+    return Response(content=img_bytes, media_type="image/jpeg")
+
+
+@app.post("/api/read-scale")
+async def read_scale(file: UploadFile = File(...)) -> JSONResponse:
+    data = await file.read()
+    payload = run_scale_reader_pipeline(
+        data,
+        content_type=file.content_type or "image/jpeg",
+    )
+    return JSONResponse(content=payload)
+
+@app.post("/api/clappia/analyze")
+async def clappia_analyze(payload: ClappiaAnalyzeRequest) -> JSONResponse:
+    response: dict[str, Any] = {
+        "ok": True,
+        "submission_id": payload.submission_id,
+    }
+
+    details: dict[str, Any] = {}
+
+    for output_key, image_url in payload.targets.items():
+        safe_key = str(output_key).strip()
+        if not safe_key:
+            continue
+
+        try:
+            image_bytes, content_type = fetch_image_bytes_from_url(image_url)
+            analysis = run_scale_reader_pipeline(
+                image_bytes,
+                content_type=content_type,
+            )
+
+            final = analysis["final"]
+            numeric_value = final["value_number"] if final["status"] == "ok" else None
+
+            response[safe_key] = numeric_value
+            response[f"{safe_key}_text"] = final.get("value_text")
+            response[f"{safe_key}_status"] = final.get("status")
+            response[f"{safe_key}_confidence"] = final.get("confidence")
+            response[f"{safe_key}_reason"] = final.get("reason")
+
+            details[safe_key] = analysis
+
+        except Exception as e:
+            response[safe_key] = None
+            response[f"{safe_key}_text"] = None
+            response[f"{safe_key}_status"] = "needs_review"
+            response[f"{safe_key}_confidence"] = 0.0
+            response[f"{safe_key}_reason"] = str(e)
+
+            details[safe_key] = {
+                "final": {
+                    "status": "needs_review",
+                    "value_text": None,
+                    "value_number": None,
+                    "confidence": 0.0,
+                    "reason": str(e),
+                    "ignored_text_present": False,
+                },
+                "localization": {
+                    "source": "clappia_url_error",
+                    "found": False,
+                    "confidence": 0.0,
+                    "display_kind": "unknown",
+                    "reason": str(e),
+                },
+            }
+
+    response["details"] = details
+    return JSONResponse(content=response)
 
 if __name__ == "__main__":
     import uvicorn
