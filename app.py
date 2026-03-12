@@ -54,7 +54,7 @@ if not os.getenv("GEMINI_API_KEY"):
 
 client = genai.Client(api_key=os.getenv("GEMINI_API_KEY"))
 
-app = FastAPI(title="Gemini Scale Reader", version="9.0.0")
+app = FastAPI(title="Gemini Scale Reader", version="9.2.0")
 app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
 
 _LAST_PREVIEWS: dict[str, bytes] = {}
@@ -260,12 +260,23 @@ def _refine_localizer_instructions(previous: LocalizationResult) -> str:
     )
 
 
-def _region_refine_instructions(display_kind_hint: str) -> str:
+def _region_refine_instructions(display_kind_hint: str, primary_cy_frac: float = 0.5) -> str:
     if display_kind_hint == "led":
+        # If the primary box was in the upper half, warn the refiner explicitly
+        position_hint = ""
+        if primary_cy_frac < 0.55:
+            position_hint = (
+                "\nIMPORTANT: The previous localization attempt may have incorrectly "
+                "landed on the BOWL, PAN, or PLATFORM at the top of the scale. "
+                "The actual LED display is LOWER — look specifically in the BOTTOM "
+                "60% of this image for the dark rectangular panel with green digits. "
+                "Ignore the bowl/pan/rim at the top.\n"
+            )
         what_to_find = (
             "You are looking for a DARK rectangular panel with BRIGHT GREEN or orange glowing digit segments. "
             "The dark background panel is part of the display — box it fully, not just the bright digits. "
-            "It is typically a horizontal strip embedded in the machine body."
+            "It sits embedded in the scale BODY, below the weighing bowl/pan and above the control buttons."
+            f"{position_hint}"
         )
     elif display_kind_hint == "lcd":
         what_to_find = (
@@ -325,11 +336,12 @@ def call_gemini_region_localizer(
     region_enhanced_img: Image.Image,
     *,
     display_kind_hint: str = "unknown",
+    primary_cy_frac: float = 0.5,
 ) -> LocalizationResult:
     return _call_gemini_localizer_once(
         region_original_img,
         region_enhanced_img,
-        _region_refine_instructions(display_kind_hint),
+        _region_refine_instructions(display_kind_hint, primary_cy_frac),
         model_name=LOCALIZER_MODEL_NAME,
     )
 
@@ -458,8 +470,15 @@ def _is_high_quality_localization(
     display_kind: str,
 ) -> bool:
     """
-    Returns True when the localization is good enough to skip the
+    Returns True when the localization is trustworthy enough to skip the
     region-refiner pass (saves ~1 full Gemini API call).
+
+    We are CONSERVATIVE about skipping — a second pass is only skipped when
+    we are highly confident the box is correct.  In particular, for LED bowl
+    scales the primary localizer consistently places the box 10-15% too high
+    (onto the rim/base of the bowl rather than the display panel below it).
+    We detect this by checking cy_frac: if the box centre is above 55% of the
+    image height we force Pass 2 so the refiner can correct the position.
     """
     if confidence < LOCALIZER_SKIP_REFINE_THRESHOLD:
         return False
@@ -471,6 +490,7 @@ def _is_high_quality_localization(
 
     w_frac = bw / max(img_w, 1)
     h_frac = bh / max(img_h, 1)
+    cy_frac = ((y1 + y2) / 2.0) / max(img_h, 1)
     aspect = bw / max(bh, 1)
 
     # Good boxes: reasonably sized, good aspect, not edge-to-edge
@@ -479,6 +499,12 @@ def _is_high_quality_localization(
     if h_frac < 0.05 or h_frac > 0.22:
         return False
     if aspect < 1.5 or aspect > 8.0:
+        return False
+
+    # For LED bowl scales the display is ALWAYS in the lower portion of the
+    # image. If the box centre is above 55% we must run Pass 2 — the primary
+    # localizer has likely landed on the bowl platform rather than the display.
+    if display_kind == "led" and cy_frac < 0.55:
         return False
 
     return True
@@ -497,11 +523,11 @@ def expand_localization_box(
     if display_kind == "led":
         left_pad = int(round(bw * 0.22))
         right_pad = max(int(round(bw * 0.18)), 12)
+        # top_pad = 0: for LED bowl scales the bowl sits directly above the
+        # display. Any upward expansion pulls the crop into the bowl rim.
+        # The localizer already includes a small top margin in its box.
+        top_pad = 0
         bottom_pad = max(int(round(bh * 0.26)), 8)
-        # TOP PAD: for LED scales the bowl is directly above the display.
-        # Cap upward expansion to a small fixed margin (6% of bh, max 12px)
-        # to avoid pulling the crop into the bowl/rim above the display.
-        top_pad = min(int(round(bh * 0.06)), 12)
     elif display_kind == "lcd":
         left_pad = int(round(bw * 0.06))
         right_pad = max(int(round(bw * 0.06)), 6)
@@ -835,6 +861,9 @@ def call_gemini_on_full_image(
             "Read the value directly from the ORIGINAL full photo only. "
             "Ignore any imagined crop or display box. "
             "Look carefully for a tiny isolated decimal dot near the numeric row baseline, especially near the right side of the display. "
+            "CRITICAL — DIGIT 1: The digit 1 uses ONLY the two right-side vertical segments of a slot. "
+            "It is narrow and bright green, not a dim full-width 8 placeholder. "
+            "A narrow bright column between placeholders and the main number IS the digit 1 — do NOT skip it. "
             f"{kind_hint}"
             f"Localization fallback reason: {fallback_reason}"
         ),
@@ -929,9 +958,13 @@ async def read_scale(file: UploadFile = File(...)) -> JSONResponse:
 
         # ------------------------------------------------------------------ #
         # Pass 2: region-refiner — SKIP if pass 1 is already high quality     #
-        # This is the largest single latency saving: ~1 full Gemini API call  #
+        # For LED boxes in the upper image half we ALWAYS run pass 2 because  #
+        # the primary localizer consistently lands on the bowl, not the display#
         # ------------------------------------------------------------------ #
         if best_box_pixels is not None:
+            # Compute cy_frac of the current best box for the position hint
+            _bcy = ((best_box_pixels[1] + best_box_pixels[3]) / 2.0) / max(original_img.size[1], 1)
+
             if _is_high_quality_localization(
                 best_box_pixels, original_img.size, best_confidence, primary_localization.display_kind
             ):
@@ -945,6 +978,7 @@ async def read_scale(file: UploadFile = File(...)) -> JSONResponse:
                     search_original,
                     search_enhanced,
                     display_kind_hint=primary_localization.display_kind,
+                    primary_cy_frac=_bcy,
                 )
                 if refined.found and refined.confidence >= LOCALIZER_MIN_CONFIDENCE:
                     refined_local_box = localization_box_to_pixels(refined, search_original.size)
@@ -974,16 +1008,16 @@ async def read_scale(file: UploadFile = File(...)) -> JSONResponse:
         debug_img = draw_localization_debug(
             original_img, best_box_pixels, display_kind, best_localization.reason[:40]
         )
+        _box_cy = round(((best_box_pixels[1] + best_box_pixels[3]) / 2.0) / max(original_img.size[1], 1), 3)
         localization_payload = {
-            "source": "vlm_full" if skipped_refine else (
-                "vlm_region" if best_localization.reason.startswith("Region") else "vlm_full"
-            ),
+            "source": "vlm_pass1" if skipped_refine else "vlm_pass2",
             "model": LOCALIZER_MODEL_NAME,
             "found": True,
             "confidence": round(best_confidence, 3),
             "display_kind": display_kind,
             "reason": best_localization.reason,
             "skipped_refine": skipped_refine,
+            "box_cy_frac": _box_cy,
             "box_norm_1000": pixels_to_norm1000(best_box_pixels, original_img.size),
             "box_pixels": {
                 "x1": best_box_pixels[0], "y1": best_box_pixels[1],
@@ -1037,7 +1071,11 @@ async def read_scale(file: UploadFile = File(...)) -> JSONResponse:
                 "\n"
                 "STEP 3 — READ THE VALUE:\n"
                 "  - LED: count ONLY bright illuminated segments. "
-                "Dim gray 8-shaped outlines are INACTIVE PLACEHOLDERS — ignore them completely.\n"
+                "Dim gray 8-shaped outlines filling an entire slot are INACTIVE PLACEHOLDERS — ignore them.\n"
+                "  - CRITICAL — DIGIT 1: The digit 1 uses ONLY the two right-side vertical bars of a slot. "
+                "It is narrow and bright green — NOT a dim full-width 8 placeholder. "
+                "Do NOT skip it. A narrow bright column to the left of the main number IS the digit 1. "
+                "Example: if display shows [dim][dim][narrow-bright][8].[5][4][0] → read 18.540, NOT 8.540.\n"
                 "  - LCD: read dark segments on the light screen. "
                 "Do not include buttons, labels, or areas outside the screen rectangle.\n"
                 "  - Include decimal point only if a small isolated dot is clearly visible.\n"
