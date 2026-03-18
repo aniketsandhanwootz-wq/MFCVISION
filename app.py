@@ -2,12 +2,15 @@ from __future__ import annotations
 
 import io
 import json
+import logging
 import os
 import re
 import time
 import requests
 from pathlib import Path
 from typing import Any, Literal, Optional
+from urllib.parse import urlsplit
+from uuid import uuid4
 
 from dotenv import load_dotenv
 from fastapi import FastAPI, File, HTTPException, UploadFile, Response
@@ -16,7 +19,7 @@ from fastapi.staticfiles import StaticFiles
 from google import genai
 from google.genai import types
 from PIL import Image, ImageDraw
-from pydantic import BaseModel, Field, ValidationError
+from pydantic import AliasChoices, BaseModel, ConfigDict, Field, ValidationError
 
 from image_enhance import make_enhanced_display_image
 from vision import (
@@ -32,6 +35,24 @@ load_dotenv()
 BASE_DIR = Path(__file__).resolve().parent
 PROMPT_PATH = BASE_DIR / "prompts" / "scale_reader.txt"
 STATIC_DIR = BASE_DIR / "static"
+
+LOG_LEVEL = (os.getenv("LOG_LEVEL") or "INFO").upper()
+
+
+def _build_logger() -> logging.Logger:
+    app_logger = logging.getLogger("mfcvision")
+    if not app_logger.handlers:
+        handler = logging.StreamHandler()
+        handler.setFormatter(
+            logging.Formatter("%(asctime)s %(levelname)s %(name)s %(message)s")
+        )
+        app_logger.addHandler(handler)
+    app_logger.setLevel(getattr(logging, LOG_LEVEL, logging.INFO))
+    app_logger.propagate = False
+    return app_logger
+
+
+logger = _build_logger()
 
 MODEL_NAME = os.getenv("MODEL_NAME", "gemini-2.5-flash")
 _raw_localizer = os.getenv("LOCALIZER_MODEL_NAME", "gemini-2.5-flash")
@@ -94,8 +115,13 @@ class LocalizationResult(BaseModel):
     reason: str
 
 class ClappiaAnalyzeRequest(BaseModel):
-    submission_id: Optional[str] = None
-    targets: dict[str, str] = Field(default_factory=dict)
+    model_config = ConfigDict(extra="allow")
+
+    submission_id: Optional[str] = Field(
+        default=None,
+        validation_alias=AliasChoices("submission_id", "submissionId"),
+    )
+    targets: dict[str, Any] = Field(default_factory=dict)
 
 
 class ClappiaSingleResult(BaseModel):
@@ -105,6 +131,89 @@ class ClappiaSingleResult(BaseModel):
     confidence: float
     reason: str
     ignored_text_present: bool
+
+
+_CLAPPIA_RESERVED_KEYS = {"submission_id", "submissionId", "targets"}
+
+
+def _trace_id(prefix: str) -> str:
+    return f"{prefix}-{uuid4().hex[:8]}"
+
+
+def _log_url_summary(url: str) -> str:
+    parts = urlsplit(url)
+    path = parts.path or "/"
+    return f"{parts.scheme}://{parts.netloc}{path}"
+
+
+def _pipeline_log_context(
+    *,
+    trace_id: str | None,
+    source: str,
+    target_key: str | None = None,
+) -> str:
+    context = [f"trace_id={trace_id or '-'}", f"source={source}"]
+    if target_key:
+        context.append(f"target={target_key}")
+    return " ".join(context)
+
+
+def _normalize_remote_image_url(candidate: Any) -> Optional[str]:
+    if isinstance(candidate, str):
+        value = candidate.strip()
+        if value.startswith(("http://", "https://")):
+            return value
+        return None
+
+    if isinstance(candidate, dict):
+        for key in ("publicurl", "publicUrl", "url", "downloadUrl", "download_url", "href"):
+            normalized = _normalize_remote_image_url(candidate.get(key))
+            if normalized:
+                return normalized
+        for key in ("value", "file", "image"):
+            normalized = _normalize_remote_image_url(candidate.get(key))
+            if normalized:
+                return normalized
+        return None
+
+    if isinstance(candidate, (list, tuple)):
+        for item in candidate:
+            normalized = _normalize_remote_image_url(item)
+            if normalized:
+                return normalized
+
+    return None
+
+
+def extract_clappia_targets(payload: ClappiaAnalyzeRequest) -> dict[str, str]:
+    normalized_targets: dict[str, str] = {}
+
+    raw_targets = payload.targets if isinstance(payload.targets, dict) else {}
+    for output_key, raw_value in raw_targets.items():
+        safe_key = str(output_key).strip()
+        if not safe_key:
+            continue
+        image_url = _normalize_remote_image_url(raw_value)
+        if image_url:
+            normalized_targets[safe_key] = image_url
+
+    if normalized_targets:
+        return normalized_targets
+
+    extra_fields = payload.model_extra or {}
+    for output_key, raw_value in extra_fields.items():
+        if output_key in _CLAPPIA_RESERVED_KEYS:
+            continue
+
+        safe_key = str(output_key).strip()
+        if not safe_key or safe_key in normalized_targets:
+            continue
+
+        image_url = _normalize_remote_image_url(raw_value)
+        if image_url:
+            normalized_targets[safe_key] = image_url
+
+    return normalized_targets
 
 def validate_upload(file: Any, data: bytes) -> None:
     if not file.content_type or not file.content_type.startswith("image/"):
@@ -123,16 +232,42 @@ def open_image(data: bytes) -> Image.Image:
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"Invalid image: {e}")
 
-def fetch_image_bytes_from_url(url: str) -> tuple[bytes, str]:
+def fetch_image_bytes_from_url(
+    url: str,
+    *,
+    trace_id: str | None = None,
+    target_key: str | None = None,
+) -> tuple[bytes, str]:
     if not url or not isinstance(url, str):
         raise HTTPException(status_code=400, detail="Image URL is missing.")
+
+    request_context = _pipeline_log_context(
+        trace_id=trace_id,
+        source="clappia_fetch",
+        target_key=target_key,
+    )
+    safe_url = _log_url_summary(url)
+    fetch_started = time.monotonic()
+    logger.info("remote_fetch_start %s url=%s", request_context, safe_url)
 
     try:
         resp = requests.get(url, timeout=30)
     except requests.RequestException as e:
+        logger.warning(
+            "remote_fetch_error %s url=%s error=%s",
+            request_context,
+            safe_url,
+            e,
+        )
         raise HTTPException(status_code=400, detail=f"Could not fetch image URL: {e}")
 
     if resp.status_code != 200:
+        logger.warning(
+            "remote_fetch_bad_status %s url=%s status_code=%s",
+            request_context,
+            safe_url,
+            resp.status_code,
+        )
         raise HTTPException(
             status_code=400,
             detail=f"Image URL returned HTTP {resp.status_code}.",
@@ -142,17 +277,37 @@ def fetch_image_bytes_from_url(url: str) -> tuple[bytes, str]:
     data = resp.content or b""
 
     if not content_type.startswith("image/"):
+        logger.warning(
+            "remote_fetch_bad_content_type %s url=%s content_type=%s",
+            request_context,
+            safe_url,
+            content_type,
+        )
         raise HTTPException(
             status_code=400,
             detail=f"Remote URL is not an image. content-type={content_type}",
         )
 
     if len(data) > MAX_IMAGE_BYTES:
+        logger.warning(
+            "remote_fetch_too_large %s url=%s bytes=%s",
+            request_context,
+            safe_url,
+            len(data),
+        )
         raise HTTPException(
             status_code=400,
             detail=f"Remote image too large. Max allowed size is {MAX_IMAGE_MB} MB.",
         )
 
+    logger.info(
+        "remote_fetch_complete %s url=%s bytes=%s content_type=%s elapsed_seconds=%.2f",
+        request_context,
+        safe_url,
+        len(data),
+        content_type,
+        time.monotonic() - fetch_started,
+    )
     return data, content_type
 def pil_to_jpeg_bytes(img: Image.Image, quality: int = 92) -> bytes:
     buf = io.BytesIO()
@@ -925,8 +1080,22 @@ def run_scale_reader_pipeline(
     data: bytes,
     *,
     content_type: str = "image/jpeg",
+    trace_id: str | None = None,
+    source: str = "upload",
+    target_key: str | None = None,
 ) -> dict[str, Any]:
     t_start = time.monotonic()
+    log_context = _pipeline_log_context(
+        trace_id=trace_id,
+        source=source,
+        target_key=target_key,
+    )
+    logger.info(
+        "pipeline_start %s bytes=%s content_type=%s",
+        log_context,
+        len(data),
+        content_type,
+    )
 
     class _TempFile:
         def __init__(self, content_type: str):
@@ -934,12 +1103,26 @@ def run_scale_reader_pipeline(
 
     validate_upload(_TempFile(content_type), data)
     original_img = open_image(data)
+    logger.info(
+        "pipeline_image_opened %s image_size=%sx%s",
+        log_context,
+        original_img.size[0],
+        original_img.size[1],
+    )
 
     localizer_img = resize_keep_aspect(original_img, max_dim=LOCALIZER_MAX_DIMENSION)
     localizer_enhanced_img = make_enhanced_display_image(
         localizer_img, max_dim=LOCALIZER_MAX_DIMENSION
     )
     enhanced_full_img = make_enhanced_display_image(original_img, max_dim=MAX_DIMENSION)
+    logger.info(
+        "pipeline_images_prepared %s localizer_size=%sx%s enhanced_full_size=%sx%s",
+        log_context,
+        localizer_img.size[0],
+        localizer_img.size[1],
+        enhanced_full_img.size[0],
+        enhanced_full_img.size[1],
+    )
 
     crop_img: Image.Image = make_placeholder_preview((720, 180), "No localized ROI")
     debug_img: Image.Image = original_img.copy()
@@ -953,10 +1136,23 @@ def run_scale_reader_pipeline(
     primary_localization: LocalizationResult
 
     try:
+        logger.info(
+            "localizer_primary_start %s model=%s",
+            log_context,
+            LOCALIZER_MODEL_NAME,
+        )
         primary_localization = call_gemini_localizer(
             localizer_img,
             localizer_enhanced_img,
             previous=None,
+        )
+        logger.info(
+            "localizer_primary_result %s found=%s confidence=%.3f display_kind=%s reason=%s",
+            log_context,
+            primary_localization.found,
+            primary_localization.confidence,
+            primary_localization.display_kind,
+            primary_localization.reason,
         )
 
         if primary_localization.found and primary_localization.confidence >= LOCALIZER_MIN_CONFIDENCE:
@@ -986,16 +1182,34 @@ def run_scale_reader_pipeline(
                 primary_localization.display_kind,
             ):
                 skipped_refine = True
+                logger.info(
+                    "localizer_refine_skipped %s confidence=%.3f",
+                    log_context,
+                    best_confidence,
+                )
             else:
                 search_box = make_search_region_box(best_box_pixels, original_img.size)
                 search_original = crop_from_box(original_img, search_box)
                 search_enhanced = crop_from_box(enhanced_full_img, search_box)
+                logger.info(
+                    "localizer_refine_start %s search_box=%s",
+                    log_context,
+                    search_box,
+                )
 
                 refined = call_gemini_region_localizer(
                     search_original,
                     search_enhanced,
                     display_kind_hint=primary_localization.display_kind,
                     primary_cy_frac=_bcy,
+                )
+                logger.info(
+                    "localizer_refine_result %s found=%s confidence=%.3f display_kind=%s reason=%s",
+                    log_context,
+                    refined.found,
+                    refined.confidence,
+                    refined.display_kind,
+                    refined.reason,
                 )
                 if refined.found and refined.confidence >= LOCALIZER_MIN_CONFIDENCE:
                     refined_local_box = localization_box_to_pixels(refined, search_original.size)
@@ -1020,6 +1234,7 @@ def run_scale_reader_pipeline(
                                 best_confidence = refined.confidence
 
     except Exception as e:
+        logger.exception("localizer_exception %s error=%s", log_context, e)
         primary_localization = LocalizationResult(
             found=False,
             confidence=0.0,
@@ -1070,6 +1285,14 @@ def run_scale_reader_pipeline(
             "reason": best_localization.reason if best_localization else "Localization not attempted",
             "skipped_refine": False,
         }
+    logger.info(
+        "localization_selected %s found=%s source=%s display_kind=%s confidence=%s",
+        log_context,
+        localization_payload["found"],
+        localization_payload["source"],
+        localization_payload["display_kind"],
+        localization_payload["confidence"],
+    )
 
     crop_diagnostics = CropDiagnostics(
         is_reliable=False,
@@ -1085,6 +1308,11 @@ def run_scale_reader_pipeline(
     )
 
     if best_box_pixels is not None:
+        logger.info(
+            "reader_start %s mode=crop display_kind=%s",
+            log_context,
+            display_kind,
+        )
         kind_hint = f"Display type: {display_kind.upper()}. " if display_kind in {"led", "lcd"} else ""
         result = call_gemini_with_instructions(
             (
@@ -1125,6 +1353,11 @@ def run_scale_reader_pipeline(
             include_secondary=True,
         )
     else:
+        logger.info(
+            "reader_start %s mode=full_image display_kind=%s",
+            log_context,
+            display_kind,
+        )
         result = call_gemini_on_full_image(
             original_img,
             localization_payload.get("reason", "localization failed"),
@@ -1132,6 +1365,12 @@ def run_scale_reader_pipeline(
         )
 
     if is_suspicious_read(result):
+        logger.warning(
+            "reader_suspicious %s value_text=%s reason=%s",
+            log_context,
+            result.value_text,
+            result.reason,
+        )
         result = mark_suspicious_for_review(result, f"Read flagged as suspicious: {result.reason}")
 
     t_elapsed = round(time.monotonic() - t_start, 2)
@@ -1140,6 +1379,14 @@ def run_scale_reader_pipeline(
     _LAST_PREVIEWS["enhanced"] = pil_to_jpeg_bytes(enhanced_full_img)
     _LAST_PREVIEWS["crop"] = pil_to_jpeg_bytes(crop_img)
     _LAST_PREVIEWS["debug"] = pil_to_jpeg_bytes(debug_img)
+    logger.info(
+        "pipeline_complete %s status=%s value_text=%s confidence=%.3f elapsed_seconds=%.2f",
+        log_context,
+        result.status,
+        result.value_text,
+        result.confidence,
+        t_elapsed,
+    )
 
     return {
         "final": result.model_dump(),
@@ -1174,6 +1421,7 @@ def home() -> FileResponse:
 def health() -> dict:
     return {
         "ok": True,
+        "log_level": LOG_LEVEL,
         "model": MODEL_NAME,
         "localizer_model": LOCALIZER_MODEL_NAME,
         "localizer_min_confidence": LOCALIZER_MIN_CONFIDENCE,
@@ -1197,15 +1445,54 @@ def api_preview(kind: str):
 
 @app.post("/api/read-scale")
 async def read_scale(file: UploadFile = File(...)) -> JSONResponse:
+    trace_id = _trace_id("upload")
+    logger.info(
+        "upload_request_received trace_id=%s filename=%s content_type=%s",
+        trace_id,
+        file.filename,
+        file.content_type,
+    )
     data = await file.read()
     payload = run_scale_reader_pipeline(
         data,
         content_type=file.content_type or "image/jpeg",
+        trace_id=trace_id,
+        source="upload",
+    )
+    logger.info(
+        "upload_request_complete trace_id=%s status=%s value_text=%s",
+        trace_id,
+        payload["final"]["status"],
+        payload["final"]["value_text"],
     )
     return JSONResponse(content=payload)
 
 @app.post("/api/clappia/analyze")
 async def clappia_analyze(payload: ClappiaAnalyzeRequest) -> JSONResponse:
+    trace_id = _trace_id("clappia")
+    targets = extract_clappia_targets(payload)
+    logger.info(
+        "clappia_request_received trace_id=%s submission_id=%s target_keys=%s",
+        trace_id,
+        payload.submission_id,
+        sorted(targets.keys()),
+    )
+    if not targets:
+        logger.warning(
+            "clappia_request_rejected trace_id=%s submission_id=%s reason=no_analyzable_targets",
+            trace_id,
+            payload.submission_id,
+        )
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                "No analyzable image URLs found. Send image URLs either under "
+                "'targets' or as top-level fields. Example: "
+                "{\"targets\":{\"gross_weight\":\"https://...\"}} or "
+                "{\"gross_weight\":\"https://...\"}."
+            ),
+        )
+
     response: dict[str, Any] = {
         "ok": True,
         "submission_id": payload.submission_id,
@@ -1213,16 +1500,29 @@ async def clappia_analyze(payload: ClappiaAnalyzeRequest) -> JSONResponse:
 
     details: dict[str, Any] = {}
 
-    for output_key, image_url in payload.targets.items():
+    for output_key, image_url in targets.items():
         safe_key = str(output_key).strip()
         if not safe_key:
             continue
 
         try:
-            image_bytes, content_type = fetch_image_bytes_from_url(image_url)
+            logger.info(
+                "clappia_target_start trace_id=%s submission_id=%s target=%s",
+                trace_id,
+                payload.submission_id,
+                safe_key,
+            )
+            image_bytes, content_type = fetch_image_bytes_from_url(
+                image_url,
+                trace_id=trace_id,
+                target_key=safe_key,
+            )
             analysis = run_scale_reader_pipeline(
                 image_bytes,
                 content_type=content_type,
+                trace_id=trace_id,
+                source="clappia",
+                target_key=safe_key,
             )
 
             final = analysis["final"]
@@ -1235,8 +1535,24 @@ async def clappia_analyze(payload: ClappiaAnalyzeRequest) -> JSONResponse:
             response[f"{safe_key}_reason"] = final.get("reason")
 
             details[safe_key] = analysis
+            logger.info(
+                "clappia_target_complete trace_id=%s submission_id=%s target=%s status=%s value_text=%s confidence=%s",
+                trace_id,
+                payload.submission_id,
+                safe_key,
+                final.get("status"),
+                final.get("value_text"),
+                final.get("confidence"),
+            )
 
         except Exception as e:
+            logger.exception(
+                "clappia_target_error trace_id=%s submission_id=%s target=%s error=%s",
+                trace_id,
+                payload.submission_id,
+                safe_key,
+                e,
+            )
             response[safe_key] = None
             response[f"{safe_key}_text"] = None
             response[f"{safe_key}_status"] = "needs_review"
@@ -1262,6 +1578,12 @@ async def clappia_analyze(payload: ClappiaAnalyzeRequest) -> JSONResponse:
             }
 
     response["details"] = details
+    logger.info(
+        "clappia_request_complete trace_id=%s submission_id=%s processed_targets=%s",
+        trace_id,
+        payload.submission_id,
+        sorted(details.keys()),
+    )
     return JSONResponse(content=response)
 
 if __name__ == "__main__":
