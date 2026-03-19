@@ -72,6 +72,7 @@ LOCALIZER_MIN_CONFIDENCE = float(os.getenv("LOCALIZER_MIN_CONFIDENCE", "0.45"))
 LOCALIZER_SKIP_REFINE_THRESHOLD = float(os.getenv("LOCALIZER_SKIP_REFINE_THRESHOLD", "0.90"))
 CLAPPIA_API_KEY = (os.getenv("CLAPPIA_API_KEY") or "").strip()
 CLAPPIA_APP_ID = (os.getenv("CLAPPIA_APP_ID") or "MFC182090").strip()
+CLAPPIA_WORKPLACE_ID = (os.getenv("CLAPPIA_WORKPLACE_ID") or "").strip()
 CLAPPIA_BASE_URL = (os.getenv("CLAPPIA_BASE_URL") or "https://api-public-v3.clappia.com").strip().rstrip("/")
 CLAPPIA_REQUEST_TIMEOUT_SECONDS = float(os.getenv("CLAPPIA_REQUEST_TIMEOUT_SECONDS", "30"))
 
@@ -249,6 +250,21 @@ def _normalize_remote_image_url(candidate: Any) -> Optional[str]:
     return None
 
 
+def _normalize_clappia_token(candidate: Any) -> Optional[str]:
+    if not isinstance(candidate, str):
+        return None
+
+    value = candidate.strip()
+    if not value:
+        return None
+
+    # Clappia workflow misconfiguration often sends unresolved placeholders literally.
+    if re.fullmatch(r"\{[^{}]+\}", value) or re.fullmatch(r"\{\$[^{}]+\}", value):
+        return None
+
+    return value
+
+
 def extract_clappia_targets(payload: ClappiaAnalyzeRequest) -> dict[str, str]:
     normalized_targets: dict[str, str] = {}
 
@@ -371,22 +387,25 @@ def update_clappia_submission(
     requesting_user_email_address: Optional[str] = None,
 ) -> ClappiaWritebackResult:
     endpoint = f"{CLAPPIA_BASE_URL}/submissions/edit"
+    normalized_submission_id = _normalize_clappia_token(submission_id)
+    normalized_workplace_id = _normalize_clappia_token(workplace_id) or _normalize_clappia_token(CLAPPIA_WORKPLACE_ID)
+    normalized_requesting_email = _normalize_clappia_token(requesting_user_email_address)
 
     payload: dict[str, Any] = {
         "appId": CLAPPIA_APP_ID or None,
-        "submissionId": submission_id,
+        "submissionId": normalized_submission_id,
         "data": data,
     }
-    if workplace_id:
-        payload["workplaceId"] = workplace_id
-    if requesting_user_email_address:
-        payload["requestingUserEmailAddress"] = requesting_user_email_address
+    if normalized_workplace_id:
+        payload["workplaceId"] = normalized_workplace_id
+    if normalized_requesting_email:
+        payload["requestingUserEmailAddress"] = normalized_requesting_email
 
     result = ClappiaWritebackResult(
         enabled=bool(CLAPPIA_API_KEY and CLAPPIA_APP_ID),
         attempted=False,
         success=False,
-        submission_id=submission_id,
+        submission_id=normalized_submission_id,
         app_id=CLAPPIA_APP_ID or None,
         endpoint=endpoint,
         payload=payload,
@@ -413,11 +432,20 @@ def update_clappia_submission(
         )
         return result
 
-    if not submission_id:
+    if not normalized_submission_id:
         result.error = "Clappia writeback skipped: missing submission_id."
         logger.warning(
             "clappia_writeback_skipped trace_id=%s reason=missing_submission_id",
             trace_id,
+        )
+        return result
+
+    if not normalized_workplace_id:
+        result.error = "Clappia writeback skipped: missing workplaceId."
+        logger.warning(
+            "clappia_writeback_skipped trace_id=%s submission_id=%s reason=missing_workplace_id",
+            trace_id,
+            normalized_submission_id,
         )
         return result
 
@@ -426,7 +454,7 @@ def update_clappia_submission(
         logger.info(
             "clappia_writeback_skipped trace_id=%s submission_id=%s reason=no_successful_values skipped_targets=%s",
             trace_id,
-            submission_id,
+            normalized_submission_id,
             sorted(skipped_targets.keys()),
         )
         return result
@@ -434,7 +462,7 @@ def update_clappia_submission(
     logger.info(
         "clappia_writeback_start trace_id=%s submission_id=%s field_map=%s payload_keys=%s",
         trace_id,
-        submission_id,
+        normalized_submission_id,
         target_field_map,
         sorted(data.keys()),
     )
@@ -461,7 +489,7 @@ def update_clappia_submission(
             logger.info(
                 "clappia_writeback_success trace_id=%s submission_id=%s response_status=%s written_fields=%s",
                 trace_id,
-                submission_id,
+                normalized_submission_id,
                 response.status_code,
                 sorted(data.keys()),
             )
@@ -471,7 +499,7 @@ def update_clappia_submission(
         logger.warning(
             "clappia_writeback_failed trace_id=%s submission_id=%s response_status=%s response_body=%s",
             trace_id,
-            submission_id,
+            normalized_submission_id,
             response.status_code,
             result.response_text,
         )
@@ -483,7 +511,7 @@ def update_clappia_submission(
         logger.exception(
             "clappia_writeback_exception trace_id=%s submission_id=%s error=%s",
             trace_id,
-            submission_id,
+            normalized_submission_id,
             e,
         )
         return result
@@ -1696,8 +1724,13 @@ def health() -> dict:
         "ok": True,
         "log_level": LOG_LEVEL,
         "clappia_app_id": CLAPPIA_APP_ID or None,
+        "clappia_workplace_id_configured": bool(_normalize_clappia_token(CLAPPIA_WORKPLACE_ID)),
         "clappia_base_url": CLAPPIA_BASE_URL,
-        "clappia_writeback_enabled": bool(CLAPPIA_API_KEY and CLAPPIA_APP_ID),
+        "clappia_writeback_enabled": bool(
+            CLAPPIA_API_KEY
+            and CLAPPIA_APP_ID
+            and _normalize_clappia_token(CLAPPIA_WORKPLACE_ID)
+        ),
         "model": MODEL_NAME,
         "localizer_model": LOCALIZER_MODEL_NAME,
         "localizer_min_confidence": LOCALIZER_MIN_CONFIDENCE,

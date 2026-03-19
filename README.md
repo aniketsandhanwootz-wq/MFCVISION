@@ -103,6 +103,7 @@ Both `/api/read-scale` and `/api/clappia/analyze` use the same internal image-an
 - `LOG_LEVEL`: app log level for Render/stdout logs, default `INFO`
 - `CLAPPIA_API_KEY`: optional workplace API key used for backend-side Clappia submission writeback
 - `CLAPPIA_APP_ID`: Clappia app ID for writeback, default `MFC182090`
+- `CLAPPIA_WORKPLACE_ID`: Clappia workplace ID required by the public `submissions/edit` API
 - `CLAPPIA_BASE_URL`: Clappia public API base URL, default `https://api-public-v3.clappia.com`
 - `HOST`: default `0.0.0.0`
 - `PORT`: default `8000`
@@ -120,6 +121,7 @@ Important notes:
 - If `LOCALIZER_MODEL_NAME` contains `lite`, the app replaces it with `MODEL_NAME`.
 - `.env.example` is only a starter file and may lag `app.py`. Use the code as the source of truth.
 - Missing `CLAPPIA_API_KEY` does not stop startup; it only disables direct Clappia writeback and returns a structured writeback error in `/api/clappia/analyze`.
+- Missing `CLAPPIA_WORKPLACE_ID` also disables direct Clappia writeback; unresolved placeholders like `{workplaceId}` are ignored.
 
 ## Clappia Direct Writeback
 
@@ -152,6 +154,7 @@ Example:
   "ok": true,
   "log_level": "INFO",
   "clappia_app_id": "MFC182090",
+  "clappia_workplace_id_configured": true,
   "clappia_base_url": "https://api-public-v3.clappia.com",
   "clappia_writeback_enabled": true,
   "model": "gemini-2.5-flash",
@@ -386,6 +389,7 @@ Response shape:
 ### Clappia Writeback
 
 - Set `CLAPPIA_API_KEY` in Render before expecting backend-side Clappia updates.
+- Set `CLAPPIA_WORKPLACE_ID` in Render; Clappia public `submissions/edit` requires it.
 - Ensure the incoming request includes `submissionId`; writeback is skipped without it.
 - Check the top-level `clappia_writeback` object in the API response for `payload`, `response_status`, and `error`.
 - In Render logs, inspect `clappia_writeback_start`, `clappia_writeback_success`, `clappia_writeback_failed`, and `clappia_writeback_exception`.
