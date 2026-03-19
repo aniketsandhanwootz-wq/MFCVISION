@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import io
 import json
 import logging
@@ -75,6 +76,7 @@ CLAPPIA_APP_ID = (os.getenv("CLAPPIA_APP_ID") or "MFC182090").strip()
 CLAPPIA_WORKPLACE_ID = (os.getenv("CLAPPIA_WORKPLACE_ID") or "").strip()
 CLAPPIA_BASE_URL = (os.getenv("CLAPPIA_BASE_URL") or "https://api-public-v3.clappia.com").strip().rstrip("/")
 CLAPPIA_REQUEST_TIMEOUT_SECONDS = float(os.getenv("CLAPPIA_REQUEST_TIMEOUT_SECONDS", "30"))
+CLAPPIA_ANALYZE_CONCURRENCY = max(1, int(os.getenv("CLAPPIA_ANALYZE_CONCURRENCY", "6")))
 
 # Explicit writeback map from AI input fields to existing Clappia measurement fields.
 CLAPPIA_WRITEBACK_FIELD_MAP: dict[str, str] = {
@@ -515,6 +517,96 @@ def update_clappia_submission(
             e,
         )
         return result
+
+
+def _make_clappia_target_error_analysis(error: Exception) -> dict[str, Any]:
+    return {
+        "final": {
+            "status": "needs_review",
+            "value_text": None,
+            "value_number": None,
+            "confidence": 0.0,
+            "reason": str(error),
+            "ignored_text_present": False,
+        },
+        "localization": {
+            "source": "clappia_url_error",
+            "found": False,
+            "confidence": 0.0,
+            "display_kind": "unknown",
+            "reason": str(error),
+        },
+    }
+
+
+async def _analyze_clappia_target(
+    *,
+    trace_id: str,
+    submission_id: Optional[str],
+    target_key: str,
+    image_url: str,
+    semaphore: asyncio.Semaphore,
+) -> tuple[str, dict[str, Any], dict[str, Any]]:
+    async with semaphore:
+        try:
+            logger.info(
+                "clappia_target_start trace_id=%s submission_id=%s target=%s",
+                trace_id,
+                submission_id,
+                target_key,
+            )
+            image_bytes, content_type = await asyncio.to_thread(
+                fetch_image_bytes_from_url,
+                image_url,
+                trace_id=trace_id,
+                target_key=target_key,
+            )
+            analysis = await asyncio.to_thread(
+                run_scale_reader_pipeline,
+                image_bytes,
+                content_type=content_type,
+                trace_id=trace_id,
+                source="clappia",
+                target_key=target_key,
+            )
+
+            final = analysis["final"]
+            numeric_value = final["value_number"] if final["status"] == "ok" else None
+            response_fields = {
+                target_key: numeric_value,
+                f"{target_key}_text": final.get("value_text"),
+                f"{target_key}_status": final.get("status"),
+                f"{target_key}_confidence": final.get("confidence"),
+                f"{target_key}_reason": final.get("reason"),
+            }
+
+            logger.info(
+                "clappia_target_complete trace_id=%s submission_id=%s target=%s status=%s value_text=%s confidence=%s",
+                trace_id,
+                submission_id,
+                target_key,
+                final.get("status"),
+                final.get("value_text"),
+                final.get("confidence"),
+            )
+            return target_key, response_fields, analysis
+
+        except Exception as e:
+            logger.exception(
+                "clappia_target_error trace_id=%s submission_id=%s target=%s error=%s",
+                trace_id,
+                submission_id,
+                target_key,
+                e,
+            )
+            response_fields = {
+                target_key: None,
+                f"{target_key}_text": None,
+                f"{target_key}_status": "needs_review",
+                f"{target_key}_confidence": 0.0,
+                f"{target_key}_reason": str(e),
+            }
+            return target_key, response_fields, _make_clappia_target_error_analysis(e)
 
 def validate_upload(file: Any, data: bytes) -> None:
     if not file.content_type or not file.content_type.startswith("image/"):
@@ -1723,6 +1815,7 @@ def health() -> dict:
     return {
         "ok": True,
         "log_level": LOG_LEVEL,
+        "clappia_analyze_concurrency": CLAPPIA_ANALYZE_CONCURRENCY,
         "clappia_app_id": CLAPPIA_APP_ID or None,
         "clappia_workplace_id_configured": bool(_normalize_clappia_token(CLAPPIA_WORKPLACE_ID)),
         "clappia_base_url": CLAPPIA_BASE_URL,
@@ -1808,83 +1901,38 @@ async def clappia_analyze(payload: ClappiaAnalyzeRequest) -> JSONResponse:
     }
 
     details: dict[str, Any] = {}
-
-    for output_key, image_url in targets.items():
-        safe_key = str(output_key).strip()
-        if not safe_key:
-            continue
-
-        try:
-            logger.info(
-                "clappia_target_start trace_id=%s submission_id=%s target=%s",
-                trace_id,
-                payload.submission_id,
-                safe_key,
-            )
-            image_bytes, content_type = fetch_image_bytes_from_url(
-                image_url,
+    logger.info(
+        "clappia_parallel_analysis_start trace_id=%s submission_id=%s target_count=%s concurrency=%s",
+        trace_id,
+        payload.submission_id,
+        len(targets),
+        CLAPPIA_ANALYZE_CONCURRENCY,
+    )
+    semaphore = asyncio.Semaphore(CLAPPIA_ANALYZE_CONCURRENCY)
+    target_tasks = [
+        asyncio.create_task(
+            _analyze_clappia_target(
                 trace_id=trace_id,
+                submission_id=payload.submission_id,
                 target_key=safe_key,
+                image_url=image_url,
+                semaphore=semaphore,
             )
-            analysis = run_scale_reader_pipeline(
-                image_bytes,
-                content_type=content_type,
-                trace_id=trace_id,
-                source="clappia",
-                target_key=safe_key,
-            )
+        )
+        for safe_key, image_url in targets.items()
+        if str(safe_key).strip()
+    ]
+    target_results = await asyncio.gather(*target_tasks)
+    logger.info(
+        "clappia_parallel_analysis_complete trace_id=%s submission_id=%s target_count=%s",
+        trace_id,
+        payload.submission_id,
+        len(target_results),
+    )
 
-            final = analysis["final"]
-            numeric_value = final["value_number"] if final["status"] == "ok" else None
-
-            response[safe_key] = numeric_value
-            response[f"{safe_key}_text"] = final.get("value_text")
-            response[f"{safe_key}_status"] = final.get("status")
-            response[f"{safe_key}_confidence"] = final.get("confidence")
-            response[f"{safe_key}_reason"] = final.get("reason")
-
-            details[safe_key] = analysis
-            logger.info(
-                "clappia_target_complete trace_id=%s submission_id=%s target=%s status=%s value_text=%s confidence=%s",
-                trace_id,
-                payload.submission_id,
-                safe_key,
-                final.get("status"),
-                final.get("value_text"),
-                final.get("confidence"),
-            )
-
-        except Exception as e:
-            logger.exception(
-                "clappia_target_error trace_id=%s submission_id=%s target=%s error=%s",
-                trace_id,
-                payload.submission_id,
-                safe_key,
-                e,
-            )
-            response[safe_key] = None
-            response[f"{safe_key}_text"] = None
-            response[f"{safe_key}_status"] = "needs_review"
-            response[f"{safe_key}_confidence"] = 0.0
-            response[f"{safe_key}_reason"] = str(e)
-
-            details[safe_key] = {
-                "final": {
-                    "status": "needs_review",
-                    "value_text": None,
-                    "value_number": None,
-                    "confidence": 0.0,
-                    "reason": str(e),
-                    "ignored_text_present": False,
-                },
-                "localization": {
-                    "source": "clappia_url_error",
-                    "found": False,
-                    "confidence": 0.0,
-                    "display_kind": "unknown",
-                    "reason": str(e),
-                },
-            }
+    for target_key, response_fields, analysis in target_results:
+        response.update(response_fields)
+        details[target_key] = analysis
 
     writeback_data, target_field_map, skipped_targets = build_clappia_writeback_data(details)
     clappia_writeback = update_clappia_submission(

@@ -105,6 +105,7 @@ Both `/api/read-scale` and `/api/clappia/analyze` use the same internal image-an
 - `CLAPPIA_APP_ID`: Clappia app ID for writeback, default `MFC182090`
 - `CLAPPIA_WORKPLACE_ID`: Clappia workplace ID required by the public `submissions/edit` API
 - `CLAPPIA_BASE_URL`: Clappia public API base URL, default `https://api-public-v3.clappia.com`
+- `CLAPPIA_ANALYZE_CONCURRENCY`: bounded parallel target-analysis concurrency for `/api/clappia/analyze`, default `6`
 - `HOST`: default `0.0.0.0`
 - `PORT`: default `8000`
 - `MAX_IMAGE_MB`: upload or remote image size limit, default `10`
@@ -128,8 +129,9 @@ Important notes:
 When Clappia calls `POST /api/clappia/analyze`, the backend now:
 
 1. analyzes the configured image targets
-2. maps successful numeric values to the configured Clappia field keys
-3. calls Clappia Public API `submissions/edit` to update the same submission directly
+2. processes independent targets in bounded parallel batches
+3. maps successful numeric values to the configured Clappia field keys
+4. calls Clappia Public API `submissions/edit` to update the same submission directly
 
 Recommended workflow simplification:
 
@@ -153,6 +155,7 @@ Example:
 {
   "ok": true,
   "log_level": "INFO",
+  "clappia_analyze_concurrency": 6,
   "clappia_app_id": "MFC182090",
   "clappia_workplace_id_configured": true,
   "clappia_base_url": "https://api-public-v3.clappia.com",
@@ -390,6 +393,7 @@ Response shape:
 
 - Set `CLAPPIA_API_KEY` in Render before expecting backend-side Clappia updates.
 - Set `CLAPPIA_WORKPLACE_ID` in Render; Clappia public `submissions/edit` requires it.
+- Tune `CLAPPIA_ANALYZE_CONCURRENCY` if you change models or hit Gemini/Render limits.
 - Ensure the incoming request includes `submissionId`; writeback is skipped without it.
 - Check the top-level `clappia_writeback` object in the API response for `payload`, `response_status`, and `error`.
 - In Render logs, inspect `clappia_writeback_start`, `clappia_writeback_success`, `clappia_writeback_failed`, and `clappia_writeback_exception`.
