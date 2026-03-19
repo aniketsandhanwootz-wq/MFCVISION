@@ -79,6 +79,7 @@ Both `/api/read-scale` and `/api/clappia/analyze` use the same internal image-an
 6. If a valid box exists, read from the crop with the full image as context.
 7. If localization fails, read directly from the full image.
 8. Post-process the result, reject suspicious numeric shapes, and return `ok` or `needs_review`.
+9. For Clappia requests, map successful numeric outputs and write them back directly to the same Clappia submission.
 
 ## Repository Layout
 
@@ -100,6 +101,9 @@ Both `/api/read-scale` and `/api/clappia/analyze` use the same internal image-an
 - `READ_TEMPERATURE`: default `0.0`
 - `LOCALIZER_TEMPERATURE`: default `0.0`
 - `LOG_LEVEL`: app log level for Render/stdout logs, default `INFO`
+- `CLAPPIA_API_KEY`: optional workplace API key used for backend-side Clappia submission writeback
+- `CLAPPIA_APP_ID`: Clappia app ID for writeback, default `MFC182090`
+- `CLAPPIA_BASE_URL`: Clappia public API base URL, default `https://api-public-v3.clappia.com`
 - `HOST`: default `0.0.0.0`
 - `PORT`: default `8000`
 - `MAX_IMAGE_MB`: upload or remote image size limit, default `10`
@@ -115,6 +119,21 @@ Important notes:
 
 - If `LOCALIZER_MODEL_NAME` contains `lite`, the app replaces it with `MODEL_NAME`.
 - `.env.example` is only a starter file and may lag `app.py`. Use the code as the source of truth.
+- Missing `CLAPPIA_API_KEY` does not stop startup; it only disables direct Clappia writeback and returns a structured writeback error in `/api/clappia/analyze`.
+
+## Clappia Direct Writeback
+
+When Clappia calls `POST /api/clappia/analyze`, the backend now:
+
+1. analyzes the configured image targets
+2. maps successful numeric values to the configured Clappia field keys
+3. calls Clappia Public API `submissions/edit` to update the same submission directly
+
+Recommended workflow simplification:
+
+- Keep only the REST API step that calls this backend.
+- Remove or disable the Clappia workflow-side `Edit Submission` step after verification.
+- Ensure the incoming request includes `submissionId` and the image URL fields you want analyzed.
 
 ## API
 
@@ -131,6 +150,10 @@ Example:
 ```json
 {
   "ok": true,
+  "log_level": "INFO",
+  "clappia_app_id": "MFC182090",
+  "clappia_base_url": "https://api-public-v3.clappia.com",
+  "clappia_writeback_enabled": true,
   "model": "gemini-2.5-flash",
   "localizer_model": "gemini-2.5-flash",
   "localizer_min_confidence": 0.45,
@@ -222,7 +245,7 @@ Response shape:
 
 ### `POST /api/clappia/analyze`
 
-JSON endpoint for analyzing one or more remote image URLs. Each image field becomes a keyed result in the top-level response plus a full diagnostic payload under `details`.
+JSON endpoint for analyzing one or more remote image URLs. Each image field becomes a keyed result in the top-level response plus a full diagnostic payload under `details`. After analysis, the backend also attempts a direct Clappia submission writeback for successful numeric values.
 
 Supported request shapes:
 
@@ -264,6 +287,41 @@ Response shape:
   "net_weight_status": "needs_review",
   "net_weight_confidence": 0.0,
   "net_weight_reason": "Image URL returned HTTP 404.",
+  "clappia_writeback": {
+    "enabled": true,
+    "attempted": true,
+    "success": true,
+    "submission_id": "sub_123",
+    "app_id": "MFC182090",
+    "endpoint": "https://api-public-v3.clappia.com/submissions/edit",
+    "payload": {
+      "appId": "MFC182090",
+      "submissionId": "sub_123",
+      "data": {
+        "pre_weight": 18.54
+      }
+    },
+    "written_fields": {
+      "pre_weight": 18.54
+    },
+    "target_field_map": {
+      "ai_pre_weight_1": "pre_weight"
+    },
+    "skipped_targets": {
+      "ai_pre_weight_2": {
+        "destination_field": "pre_weight_1",
+        "status": "needs_review",
+        "reason": "Image URL returned HTTP 404.",
+        "skipped_reason": "result status was not ok"
+      }
+    },
+    "response_status": 200,
+    "response_text": "{\"message\":\"Success\"}",
+    "response_body": {
+      "message": "Success"
+    },
+    "error": null
+  },
   "details": {
     "gross_weight": {
       "final": {},
@@ -309,6 +367,7 @@ Response shape:
 - Preview URLs are process-local and only reflect the latest request handled by the running server.
 - The Clappia endpoint fetches remote images over HTTP and applies the same max-size checks as uploads.
 - The endpoint now returns `400` if it cannot find at least one analyzable image URL in the request body.
+- Clappia writeback only sends fields whose final read status is `ok` and `value_number` is present.
 
 ## Troubleshooting
 
@@ -323,6 +382,13 @@ Response shape:
 - Ensure the URL is reachable from the server running the app
 - Ensure the remote image is within `MAX_IMAGE_MB`
 - Set `LOG_LEVEL=INFO` or higher in Render and inspect request-stage logs for `remote_fetch_*`, `localizer_*`, `reader_*`, and `pipeline_complete`
+
+### Clappia Writeback
+
+- Set `CLAPPIA_API_KEY` in Render before expecting backend-side Clappia updates.
+- Ensure the incoming request includes `submissionId`; writeback is skipped without it.
+- Check the top-level `clappia_writeback` object in the API response for `payload`, `response_status`, and `error`.
+- In Render logs, inspect `clappia_writeback_start`, `clappia_writeback_success`, `clappia_writeback_failed`, and `clappia_writeback_exception`.
 
 ### Poor Localization
 

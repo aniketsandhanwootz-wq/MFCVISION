@@ -70,6 +70,34 @@ LOCAL_DECODER_MIN_CONFIDENCE = float(os.getenv("LOCAL_DECODER_MIN_CONFIDENCE", "
 LOCALIZER_MIN_CONFIDENCE = float(os.getenv("LOCALIZER_MIN_CONFIDENCE", "0.45"))
 # Confidence threshold above which we skip the region-refiner pass (saves ~1s latency)
 LOCALIZER_SKIP_REFINE_THRESHOLD = float(os.getenv("LOCALIZER_SKIP_REFINE_THRESHOLD", "0.90"))
+CLAPPIA_API_KEY = (os.getenv("CLAPPIA_API_KEY") or "").strip()
+CLAPPIA_APP_ID = (os.getenv("CLAPPIA_APP_ID") or "MFC182090").strip()
+CLAPPIA_BASE_URL = (os.getenv("CLAPPIA_BASE_URL") or "https://api-public-v3.clappia.com").strip().rstrip("/")
+CLAPPIA_REQUEST_TIMEOUT_SECONDS = float(os.getenv("CLAPPIA_REQUEST_TIMEOUT_SECONDS", "30"))
+
+# Explicit writeback map from AI input fields to existing Clappia measurement fields.
+CLAPPIA_WRITEBACK_FIELD_MAP: dict[str, str] = {
+    "ai_pre_weight_1": "pre_weight",
+    "ai_pre_weight_2": "pre_weight_1",
+    "ai_pre_weight_3": "pre_weight_2",
+    "ai_pre_weight_4": "pre_weight_3",
+    "ai_post_weight_1": "pre_weight_4",
+    "ai_post_weight_2": "pre_weight_5",
+    "ai_post_weight_3": "pre_weight_6",
+    "ai_post_weight_4": "pre_weight_7",
+    "ai_side_wall_1": "pre_weight_8",
+    "ai_side_wall_2": "side_wall_1",
+    "ai_side_wall_3": "side_wall_2",
+    "ai_side_wall_4": "side_wall_3",
+    "ai_centre_wall_1": "centre_wal",
+    "ai_centre_wall_2": "pre_weight_9",
+    "ai_centre_wall_3": "side_wall_2",
+    "ai_centre_wall_4": "centre_wal_1",
+}
+
+# Kept explicit to avoid accidental writes to unknown Clappia fields.
+CLAPPIA_STATUS_FIELD_MAP: dict[str, str] = {}
+CLAPPIA_REASON_FIELD_MAP: dict[str, str] = {}
 
 if not os.getenv("GEMINI_API_KEY"):
     raise RuntimeError("Missing GEMINI_API_KEY in environment.")
@@ -121,6 +149,17 @@ class ClappiaAnalyzeRequest(BaseModel):
         default=None,
         validation_alias=AliasChoices("submission_id", "submissionId"),
     )
+    workplace_id: Optional[str] = Field(
+        default=None,
+        validation_alias=AliasChoices("workplace_id", "workplaceId"),
+    )
+    requesting_user_email_address: Optional[str] = Field(
+        default=None,
+        validation_alias=AliasChoices(
+            "requesting_user_email_address",
+            "requestingUserEmailAddress",
+        ),
+    )
     targets: dict[str, Any] = Field(default_factory=dict)
 
 
@@ -133,7 +172,32 @@ class ClappiaSingleResult(BaseModel):
     ignored_text_present: bool
 
 
-_CLAPPIA_RESERVED_KEYS = {"submission_id", "submissionId", "targets"}
+class ClappiaWritebackResult(BaseModel):
+    enabled: bool
+    attempted: bool
+    success: bool
+    submission_id: Optional[str] = None
+    app_id: Optional[str] = None
+    endpoint: Optional[str] = None
+    payload: dict[str, Any] = Field(default_factory=dict)
+    written_fields: dict[str, Any] = Field(default_factory=dict)
+    target_field_map: dict[str, str] = Field(default_factory=dict)
+    skipped_targets: dict[str, Any] = Field(default_factory=dict)
+    response_status: Optional[int] = None
+    response_text: Optional[str] = None
+    response_body: Any = None
+    error: Optional[str] = None
+
+
+_CLAPPIA_RESERVED_KEYS = {
+    "submission_id",
+    "submissionId",
+    "workplace_id",
+    "workplaceId",
+    "requesting_user_email_address",
+    "requestingUserEmailAddress",
+    "targets",
+}
 
 
 def _trace_id(prefix: str) -> str:
@@ -214,6 +278,215 @@ def extract_clappia_targets(payload: ClappiaAnalyzeRequest) -> dict[str, str]:
             normalized_targets[safe_key] = image_url
 
     return normalized_targets
+
+
+def build_clappia_writeback_data(
+    details: dict[str, Any],
+) -> tuple[dict[str, Any], dict[str, str], dict[str, Any]]:
+    writeback_data: dict[str, Any] = {}
+    target_field_map: dict[str, str] = {}
+    destination_sources: dict[str, str] = {}
+    skipped_targets: dict[str, Any] = {}
+
+    for source_key, analysis in details.items():
+        destination_field = CLAPPIA_WRITEBACK_FIELD_MAP.get(source_key)
+        final = analysis.get("final") if isinstance(analysis, dict) else None
+
+        if not destination_field:
+            skipped_targets[source_key] = {
+                "skipped_reason": "no writeback field mapping configured",
+            }
+            continue
+
+        if not isinstance(final, dict):
+            skipped_targets[source_key] = {
+                "destination_field": destination_field,
+                "skipped_reason": "missing final analysis payload",
+            }
+            continue
+
+        status = final.get("status")
+        value_number = final.get("value_number")
+        reason = final.get("reason")
+
+        if status != "ok":
+            skipped_targets[source_key] = {
+                "destination_field": destination_field,
+                "status": status,
+                "reason": reason,
+                "skipped_reason": "result status was not ok",
+            }
+            continue
+
+        if value_number is None:
+            skipped_targets[source_key] = {
+                "destination_field": destination_field,
+                "status": status,
+                "reason": reason,
+                "skipped_reason": "numeric value missing",
+            }
+            continue
+
+        existing_source_key = destination_sources.get(destination_field)
+        if existing_source_key:
+            skipped_targets[source_key] = {
+                "destination_field": destination_field,
+                "status": status,
+                "reason": reason,
+                "skipped_reason": "destination field already populated by another successful result",
+                "existing_source_key": existing_source_key,
+            }
+            continue
+
+        writeback_data[destination_field] = value_number
+        target_field_map[source_key] = destination_field
+        destination_sources[destination_field] = source_key
+
+        status_field = CLAPPIA_STATUS_FIELD_MAP.get(source_key)
+        if status_field:
+            writeback_data[status_field] = status
+
+        reason_field = CLAPPIA_REASON_FIELD_MAP.get(source_key)
+        if reason_field and reason:
+            writeback_data[reason_field] = reason
+
+    return writeback_data, target_field_map, skipped_targets
+
+
+def _parse_json_response_or_none(response: requests.Response) -> Any:
+    try:
+        return response.json()
+    except ValueError:
+        return None
+
+
+def update_clappia_submission(
+    *,
+    trace_id: str,
+    submission_id: Optional[str],
+    data: dict[str, Any],
+    target_field_map: dict[str, str],
+    skipped_targets: dict[str, Any],
+    workplace_id: Optional[str] = None,
+    requesting_user_email_address: Optional[str] = None,
+) -> ClappiaWritebackResult:
+    endpoint = f"{CLAPPIA_BASE_URL}/submissions/edit"
+
+    payload: dict[str, Any] = {
+        "appId": CLAPPIA_APP_ID or None,
+        "submissionId": submission_id,
+        "data": data,
+    }
+    if workplace_id:
+        payload["workplaceId"] = workplace_id
+    if requesting_user_email_address:
+        payload["requestingUserEmailAddress"] = requesting_user_email_address
+
+    result = ClappiaWritebackResult(
+        enabled=bool(CLAPPIA_API_KEY and CLAPPIA_APP_ID),
+        attempted=False,
+        success=False,
+        submission_id=submission_id,
+        app_id=CLAPPIA_APP_ID or None,
+        endpoint=endpoint,
+        payload=payload,
+        written_fields=dict(data),
+        target_field_map=dict(target_field_map),
+        skipped_targets=dict(skipped_targets),
+    )
+
+    if not CLAPPIA_API_KEY:
+        result.error = "Clappia writeback disabled: missing CLAPPIA_API_KEY."
+        logger.warning(
+            "clappia_writeback_disabled trace_id=%s submission_id=%s reason=missing_api_key",
+            trace_id,
+            submission_id,
+        )
+        return result
+
+    if not CLAPPIA_APP_ID:
+        result.error = "Clappia writeback disabled: missing CLAPPIA_APP_ID."
+        logger.warning(
+            "clappia_writeback_disabled trace_id=%s submission_id=%s reason=missing_app_id",
+            trace_id,
+            submission_id,
+        )
+        return result
+
+    if not submission_id:
+        result.error = "Clappia writeback skipped: missing submission_id."
+        logger.warning(
+            "clappia_writeback_skipped trace_id=%s reason=missing_submission_id",
+            trace_id,
+        )
+        return result
+
+    if not data:
+        result.error = "Clappia writeback skipped: no successful numeric values to write back."
+        logger.info(
+            "clappia_writeback_skipped trace_id=%s submission_id=%s reason=no_successful_values skipped_targets=%s",
+            trace_id,
+            submission_id,
+            sorted(skipped_targets.keys()),
+        )
+        return result
+
+    logger.info(
+        "clappia_writeback_start trace_id=%s submission_id=%s field_map=%s payload_keys=%s",
+        trace_id,
+        submission_id,
+        target_field_map,
+        sorted(data.keys()),
+    )
+
+    headers = {
+        "x-api-key": CLAPPIA_API_KEY,
+        "Content-Type": "application/json",
+    }
+
+    try:
+        result.attempted = True
+        response = requests.post(
+            endpoint,
+            headers=headers,
+            json=payload,
+            timeout=CLAPPIA_REQUEST_TIMEOUT_SECONDS,
+        )
+        result.response_status = response.status_code
+        result.response_text = response.text[:4000] if response.text else None
+        result.response_body = _parse_json_response_or_none(response)
+
+        if 200 <= response.status_code < 300:
+            result.success = True
+            logger.info(
+                "clappia_writeback_success trace_id=%s submission_id=%s response_status=%s written_fields=%s",
+                trace_id,
+                submission_id,
+                response.status_code,
+                sorted(data.keys()),
+            )
+            return result
+
+        result.error = f"Clappia writeback returned HTTP {response.status_code}."
+        logger.warning(
+            "clappia_writeback_failed trace_id=%s submission_id=%s response_status=%s response_body=%s",
+            trace_id,
+            submission_id,
+            response.status_code,
+            result.response_text,
+        )
+        return result
+
+    except requests.RequestException as e:
+        result.attempted = True
+        result.error = str(e)
+        logger.exception(
+            "clappia_writeback_exception trace_id=%s submission_id=%s error=%s",
+            trace_id,
+            submission_id,
+            e,
+        )
+        return result
 
 def validate_upload(file: Any, data: bytes) -> None:
     if not file.content_type or not file.content_type.startswith("image/"):
@@ -1422,6 +1695,9 @@ def health() -> dict:
     return {
         "ok": True,
         "log_level": LOG_LEVEL,
+        "clappia_app_id": CLAPPIA_APP_ID or None,
+        "clappia_base_url": CLAPPIA_BASE_URL,
+        "clappia_writeback_enabled": bool(CLAPPIA_API_KEY and CLAPPIA_APP_ID),
         "model": MODEL_NAME,
         "localizer_model": LOCALIZER_MODEL_NAME,
         "localizer_min_confidence": LOCALIZER_MIN_CONFIDENCE,
@@ -1577,12 +1853,26 @@ async def clappia_analyze(payload: ClappiaAnalyzeRequest) -> JSONResponse:
                 },
             }
 
+    writeback_data, target_field_map, skipped_targets = build_clappia_writeback_data(details)
+    clappia_writeback = update_clappia_submission(
+        trace_id=trace_id,
+        submission_id=payload.submission_id,
+        data=writeback_data,
+        target_field_map=target_field_map,
+        skipped_targets=skipped_targets,
+        workplace_id=payload.workplace_id,
+        requesting_user_email_address=payload.requesting_user_email_address,
+    )
+
     response["details"] = details
+    response["clappia_writeback"] = clappia_writeback.model_dump()
     logger.info(
-        "clappia_request_complete trace_id=%s submission_id=%s processed_targets=%s",
+        "clappia_request_complete trace_id=%s submission_id=%s processed_targets=%s writeback_success=%s writeback_attempted=%s",
         trace_id,
         payload.submission_id,
         sorted(details.keys()),
+        clappia_writeback.success,
+        clappia_writeback.attempted,
     )
     return JSONResponse(content=response)
 
