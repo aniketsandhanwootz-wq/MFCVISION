@@ -7,6 +7,7 @@ import logging
 import os
 import re
 import sys
+import threading
 import time
 import requests
 from pathlib import Path
@@ -56,6 +57,8 @@ def _build_logger() -> logging.Logger:
 
 
 logger = _build_logger()
+_EMBEDDED_WORKER_THREAD: threading.Thread | None = None
+_EMBEDDED_WORKER_STOP_EVENT: threading.Event | None = None
 
 MODEL_NAME = os.getenv("MODEL_NAME", "gemini-2.5-flash")
 _raw_localizer = os.getenv("LOCALIZER_MODEL_NAME", "gemini-2.5-flash")
@@ -2243,8 +2246,17 @@ def run_clappia_worker() -> None:
     if not MFC_QUEUE.is_configured():
         raise RuntimeError("REDIS_URL is required to run the MFC worker.")
 
+    _run_clappia_worker_loop(runtime_mode="worker")
+
+
+def _run_clappia_worker_loop(
+    *,
+    runtime_mode: str,
+    stop_event: threading.Event | None = None,
+) -> None:
     logger.info(
-        "mfc_worker_start runtime_mode=worker queue_name=%s failed_queue_name=%s namespace=%s jobs_key=%s processing_key=%s failed_key=%s writeback_mode=%s",
+        "mfc_worker_start runtime_mode=%s queue_name=%s failed_queue_name=%s namespace=%s jobs_key=%s processing_key=%s failed_key=%s writeback_mode=%s",
+        runtime_mode,
         MFC_QUEUE_NAME,
         MFC_FAILED_QUEUE_NAME,
         MFC_REDIS_NAMESPACE,
@@ -2253,12 +2265,23 @@ def run_clappia_worker() -> None:
         MFC_QUEUE.config.failed_key,
         MFC_WRITEBACK_MODE,
     )
-    MFC_QUEUE.ping()
-    while True:
+    try:
+        MFC_QUEUE.ping()
+    except Exception as e:
+        logger.exception(
+            "mfc_worker_start_failed runtime_mode=%s queue_name=%s error=%s",
+            runtime_mode,
+            MFC_QUEUE_NAME,
+            e,
+        )
+        return
+    while stop_event is None or not stop_event.is_set():
         try:
             dequeued = MFC_QUEUE.dequeue(timeout_seconds=5)
         except Exception as e:
-            logger.exception("mfc_worker_dequeue_exception error=%s", e)
+            if stop_event is not None and stop_event.is_set():
+                break
+            logger.exception("mfc_worker_dequeue_exception runtime_mode=%s error=%s", runtime_mode, e)
             time.sleep(1.0)
             continue
 
@@ -2313,6 +2336,61 @@ def run_clappia_worker() -> None:
                 time.monotonic() - t_start,
                 json.dumps(_sanitize_for_log(failure_record), sort_keys=True),
             )
+    logger.info(
+        "mfc_worker_stop runtime_mode=%s queue_name=%s",
+        runtime_mode,
+        MFC_QUEUE_NAME,
+    )
+
+
+def _start_embedded_clappia_worker() -> None:
+    global _EMBEDDED_WORKER_THREAD, _EMBEDDED_WORKER_STOP_EVENT
+
+    if MFC_WRITEBACK_MODE != "async":
+        return
+    if not MFC_QUEUE.is_configured():
+        logger.warning(
+            "embedded_worker_not_started reason=redis_not_configured writeback_mode=%s",
+            MFC_WRITEBACK_MODE,
+        )
+        return
+    if _EMBEDDED_WORKER_THREAD is not None and _EMBEDDED_WORKER_THREAD.is_alive():
+        logger.info(
+            "embedded_worker_already_running queue_name=%s namespace=%s",
+            MFC_QUEUE_NAME,
+            MFC_REDIS_NAMESPACE,
+        )
+        return
+
+    stop_event = threading.Event()
+    worker_thread = threading.Thread(
+        target=_run_clappia_worker_loop,
+        kwargs={"runtime_mode": "embedded", "stop_event": stop_event},
+        name="mfc-clappia-embedded-worker",
+        daemon=True,
+    )
+    _EMBEDDED_WORKER_STOP_EVENT = stop_event
+    _EMBEDDED_WORKER_THREAD = worker_thread
+    worker_thread.start()
+    logger.info(
+        "embedded_worker_started queue_name=%s namespace=%s jobs_key=%s processing_key=%s failed_key=%s",
+        MFC_QUEUE_NAME,
+        MFC_REDIS_NAMESPACE,
+        MFC_QUEUE.config.jobs_key,
+        MFC_QUEUE.config.processing_key,
+        MFC_QUEUE.config.failed_key,
+    )
+
+
+def _stop_embedded_clappia_worker() -> None:
+    global _EMBEDDED_WORKER_THREAD, _EMBEDDED_WORKER_STOP_EVENT
+
+    if _EMBEDDED_WORKER_STOP_EVENT is not None:
+        _EMBEDDED_WORKER_STOP_EVENT.set()
+    if _EMBEDDED_WORKER_THREAD is not None:
+        _EMBEDDED_WORKER_THREAD.join(timeout=6.0)
+    _EMBEDDED_WORKER_THREAD = None
+    _EMBEDDED_WORKER_STOP_EVENT = None
 
 
 @app.get("/")
@@ -2353,6 +2431,12 @@ def startup_log_runtime_config() -> None:
                 MFC_QUEUE_NAME,
                 e,
             )
+    _start_embedded_clappia_worker()
+
+
+@app.on_event("shutdown")
+def shutdown_embedded_worker() -> None:
+    _stop_embedded_clappia_worker()
 
 
 @app.get("/health")
@@ -2365,6 +2449,9 @@ def health() -> dict:
         "mfc_queue_name": MFC_QUEUE_NAME,
         "mfc_failed_queue_name": MFC_FAILED_QUEUE_NAME,
         "redis_namespace": MFC_QUEUE.describe(),
+        "embedded_worker_running": bool(
+            _EMBEDDED_WORKER_THREAD is not None and _EMBEDDED_WORKER_THREAD.is_alive()
+        ),
         "clappia_analyze_concurrency": CLAPPIA_ANALYZE_CONCURRENCY,
         "clappia_app_id": CLAPPIA_APP_ID or None,
         "clappia_workplace_id_configured": bool(_normalize_clappia_token(CLAPPIA_WORKPLACE_ID)),
