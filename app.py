@@ -6,6 +6,7 @@ import json
 import logging
 import os
 import re
+import sys
 import time
 import requests
 from pathlib import Path
@@ -14,7 +15,7 @@ from urllib.parse import urlsplit
 from uuid import uuid4
 
 from dotenv import load_dotenv
-from fastapi import FastAPI, File, HTTPException, UploadFile, Response
+from fastapi import FastAPI, File, HTTPException, Request, UploadFile, Response
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from google import genai
@@ -23,6 +24,7 @@ from PIL import Image, ImageDraw
 from pydantic import AliasChoices, BaseModel, ConfigDict, Field, ValidationError
 
 from image_enhance import make_enhanced_display_image
+from mfc_queue import MFCQueueClient, MFCQueueConfig
 from vision import (
     CropDiagnostics,
     LocalDecodeResult,
@@ -77,30 +79,48 @@ CLAPPIA_WORKPLACE_ID = (os.getenv("CLAPPIA_WORKPLACE_ID") or "").strip()
 CLAPPIA_BASE_URL = (os.getenv("CLAPPIA_BASE_URL") or "https://api-public-v3.clappia.com").strip().rstrip("/")
 CLAPPIA_REQUEST_TIMEOUT_SECONDS = float(os.getenv("CLAPPIA_REQUEST_TIMEOUT_SECONDS", "30"))
 CLAPPIA_ANALYZE_CONCURRENCY = max(1, int(os.getenv("CLAPPIA_ANALYZE_CONCURRENCY", "6")))
+REDIS_URL = (os.getenv("REDIS_URL") or "").strip()
+MFC_QUEUE_NAME = (os.getenv("MFC_QUEUE_NAME") or "mfc_clappia_jobs").strip() or "mfc_clappia_jobs"
+MFC_FAILED_QUEUE_NAME = (os.getenv("MFC_FAILED_QUEUE_NAME") or "mfc_clappia_failed").strip() or "mfc_clappia_failed"
+MFC_REDIS_NAMESPACE = (os.getenv("MFC_REDIS_NAMESPACE") or "mfc_clappia").strip() or "mfc_clappia"
+MFC_WRITEBACK_MODE = (os.getenv("MFC_WRITEBACK_MODE") or "sync").strip().lower() or "sync"
+if MFC_WRITEBACK_MODE not in {"sync", "async"}:
+    logger.warning(
+        "invalid_writeback_mode configured=%s fallback=sync",
+        MFC_WRITEBACK_MODE,
+    )
+    MFC_WRITEBACK_MODE = "sync"
 
-# Explicit writeback map from AI input fields to existing Clappia measurement fields.
-CLAPPIA_WRITEBACK_FIELD_MAP: dict[str, str] = {
-    "ai_pre_weight_1": "pre_weight",
-    "ai_pre_weight_2": "pre_weight_1",
-    "ai_pre_weight_3": "pre_weight_2",
-    "ai_pre_weight_4": "pre_weight_3",
-    "ai_post_weight_1": "pre_weight_4",
-    "ai_post_weight_2": "pre_weight_5",
-    "ai_post_weight_3": "pre_weight_6",
-    "ai_post_weight_4": "pre_weight_7",
-    "ai_side_wall_1": "pre_weight_8",
-    "ai_side_wall_2": "side_wall_1",
-    "ai_side_wall_3": "side_wall_2",
-    "ai_side_wall_4": "side_wall_3",
-    "ai_centre_wall_1": "centre_wal",
-    "ai_centre_wall_2": "pre_weight_9",
-    "ai_centre_wall_3": "side_wall_2",
-    "ai_centre_wall_4": "centre_wal_1",
+# TODO: verify these Clappia destination fields against the live form whenever
+# the Clappia app schema changes. Keep writes explicit; do not fall back to
+# auto-writing unknown AI keys into Clappia.
+CLAPPIA_FIELD_CONFIG: dict[str, dict[str, Optional[str]]] = {
+    "ai_pre_weight_1": {"value": "pre_weight", "status": None, "reason": None},
+    "ai_pre_weight_2": {"value": "pre_weight_1", "status": None, "reason": None},
+    "ai_pre_weight_3": {"value": "pre_weight_2", "status": None, "reason": None},
+    "ai_pre_weight_4": {"value": "pre_weight_3", "status": None, "reason": None},
+    "ai_post_weight_1": {"value": "pre_weight_4", "status": None, "reason": None},
+    "ai_post_weight_2": {"value": "pre_weight_5", "status": None, "reason": None},
+    "ai_post_weight_3": {"value": "pre_weight_6", "status": None, "reason": None},
+    "ai_post_weight_4": {"value": "pre_weight_7", "status": None, "reason": None},
+    "ai_side_wall_1": {"value": "pre_weight_8", "status": None, "reason": None},
+    "ai_side_wall_2": {"value": "side_wall_1", "status": None, "reason": None},
+    "ai_side_wall_3": {"value": "side_wall_", "status": None, "reason": None},
+    "ai_side_wall_4": {"value": "side_wall_3", "status": None, "reason": None},
+    "ai_centre_wall_1": {"value": "centre_wal", "status": None, "reason": None},
+    "ai_centre_wall_2": {"value": "pre_weight_9", "status": None, "reason": None},
+    "ai_centre_wall_3": {"value": "side_wall_2", "status": None, "reason": None},
+    "ai_centre_wall_4": {"value": "centre_wal_1", "status": None, "reason": None},
 }
 
-# Kept explicit to avoid accidental writes to unknown Clappia fields.
-CLAPPIA_STATUS_FIELD_MAP: dict[str, str] = {}
-CLAPPIA_REASON_FIELD_MAP: dict[str, str] = {}
+MFC_QUEUE = MFCQueueClient(
+    MFCQueueConfig(
+        redis_url=REDIS_URL,
+        queue_name=MFC_QUEUE_NAME,
+        failed_queue_name=MFC_FAILED_QUEUE_NAME,
+        namespace=MFC_REDIS_NAMESPACE,
+    )
+)
 
 if not os.getenv("GEMINI_API_KEY"):
     raise RuntimeError("Missing GEMINI_API_KEY in environment.")
@@ -192,6 +212,18 @@ class ClappiaWritebackResult(BaseModel):
     error: Optional[str] = None
 
 
+class ClappiaJobPayload(BaseModel):
+    job_id: str
+    trace_id: str
+    submitted_at: float
+    submission_id: Optional[str] = None
+    workplace_id: Optional[str] = None
+    requesting_user_email_address: Optional[str] = None
+    targets: dict[str, str] = Field(default_factory=dict)
+    clappia_input_payload: dict[str, Any] = Field(default_factory=dict)
+    dedupe_hash: Optional[str] = None
+
+
 _CLAPPIA_RESERVED_KEYS = {
     "submission_id",
     "submissionId",
@@ -267,6 +299,59 @@ def _normalize_clappia_token(candidate: Any) -> Optional[str]:
     return value
 
 
+def _mask_email(candidate: Any) -> Optional[str]:
+    if not isinstance(candidate, str) or "@" not in candidate:
+        return None
+    local, domain = candidate.split("@", 1)
+    if not local:
+        return f"***@{domain}"
+    if len(local) <= 2:
+        return f"{local[0]}***@{domain}"
+    return f"{local[:2]}***@{domain}"
+
+
+def _sanitize_for_log(value: Any, *, key_hint: str | None = None) -> Any:
+    if isinstance(value, dict):
+        return {
+            str(key): _sanitize_for_log(item, key_hint=str(key))
+            for key, item in value.items()
+        }
+    if isinstance(value, list):
+        return [_sanitize_for_log(item, key_hint=key_hint) for item in value]
+    if isinstance(value, tuple):
+        return [_sanitize_for_log(item, key_hint=key_hint) for item in value]
+    if isinstance(value, str):
+        if value.startswith(("http://", "https://")):
+            return _log_url_summary(value)
+        if (key_hint or "").lower() in {
+            "requesting_user_email_address",
+            "requestinguseremailaddress",
+        }:
+            return _mask_email(value)
+        if "@" in value and " " not in value:
+            masked = _mask_email(value)
+            if masked:
+                return masked
+        if len(value) > 500:
+            return f"{value[:497]}..."
+    return value
+
+
+def _build_sanitized_clappia_input_payload(
+    *,
+    payload: ClappiaAnalyzeRequest,
+    targets: dict[str, str],
+) -> dict[str, Any]:
+    return _sanitize_for_log(
+        {
+            "submission_id": payload.submission_id,
+            "workplace_id": payload.workplace_id,
+            "requesting_user_email_address": payload.requesting_user_email_address,
+            "targets": targets,
+        }
+    )
+
+
 def extract_clappia_targets(payload: ClappiaAnalyzeRequest) -> dict[str, str]:
     normalized_targets: dict[str, str] = {}
 
@@ -298,17 +383,28 @@ def extract_clappia_targets(payload: ClappiaAnalyzeRequest) -> dict[str, str]:
     return normalized_targets
 
 
+def _field_config_for_target(target_key: str) -> dict[str, Optional[str]]:
+    return CLAPPIA_FIELD_CONFIG.get(target_key, {})
+
+
+def _compact_clappia_field_mapping() -> dict[str, Optional[str]]:
+    return {
+        source_key: field_config.get("value")
+        for source_key, field_config in sorted(CLAPPIA_FIELD_CONFIG.items())
+    }
+
+
 def build_clappia_writeback_data(
-    details: dict[str, Any],
+    results: dict[str, dict[str, Any]],
 ) -> tuple[dict[str, Any], dict[str, str], dict[str, Any]]:
     writeback_data: dict[str, Any] = {}
     target_field_map: dict[str, str] = {}
     destination_sources: dict[str, str] = {}
     skipped_targets: dict[str, Any] = {}
 
-    for source_key, analysis in details.items():
-        destination_field = CLAPPIA_WRITEBACK_FIELD_MAP.get(source_key)
-        final = analysis.get("final") if isinstance(analysis, dict) else None
+    for source_key, final in results.items():
+        field_config = _field_config_for_target(source_key)
+        destination_field = field_config.get("value")
 
         if not destination_field:
             skipped_targets[source_key] = {
@@ -324,7 +420,7 @@ def build_clappia_writeback_data(
             continue
 
         status = final.get("status")
-        value_number = final.get("value_number")
+        value_number = final.get("value_number", final.get("value"))
         reason = final.get("reason")
 
         if status != "ok":
@@ -360,15 +456,60 @@ def build_clappia_writeback_data(
         target_field_map[source_key] = destination_field
         destination_sources[destination_field] = source_key
 
-        status_field = CLAPPIA_STATUS_FIELD_MAP.get(source_key)
+        status_field = field_config.get("status")
         if status_field:
             writeback_data[status_field] = status
 
-        reason_field = CLAPPIA_REASON_FIELD_MAP.get(source_key)
+        reason_field = field_config.get("reason")
         if reason_field and reason:
             writeback_data[reason_field] = reason
 
     return writeback_data, target_field_map, skipped_targets
+
+
+def _writeback_status_from_result(result: ClappiaWritebackResult) -> str:
+    if not result.enabled:
+        return "disabled"
+    if result.success:
+        return "success"
+    if result.attempted:
+        return "failed"
+    return "skipped"
+
+
+def _build_clappia_writeback_summary(result: ClappiaWritebackResult) -> dict[str, Any]:
+    return _sanitize_for_log(
+        {
+            "enabled": result.enabled,
+            "attempted": result.attempted,
+            "success": result.success,
+            "response_status": result.response_status,
+            "written_fields": sorted(result.written_fields.keys()),
+            "target_field_map": result.target_field_map,
+            "skipped_targets": result.skipped_targets,
+            "error": result.error,
+            "response_body": result.response_body if result.response_body is not None else result.response_text,
+        }
+    )
+
+
+def _build_per_target_response(
+    final_results: dict[str, dict[str, Any]],
+    *,
+    target_field_map: dict[str, str],
+    skipped_targets: dict[str, Any],
+) -> dict[str, Any]:
+    response: dict[str, Any] = {}
+    for target_key, final in final_results.items():
+        field_config = _field_config_for_target(target_key)
+        destination_field = field_config.get("value")
+        enriched = dict(final)
+        enriched["writeback_field"] = destination_field
+        enriched["included_in_writeback"] = target_key in target_field_map
+        if target_key in skipped_targets:
+            enriched["writeback_skip_reason"] = skipped_targets[target_key].get("skipped_reason")
+        response[target_key] = enriched
+    return response
 
 
 def _parse_json_response_or_none(response: requests.Response) -> Any:
@@ -376,6 +517,45 @@ def _parse_json_response_or_none(response: requests.Response) -> Any:
         return response.json()
     except ValueError:
         return None
+
+
+def _evaluate_clappia_application_success(
+    response_body: Any,
+    response_text: Optional[str],
+) -> tuple[str, str]:
+    if isinstance(response_body, dict):
+        status_value = str(response_body.get("status", "")).strip().lower()
+        message_value = str(response_body.get("message", "")).strip().lower()
+        error_value = response_body.get("error")
+
+        if (
+            error_value
+            or response_body.get("success") is False
+            or response_body.get("ok") is False
+            or status_value in {"error", "failed", "failure"}
+        ):
+            return "rejected", "explicit_failure_indicator"
+
+        if (
+            response_body.get("success") is True
+            or response_body.get("ok") is True
+            or status_value in {"success", "ok"}
+            or message_value in {"success", "ok", "updated", "submitted"}
+        ):
+            return "confirmed", "explicit_success_indicator"
+
+        if not response_body:
+            return "uncertain", "empty_json_object"
+
+        return "uncertain", "json_without_explicit_success_indicator"
+
+    if response_text:
+        lowered = response_text.lower()
+        if "success" in lowered or '"ok"' in lowered:
+            return "confirmed", "success_text_indicator"
+        return "uncertain", "non_json_2xx_response"
+
+    return "uncertain", "empty_2xx_response"
 
 
 def update_clappia_submission(
@@ -462,11 +642,12 @@ def update_clappia_submission(
         return result
 
     logger.info(
-        "clappia_writeback_start trace_id=%s submission_id=%s field_map=%s payload_keys=%s",
+        "clappia_writeback_start trace_id=%s submission_id=%s field_map=%s payload_keys=%s payload=%s",
         trace_id,
         normalized_submission_id,
         target_field_map,
         sorted(data.keys()),
+        json.dumps(_sanitize_for_log(payload), sort_keys=True),
     )
 
     headers = {
@@ -485,25 +666,56 @@ def update_clappia_submission(
         result.response_status = response.status_code
         result.response_text = response.text[:4000] if response.text else None
         result.response_body = _parse_json_response_or_none(response)
+        sanitized_response_body = _sanitize_for_log(
+            result.response_body if result.response_body is not None else result.response_text
+        )
+        application_status, application_reason = _evaluate_clappia_application_success(
+            result.response_body,
+            result.response_text,
+        )
+        logger.info(
+            "clappia_writeback_response trace_id=%s submission_id=%s response_status=%s application_status=%s application_reason=%s response_body=%s",
+            trace_id,
+            normalized_submission_id,
+            response.status_code,
+            application_status,
+            application_reason,
+            json.dumps(sanitized_response_body, sort_keys=True),
+        )
 
         if 200 <= response.status_code < 300:
+            if application_status == "rejected":
+                result.error = "Clappia writeback returned HTTP 2xx with an application-level failure indicator."
+                logger.warning(
+                    "clappia_writeback_failed trace_id=%s submission_id=%s response_status=%s application_status=%s response_body=%s",
+                    trace_id,
+                    normalized_submission_id,
+                    response.status_code,
+                    application_status,
+                    json.dumps(sanitized_response_body, sort_keys=True),
+                )
+                return result
+
             result.success = True
             logger.info(
-                "clappia_writeback_success trace_id=%s submission_id=%s response_status=%s written_fields=%s",
+                "clappia_writeback_success trace_id=%s submission_id=%s response_status=%s application_status=%s written_fields=%s response_body=%s",
                 trace_id,
                 normalized_submission_id,
                 response.status_code,
+                application_status,
                 sorted(data.keys()),
+                json.dumps(sanitized_response_body, sort_keys=True),
             )
             return result
 
         result.error = f"Clappia writeback returned HTTP {response.status_code}."
         logger.warning(
-            "clappia_writeback_failed trace_id=%s submission_id=%s response_status=%s response_body=%s",
+            "clappia_writeback_failed trace_id=%s submission_id=%s response_status=%s application_status=%s response_body=%s",
             trace_id,
             normalized_submission_id,
             response.status_code,
-            result.response_text,
+            application_status,
+            json.dumps(sanitized_response_body, sort_keys=True),
         )
         return result
 
@@ -550,10 +762,11 @@ async def _analyze_clappia_target(
     async with semaphore:
         try:
             logger.info(
-                "clappia_target_start trace_id=%s submission_id=%s target=%s",
+                "clappia_target_start trace_id=%s submission_id=%s target=%s url=%s",
                 trace_id,
                 submission_id,
                 target_key,
+                _log_url_summary(image_url),
             )
             image_bytes, content_type = await asyncio.to_thread(
                 fetch_image_bytes_from_url,
@@ -572,13 +785,14 @@ async def _analyze_clappia_target(
 
             final = analysis["final"]
             numeric_value = final["value_number"] if final["status"] == "ok" else None
-            response_fields = {
-                target_key: numeric_value,
-                f"{target_key}_text": final.get("value_text"),
-                f"{target_key}_status": final.get("status"),
-                f"{target_key}_confidence": final.get("confidence"),
-                f"{target_key}_reason": final.get("reason"),
-            }
+            single_result = ClappiaSingleResult(
+                value=numeric_value,
+                value_text=final.get("value_text"),
+                status=final.get("status"),
+                confidence=final.get("confidence"),
+                reason=final.get("reason"),
+                ignored_text_present=bool(final.get("ignored_text_present", False)),
+            ).model_dump()
 
             logger.info(
                 "clappia_target_complete trace_id=%s submission_id=%s target=%s status=%s value_text=%s confidence=%s",
@@ -589,7 +803,7 @@ async def _analyze_clappia_target(
                 final.get("value_text"),
                 final.get("confidence"),
             )
-            return target_key, response_fields, analysis
+            return target_key, single_result, analysis
 
         except Exception as e:
             logger.exception(
@@ -599,14 +813,15 @@ async def _analyze_clappia_target(
                 target_key,
                 e,
             )
-            response_fields = {
-                target_key: None,
-                f"{target_key}_text": None,
-                f"{target_key}_status": "needs_review",
-                f"{target_key}_confidence": 0.0,
-                f"{target_key}_reason": str(e),
-            }
-            return target_key, response_fields, _make_clappia_target_error_analysis(e)
+            single_result = ClappiaSingleResult(
+                value=None,
+                value_text=None,
+                status="needs_review",
+                confidence=0.0,
+                reason=str(e),
+                ignored_text_present=False,
+            ).model_dump()
+            return target_key, single_result, _make_clappia_target_error_analysis(e)
 
 def validate_upload(file: Any, data: bytes) -> None:
     if not file.content_type or not file.content_type.startswith("image/"):
@@ -1805,9 +2020,339 @@ def run_scale_reader_pipeline(
         },
     }
 
+
+def _log_writeback_target_decisions(
+    *,
+    trace_id: str,
+    submission_id: Optional[str],
+    final_results: dict[str, dict[str, Any]],
+    target_field_map: dict[str, str],
+    skipped_targets: dict[str, Any],
+) -> None:
+    for target_key in sorted(final_results.keys()):
+        final = final_results.get(target_key) or {}
+        skipped = skipped_targets.get(target_key, {})
+        resolved_destination_field = target_field_map.get(target_key) or skipped.get("destination_field") or _field_config_for_target(target_key).get("value")
+        numeric_value = final.get("value", final.get("value_number"))
+        logger.info(
+            "clappia_writeback_target trace_id=%s submission_id=%s target=%s destination_field=%s final_status=%s numeric_value=%s included=%s skipped_reason=%s",
+            trace_id,
+            submission_id,
+            target_key,
+            resolved_destination_field,
+            final.get("status"),
+            numeric_value,
+            target_key in target_field_map,
+            skipped.get("skipped_reason"),
+        )
+
+
+def _build_clappia_job_payload(
+    *,
+    trace_id: str,
+    payload: ClappiaAnalyzeRequest,
+    targets: dict[str, str],
+    clappia_input_payload: dict[str, Any],
+) -> ClappiaJobPayload:
+    return ClappiaJobPayload(
+        job_id=_trace_id("mfcjob"),
+        trace_id=trace_id,
+        submitted_at=time.time(),
+        submission_id=payload.submission_id,
+        workplace_id=payload.workplace_id,
+        requesting_user_email_address=payload.requesting_user_email_address,
+        targets=targets,
+        clappia_input_payload=clappia_input_payload,
+    )
+
+
+def _build_async_clappia_response(
+    *,
+    job_payload: ClappiaJobPayload,
+    enqueue_result: dict[str, Any],
+) -> dict[str, Any]:
+    return {
+        "ok": True,
+        "trace_id": job_payload.trace_id,
+        "mode": "async",
+        "submission_id": job_payload.submission_id,
+        "request_targets_received": sorted(job_payload.targets.keys()),
+        "processed_targets": [],
+        "results": {},
+        "writeback_attempted": False,
+        "writeback_status": "queued",
+        "writeback_summary": _sanitize_for_log(enqueue_result),
+        "clappia_input_payload": job_payload.clappia_input_payload,
+        "clappia_writeback_payload": {},
+        "elapsed_seconds": 0.0,
+    }
+
+
+async def _process_clappia_job(job_payload: ClappiaJobPayload) -> dict[str, Any]:
+    t_start = time.monotonic()
+    trace_id = job_payload.trace_id
+    submission_id = job_payload.submission_id
+    targets = {
+        str(key).strip(): value
+        for key, value in job_payload.targets.items()
+        if str(key).strip()
+    }
+    if not targets:
+        raise HTTPException(status_code=400, detail="No analyzable targets available for processing.")
+
+    logger.info(
+        "clappia_parallel_analysis_start trace_id=%s submission_id=%s target_count=%s concurrency=%s",
+        trace_id,
+        submission_id,
+        len(targets),
+        CLAPPIA_ANALYZE_CONCURRENCY,
+    )
+    semaphore = asyncio.Semaphore(CLAPPIA_ANALYZE_CONCURRENCY)
+    target_tasks = [
+        asyncio.create_task(
+            _analyze_clappia_target(
+                trace_id=trace_id,
+                submission_id=submission_id,
+                target_key=target_key,
+                image_url=image_url,
+                semaphore=semaphore,
+            )
+        )
+        for target_key, image_url in targets.items()
+    ]
+    target_results = await asyncio.gather(*target_tasks)
+    logger.info(
+        "clappia_parallel_analysis_complete trace_id=%s submission_id=%s target_count=%s",
+        trace_id,
+        submission_id,
+        len(target_results),
+    )
+
+    final_results: dict[str, dict[str, Any]] = {}
+    for target_key, single_result, _analysis in target_results:
+        final_results[target_key] = single_result
+
+    writeback_data, target_field_map, skipped_targets = build_clappia_writeback_data(final_results)
+    _log_writeback_target_decisions(
+        trace_id=trace_id,
+        submission_id=submission_id,
+        final_results=final_results,
+        target_field_map=target_field_map,
+        skipped_targets=skipped_targets,
+    )
+    clappia_writeback = update_clappia_submission(
+        trace_id=trace_id,
+        submission_id=submission_id,
+        data=writeback_data,
+        target_field_map=target_field_map,
+        skipped_targets=skipped_targets,
+        workplace_id=job_payload.workplace_id,
+        requesting_user_email_address=job_payload.requesting_user_email_address,
+    )
+
+    processed_targets = sorted(final_results.keys())
+    partial_failures = sorted(
+        target_key
+        for target_key, result in final_results.items()
+        if result.get("status") != "ok"
+    )
+    if partial_failures or skipped_targets:
+        logger.info(
+            "clappia_partial_failures trace_id=%s submission_id=%s failed_targets=%s skipped_writeback_targets=%s",
+            trace_id,
+            submission_id,
+            partial_failures,
+            sorted(skipped_targets.keys()),
+        )
+
+    response_payload = {
+        "ok": True,
+        "trace_id": trace_id,
+        "mode": "sync",
+        "submission_id": submission_id,
+        "request_targets_received": sorted(targets.keys()),
+        "processed_targets": processed_targets,
+        "results": _build_per_target_response(
+            final_results,
+            target_field_map=target_field_map,
+            skipped_targets=skipped_targets,
+        ),
+        "writeback_attempted": clappia_writeback.attempted,
+        "writeback_status": _writeback_status_from_result(clappia_writeback),
+        "writeback_summary": _build_clappia_writeback_summary(clappia_writeback),
+        "clappia_input_payload": job_payload.clappia_input_payload,
+        "clappia_writeback_payload": _sanitize_for_log(clappia_writeback.payload),
+        "elapsed_seconds": round(time.monotonic() - t_start, 2),
+    }
+    logger.info(
+        "clappia_response_payload trace_id=%s submission_id=%s response=%s",
+        trace_id,
+        submission_id,
+        json.dumps(_sanitize_for_log(response_payload), sort_keys=True),
+    )
+    logger.info(
+        "clappia_request_complete trace_id=%s submission_id=%s processed_targets=%s writeback_status=%s writeback_attempted=%s elapsed_seconds=%.2f",
+        trace_id,
+        submission_id,
+        processed_targets,
+        response_payload["writeback_status"],
+        response_payload["writeback_attempted"],
+        response_payload["elapsed_seconds"],
+    )
+    return response_payload
+
+
+def _enqueue_clappia_job(job_payload: ClappiaJobPayload) -> dict[str, Any]:
+    if not MFC_QUEUE.is_configured():
+        raise HTTPException(
+            status_code=503,
+            detail="Async mode is enabled but REDIS_URL is not configured.",
+        )
+
+    logger.info(
+        "mfc_queue_enqueue_start trace_id=%s submission_id=%s queue_name=%s jobs_key=%s failed_key=%s",
+        job_payload.trace_id,
+        job_payload.submission_id,
+        MFC_QUEUE_NAME,
+        MFC_QUEUE.config.jobs_key,
+        MFC_QUEUE.config.failed_key,
+    )
+    try:
+        enqueue_result = MFC_QUEUE.enqueue(job_payload.model_dump())
+        logger.info(
+            "mfc_queue_enqueue_complete trace_id=%s submission_id=%s result=%s",
+            job_payload.trace_id,
+            job_payload.submission_id,
+            json.dumps(_sanitize_for_log(enqueue_result), sort_keys=True),
+        )
+        return enqueue_result
+    except Exception as e:
+        logger.exception(
+            "mfc_queue_enqueue_exception trace_id=%s submission_id=%s error=%s",
+            job_payload.trace_id,
+            job_payload.submission_id,
+            e,
+        )
+        raise HTTPException(
+            status_code=503,
+            detail=f"Could not enqueue Clappia job: {e}",
+        )
+
+
+def run_clappia_worker() -> None:
+    if not MFC_QUEUE.is_configured():
+        raise RuntimeError("REDIS_URL is required to run the MFC worker.")
+
+    logger.info(
+        "mfc_worker_start runtime_mode=worker queue_name=%s failed_queue_name=%s namespace=%s jobs_key=%s processing_key=%s failed_key=%s writeback_mode=%s",
+        MFC_QUEUE_NAME,
+        MFC_FAILED_QUEUE_NAME,
+        MFC_REDIS_NAMESPACE,
+        MFC_QUEUE.config.jobs_key,
+        MFC_QUEUE.config.processing_key,
+        MFC_QUEUE.config.failed_key,
+        MFC_WRITEBACK_MODE,
+    )
+    MFC_QUEUE.ping()
+    while True:
+        try:
+            dequeued = MFC_QUEUE.dequeue(timeout_seconds=5)
+        except Exception as e:
+            logger.exception("mfc_worker_dequeue_exception error=%s", e)
+            time.sleep(1.0)
+            continue
+
+        if dequeued is None:
+            continue
+
+        raw_job = dequeued["raw_job"]
+        logger.info(
+            "mfc_queue_dequeue trace_id=%s raw_job_bytes=%s queue_name=%s processing_key=%s",
+            dequeued["job"].get("trace_id"),
+            len(raw_job.encode("utf-8")),
+            MFC_QUEUE_NAME,
+            MFC_QUEUE.config.processing_key,
+        )
+        job_payload = ClappiaJobPayload.model_validate(dequeued["job"])
+        t_start = time.monotonic()
+        logger.info(
+            "mfc_worker_job_start trace_id=%s submission_id=%s job_id=%s queue_name=%s",
+            job_payload.trace_id,
+            job_payload.submission_id,
+            job_payload.job_id,
+            MFC_QUEUE_NAME,
+        )
+
+        try:
+            response_payload = asyncio.run(_process_clappia_job(job_payload))
+            MFC_QUEUE.complete(raw_job=raw_job, job_payload=job_payload.model_dump())
+            logger.info(
+                "mfc_worker_job_complete trace_id=%s submission_id=%s job_id=%s elapsed_seconds=%.2f writeback_status=%s",
+                job_payload.trace_id,
+                job_payload.submission_id,
+                job_payload.job_id,
+                time.monotonic() - t_start,
+                response_payload["writeback_status"],
+            )
+        except Exception as e:
+            failure_record = MFC_QUEUE.fail(
+                raw_job=raw_job,
+                job_payload=job_payload.model_dump(),
+                failure_payload={
+                    "trace_id": job_payload.trace_id,
+                    "submission_id": job_payload.submission_id,
+                    "job_id": job_payload.job_id,
+                    "error": str(e),
+                },
+            )
+            logger.exception(
+                "mfc_worker_job_failed trace_id=%s submission_id=%s job_id=%s elapsed_seconds=%.2f failure=%s",
+                job_payload.trace_id,
+                job_payload.submission_id,
+                job_payload.job_id,
+                time.monotonic() - t_start,
+                json.dumps(_sanitize_for_log(failure_record), sort_keys=True),
+            )
+
+
 @app.get("/")
 def home() -> FileResponse:
     return FileResponse(STATIC_DIR / "index.html")
+
+
+@app.on_event("startup")
+def startup_log_runtime_config() -> None:
+    logger.info(
+        "startup_runtime_config runtime_mode=web log_level=%s writeback_mode=%s queue_name=%s failed_queue_name=%s namespace=%s redis_configured=%s redis_namespace=%s",
+        LOG_LEVEL,
+        MFC_WRITEBACK_MODE,
+        MFC_QUEUE_NAME,
+        MFC_FAILED_QUEUE_NAME,
+        MFC_REDIS_NAMESPACE,
+        MFC_QUEUE.is_configured(),
+        json.dumps(MFC_QUEUE.describe(), sort_keys=True),
+    )
+    logger.info(
+        "startup_clappia_field_config mapping=%s",
+        json.dumps(_compact_clappia_field_mapping(), sort_keys=True),
+    )
+    if MFC_QUEUE.is_configured():
+        try:
+            MFC_QUEUE.ping()
+            logger.info(
+                "startup_redis_ready runtime_mode=web queue_name=%s namespace=%s jobs_key=%s processing_key=%s failed_key=%s",
+                MFC_QUEUE_NAME,
+                MFC_REDIS_NAMESPACE,
+                MFC_QUEUE.config.jobs_key,
+                MFC_QUEUE.config.processing_key,
+                MFC_QUEUE.config.failed_key,
+            )
+        except Exception as e:
+            logger.warning(
+                "startup_redis_unavailable queue_name=%s error=%s",
+                MFC_QUEUE_NAME,
+                e,
+            )
 
 
 @app.get("/health")
@@ -1815,6 +2360,11 @@ def health() -> dict:
     return {
         "ok": True,
         "log_level": LOG_LEVEL,
+        "mfc_writeback_mode": MFC_WRITEBACK_MODE,
+        "redis_configured": MFC_QUEUE.is_configured(),
+        "mfc_queue_name": MFC_QUEUE_NAME,
+        "mfc_failed_queue_name": MFC_FAILED_QUEUE_NAME,
+        "redis_namespace": MFC_QUEUE.describe(),
         "clappia_analyze_concurrency": CLAPPIA_ANALYZE_CONCURRENCY,
         "clappia_app_id": CLAPPIA_APP_ID or None,
         "clappia_workplace_id_configured": bool(_normalize_clappia_token(CLAPPIA_WORKPLACE_ID)),
@@ -1870,14 +2420,45 @@ async def read_scale(file: UploadFile = File(...)) -> JSONResponse:
     return JSONResponse(content=payload)
 
 @app.post("/api/clappia/analyze")
-async def clappia_analyze(payload: ClappiaAnalyzeRequest) -> JSONResponse:
+async def clappia_analyze(request: Request) -> JSONResponse:
     trace_id = _trace_id("clappia")
+    try:
+        raw_payload = await request.json()
+    except Exception as e:
+        logger.warning("clappia_request_invalid_json trace_id=%s error=%s", trace_id, e)
+        raise HTTPException(status_code=400, detail=f"Invalid JSON body: {e}")
+
+    if not isinstance(raw_payload, dict):
+        logger.warning(
+            "clappia_request_invalid_shape trace_id=%s payload_type=%s",
+            trace_id,
+            type(raw_payload).__name__,
+        )
+        raise HTTPException(status_code=400, detail="Request body must be a JSON object.")
+
+    try:
+        payload = ClappiaAnalyzeRequest.model_validate(raw_payload)
+    except ValidationError as e:
+        logger.warning("clappia_request_invalid_payload trace_id=%s error=%s", trace_id, e)
+        raise HTTPException(status_code=400, detail=json.loads(e.json()))
+
     targets = extract_clappia_targets(payload)
+    sanitized_raw_payload = _sanitize_for_log(raw_payload)
+    sanitized_input_payload = _build_sanitized_clappia_input_payload(
+        payload=payload,
+        targets=targets,
+    )
     logger.info(
-        "clappia_request_received trace_id=%s submission_id=%s target_keys=%s",
+        "clappia_request_received trace_id=%s submission_id=%s payload=%s",
         trace_id,
         payload.submission_id,
-        sorted(targets.keys()),
+        json.dumps(sanitized_raw_payload, sort_keys=True),
+    )
+    logger.info(
+        "clappia_targets_normalized trace_id=%s submission_id=%s targets=%s",
+        trace_id,
+        payload.submission_id,
+        json.dumps(_sanitize_for_log(targets), sort_keys=True),
     )
     if not targets:
         logger.warning(
@@ -1895,70 +2476,35 @@ async def clappia_analyze(payload: ClappiaAnalyzeRequest) -> JSONResponse:
             ),
         )
 
-    response: dict[str, Any] = {
-        "ok": True,
-        "submission_id": payload.submission_id,
-    }
-
-    details: dict[str, Any] = {}
-    logger.info(
-        "clappia_parallel_analysis_start trace_id=%s submission_id=%s target_count=%s concurrency=%s",
-        trace_id,
-        payload.submission_id,
-        len(targets),
-        CLAPPIA_ANALYZE_CONCURRENCY,
-    )
-    semaphore = asyncio.Semaphore(CLAPPIA_ANALYZE_CONCURRENCY)
-    target_tasks = [
-        asyncio.create_task(
-            _analyze_clappia_target(
-                trace_id=trace_id,
-                submission_id=payload.submission_id,
-                target_key=safe_key,
-                image_url=image_url,
-                semaphore=semaphore,
-            )
-        )
-        for safe_key, image_url in targets.items()
-        if str(safe_key).strip()
-    ]
-    target_results = await asyncio.gather(*target_tasks)
-    logger.info(
-        "clappia_parallel_analysis_complete trace_id=%s submission_id=%s target_count=%s",
-        trace_id,
-        payload.submission_id,
-        len(target_results),
-    )
-
-    for target_key, response_fields, analysis in target_results:
-        response.update(response_fields)
-        details[target_key] = analysis
-
-    writeback_data, target_field_map, skipped_targets = build_clappia_writeback_data(details)
-    clappia_writeback = update_clappia_submission(
+    job_payload = _build_clappia_job_payload(
         trace_id=trace_id,
-        submission_id=payload.submission_id,
-        data=writeback_data,
-        target_field_map=target_field_map,
-        skipped_targets=skipped_targets,
-        workplace_id=payload.workplace_id,
-        requesting_user_email_address=payload.requesting_user_email_address,
+        payload=payload,
+        targets=targets,
+        clappia_input_payload=sanitized_input_payload,
     )
 
-    response["details"] = details
-    response["clappia_writeback"] = clappia_writeback.model_dump()
-    logger.info(
-        "clappia_request_complete trace_id=%s submission_id=%s processed_targets=%s writeback_success=%s writeback_attempted=%s",
-        trace_id,
-        payload.submission_id,
-        sorted(details.keys()),
-        clappia_writeback.success,
-        clappia_writeback.attempted,
-    )
-    return JSONResponse(content=response)
+    if MFC_WRITEBACK_MODE == "async":
+        enqueue_result = _enqueue_clappia_job(job_payload)
+        response_payload = _build_async_clappia_response(
+            job_payload=job_payload,
+            enqueue_result=enqueue_result,
+        )
+        logger.info(
+            "clappia_response_payload trace_id=%s submission_id=%s response=%s",
+            trace_id,
+            payload.submission_id,
+            json.dumps(_sanitize_for_log(response_payload), sort_keys=True),
+        )
+        return JSONResponse(content=response_payload)
+
+    response_payload = await _process_clappia_job(job_payload)
+    return JSONResponse(content=response_payload)
 
 if __name__ == "__main__":
     import uvicorn
-    host = os.getenv("HOST", "0.0.0.0")
-    port = int(os.getenv("PORT", "8000"))
-    uvicorn.run("app:app", host=host, port=port, reload=True)
+    if len(sys.argv) > 1 and sys.argv[1] == "worker":
+        run_clappia_worker()
+    else:
+        host = os.getenv("HOST", "0.0.0.0")
+        port = int(os.getenv("PORT", "8000"))
+        uvicorn.run("app:app", host=host, port=port, reload=True)

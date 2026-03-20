@@ -33,22 +33,28 @@ Set at least:
 GEMINI_API_KEY=your_api_key_here
 ```
 
-Run the app:
+Run the web app:
 
 ```bash
 python app.py
+```
+
+Equivalent explicit web command:
+
+```bash
+uvicorn app:app --host 0.0.0.0 --port ${PORT:-10000}
+```
+
+Run the worker when `MFC_WRITEBACK_MODE=async`:
+
+```bash
+python app.py worker
 ```
 
 Open:
 
 ```text
 http://127.0.0.1:8000
-```
-
-Equivalent manual launch:
-
-```bash
-uvicorn app:app --reload --host 0.0.0.0 --port 8000
 ```
 
 ## Docker
@@ -59,13 +65,19 @@ Build:
 docker build -t mfcvision .
 ```
 
-Run:
+Run the web container:
 
 ```bash
 docker run --rm -p 8000:10000 --env-file .env mfcvision
 ```
 
 The container starts Uvicorn on `0.0.0.0` and uses `PORT` if provided, otherwise `10000`.
+
+For a separate worker process on Render, reuse the same image and override the start command to:
+
+```bash
+python app.py worker
+```
 
 ## Current Runtime Flow
 
@@ -79,11 +91,13 @@ Both `/api/read-scale` and `/api/clappia/analyze` use the same internal image-an
 6. If a valid box exists, read from the crop with the full image as context.
 7. If localization fails, read directly from the full image.
 8. Post-process the result, reject suspicious numeric shapes, and return `ok` or `needs_review`.
-9. For Clappia requests, map successful numeric outputs and write them back directly to the same Clappia submission.
+9. In `sync` mode, map successful numeric outputs and write them back directly to the same Clappia submission before responding.
+10. In `async` mode, enqueue the normalized Clappia request into Redis and let a worker run the same analysis and writeback flow later.
 
 ## Repository Layout
 
-- `app.py`: FastAPI app, Gemini calls, Clappia URL analysis endpoint, preview endpoints
+- `app.py`: FastAPI app, Gemini calls, Clappia route, worker entrypoint, preview endpoints
+- `mfc_queue.py`: Redis queue helper with isolated `mfc_clappia:*` namespace
 - `image_enhance.py`: conservative enhancement used for preview and localization context
 - `vision.py`: image utilities plus crop-analysis and seven-segment helpers not currently active in the live read path
 - `prompts/scale_reader.txt`: reader prompt used for numeric extraction
@@ -101,6 +115,11 @@ Both `/api/read-scale` and `/api/clappia/analyze` use the same internal image-an
 - `READ_TEMPERATURE`: default `0.0`
 - `LOCALIZER_TEMPERATURE`: default `0.0`
 - `LOG_LEVEL`: app log level for Render/stdout logs, default `INFO`
+- `REDIS_URL`: Render Key Value Redis connection string, required only when `MFC_WRITEBACK_MODE=async`
+- `MFC_QUEUE_NAME`: logical queue name for this service, default `mfc_clappia_jobs`
+- `MFC_FAILED_QUEUE_NAME`: logical failed queue name for this service, default `mfc_clappia_failed`
+- `MFC_REDIS_NAMESPACE`: Redis key prefix used for this service only, default `mfc_clappia`
+- `MFC_WRITEBACK_MODE`: `sync` or `async`, default `sync`
 - `CLAPPIA_API_KEY`: optional workplace API key used for backend-side Clappia submission writeback
 - `CLAPPIA_APP_ID`: Clappia app ID for writeback, default `MFC182090`
 - `CLAPPIA_WORKPLACE_ID`: Clappia workplace ID required by the public `submissions/edit` API
@@ -123,21 +142,53 @@ Important notes:
 - `.env.example` is only a starter file and may lag `app.py`. Use the code as the source of truth.
 - Missing `CLAPPIA_API_KEY` does not stop startup; it only disables direct Clappia writeback and returns a structured writeback error in `/api/clappia/analyze`.
 - Missing `CLAPPIA_WORKPLACE_ID` also disables direct Clappia writeback; unresolved placeholders like `{workplaceId}` are ignored.
+- Missing `REDIS_URL` does not stop startup in `sync` mode. In `async` mode, enqueue requests fail loudly until Redis is configured.
 
-## Clappia Direct Writeback
+## Clappia Backend Writeback
 
 When Clappia calls `POST /api/clappia/analyze`, the backend now:
 
-1. analyzes the configured image targets
-2. processes independent targets in bounded parallel batches
-3. maps successful numeric values to the configured Clappia field keys
-4. calls Clappia Public API `submissions/edit` to update the same submission directly
+1. logs the sanitized incoming request
+2. normalizes the target image URLs
+3. analyzes each target with the existing image-reading pipeline
+4. maps successful numeric values to configured Clappia field keys
+5. calls Clappia Public API `submissions/edit` from backend code
 
 Recommended workflow simplification:
 
 - Keep only the REST API step that calls this backend.
 - Remove or disable the Clappia workflow-side `Edit Submission` step after verification.
-- Ensure the incoming request includes `submissionId` and the image URL fields you want analyzed.
+- Do not rely on Clappia response-field mapping for writeback anymore.
+
+Example backend writeback payload sent to Clappia:
+
+```json
+{
+  "appId": "MFC182090",
+  "workplaceId": "PIP121027",
+  "submissionId": "QEF16211579",
+  "data": {
+    "pre_weight": 18.54,
+    "pre_weight_1": 18.61
+  }
+}
+```
+
+## Redis Queue Modes
+
+The same API route supports two runtime modes:
+
+- `MFC_WRITEBACK_MODE=sync`: the request is processed inline and the response includes final per-target results plus writeback summary.
+- `MFC_WRITEBACK_MODE=async`: the request is normalized, pushed into Redis, and the API returns immediately with queue metadata. A separate worker process later runs the same analysis and writeback path.
+
+Raw Redis namespace used by this service:
+
+- `${MFC_REDIS_NAMESPACE}:jobs`
+- `${MFC_REDIS_NAMESPACE}:processing`
+- `${MFC_REDIS_NAMESPACE}:failed`
+- `${MFC_REDIS_NAMESPACE}:dedupe:<hash>`
+
+This isolates MFCVISION from any other workload sharing the same Render Key Value Redis instance. The service never reads any queue outside the configured `${MFC_REDIS_NAMESPACE}:*` namespace.
 
 ## API
 
@@ -155,18 +206,27 @@ Example:
 {
   "ok": true,
   "log_level": "INFO",
+  "mfc_writeback_mode": "sync",
+  "redis_configured": true,
+  "mfc_queue_name": "mfc_clappia_jobs",
+  "mfc_failed_queue_name": "mfc_clappia_failed",
+  "redis_namespace": {
+    "configured": true,
+    "queue_name": "mfc_clappia_jobs",
+    "failed_queue_name": "mfc_clappia_failed",
+    "jobs_key": "mfc_clappia:jobs",
+    "processing_key": "mfc_clappia:processing",
+    "failed_key": "mfc_clappia:failed",
+    "dedupe_prefix": "mfc_clappia:dedupe:",
+    "dedupe_ttl_seconds": 1800
+  },
   "clappia_analyze_concurrency": 6,
   "clappia_app_id": "MFC182090",
   "clappia_workplace_id_configured": true,
   "clappia_base_url": "https://api-public-v3.clappia.com",
   "clappia_writeback_enabled": true,
   "model": "gemini-2.5-flash",
-  "localizer_model": "gemini-2.5-flash",
-  "localizer_min_confidence": 0.45,
-  "localizer_skip_refine_threshold": 0.9,
-  "localizer_max_dimension": 1024,
-  "local_decoder_min_confidence": 0.9,
-  "expected_decimals": null
+  "localizer_model": "gemini-2.5-flash"
 }
 ```
 
@@ -212,46 +272,15 @@ Response shape:
     "confidence": 0.88,
     "display_kind": "led",
     "reason": "Located the display window.",
-    "skipped_refine": true,
-    "box_cy_frac": 0.54,
-    "box_norm_1000": {
-      "x1": 210,
-      "y1": 480,
-      "x2": 760,
-      "y2": 610
-    },
-    "box_pixels": {
-      "x1": 128,
-      "y1": 302,
-      "x2": 451,
-      "y2": 387
-    }
+    "skipped_refine": true
   },
-  "crop_diagnostics": {
-    "is_reliable": false,
-    "mode": "led",
-    "quality_score": 0.0,
-    "lit_ratio": 0.0,
-    "green_ratio": 0.0,
-    "component_count": 0,
-    "active_span_ratio": 0.0,
-    "active_band_height_ratio": 0.0,
-    "leading_blank_ratio": 0.0,
-    "reason": "Placeholder metadata; current route does not populate diagnostics."
-  },
-  "elapsed_seconds": 1.74,
-  "preview_urls": {
-    "original": "/api/preview/original",
-    "enhanced": "/api/preview/enhanced",
-    "crop": "/api/preview/crop",
-    "debug": "/api/preview/debug"
-  }
+  "elapsed_seconds": 1.74
 }
 ```
 
 ### `POST /api/clappia/analyze`
 
-JSON endpoint for analyzing one or more remote image URLs. Each image field becomes a keyed result in the top-level response plus a full diagnostic payload under `details`. After analysis, the backend also attempts a direct Clappia submission writeback for successful numeric values.
+JSON endpoint for analyzing one or more remote image URLs and writing successful numeric values back into Clappia from backend code.
 
 Supported request shapes:
 
@@ -261,55 +290,71 @@ Nested `targets` object:
 {
   "submission_id": "sub_123",
   "targets": {
-    "gross_weight": "https://example.com/images/gross.jpg",
-    "net_weight": "https://example.com/images/net.jpg"
+    "ai_pre_weight_1": "https://example.com/images/gross.jpg",
+    "ai_pre_weight_2": "https://example.com/images/net.jpg"
   }
 }
 ```
 
-Flat top-level fields, which is often easier to configure in Clappia Workflows:
+Flat top-level fields:
 
 ```json
 {
   "submissionId": "sub_123",
-  "gross_weight": "https://example.com/images/gross.jpg",
-  "net_weight": "https://example.com/images/net.jpg"
+  "ai_pre_weight_1": "https://example.com/images/gross.jpg",
+  "ai_pre_weight_2": "https://example.com/images/net.jpg"
 }
 ```
 
-Response shape:
+Sync mode response shape:
 
 ```json
 {
   "ok": true,
+  "trace_id": "clappia-8c06ec77",
+  "mode": "sync",
   "submission_id": "sub_123",
-  "gross_weight": 18.54,
-  "gross_weight_text": "18.540",
-  "gross_weight_status": "ok",
-  "gross_weight_confidence": 0.96,
-  "gross_weight_reason": "Read from localized crop.",
-  "net_weight": null,
-  "net_weight_text": null,
-  "net_weight_status": "needs_review",
-  "net_weight_confidence": 0.0,
-  "net_weight_reason": "Image URL returned HTTP 404.",
-  "clappia_writeback": {
+  "request_targets_received": [
+    "ai_pre_weight_1",
+    "ai_pre_weight_2"
+  ],
+  "processed_targets": [
+    "ai_pre_weight_1",
+    "ai_pre_weight_2"
+  ],
+  "results": {
+    "ai_pre_weight_1": {
+      "value": 18.54,
+      "value_text": "18.540",
+      "status": "ok",
+      "confidence": 0.96,
+      "reason": "Read from localized crop.",
+      "ignored_text_present": true,
+      "writeback_field": "pre_weight",
+      "included_in_writeback": true
+    },
+    "ai_pre_weight_2": {
+      "value": null,
+      "value_text": null,
+      "status": "needs_review",
+      "confidence": 0.0,
+      "reason": "Image URL returned HTTP 404.",
+      "ignored_text_present": false,
+      "writeback_field": "pre_weight_1",
+      "included_in_writeback": false,
+      "writeback_skip_reason": "result status was not ok"
+    }
+  },
+  "writeback_attempted": true,
+  "writeback_status": "success",
+  "writeback_summary": {
     "enabled": true,
     "attempted": true,
     "success": true,
-    "submission_id": "sub_123",
-    "app_id": "MFC182090",
-    "endpoint": "https://api-public-v3.clappia.com/submissions/edit",
-    "payload": {
-      "appId": "MFC182090",
-      "submissionId": "sub_123",
-      "data": {
-        "pre_weight": 18.54
-      }
-    },
-    "written_fields": {
-      "pre_weight": 18.54
-    },
+    "response_status": 200,
+    "written_fields": [
+      "pre_weight"
+    ],
     "target_field_map": {
       "ai_pre_weight_1": "pre_weight"
     },
@@ -321,49 +366,113 @@ Response shape:
         "skipped_reason": "result status was not ok"
       }
     },
-    "response_status": 200,
-    "response_text": "{\"message\":\"Success\"}",
-    "response_body": {
-      "message": "Success"
-    },
     "error": null
   },
-  "details": {
-    "gross_weight": {
-      "final": {},
-      "localization": {},
-      "crop_diagnostics": {},
-      "elapsed_seconds": 1.74,
-      "preview_urls": {}
-    },
-    "net_weight": {
-      "final": {
-        "status": "needs_review",
-        "value_text": null,
-        "value_number": null,
-        "confidence": 0.0,
-        "reason": "Image URL returned HTTP 404.",
-        "ignored_text_present": false
-      },
-      "localization": {
-        "source": "clappia_url_error",
-        "found": false,
-        "confidence": 0.0,
-        "display_kind": "unknown",
-        "reason": "Image URL returned HTTP 404."
-      }
+  "clappia_input_payload": {
+    "submission_id": "sub_123",
+    "workplace_id": "PIP121027",
+    "requesting_user_email_address": "su***@example.com",
+    "targets": {
+      "ai_pre_weight_1": "https://example.com/images/gross.jpg",
+      "ai_pre_weight_2": "https://example.com/images/net.jpg"
     }
-  }
+  },
+  "clappia_writeback_payload": {
+    "appId": "MFC182090",
+    "submissionId": "sub_123",
+    "workplaceId": "PIP121027",
+    "data": {
+      "pre_weight": 18.54
+    }
+  },
+  "elapsed_seconds": 9.84
 }
+```
+
+Async mode response shape:
+
+```json
+{
+  "ok": true,
+  "trace_id": "clappia-8c06ec77",
+  "mode": "async",
+  "submission_id": "sub_123",
+  "request_targets_received": [
+    "ai_pre_weight_1",
+    "ai_pre_weight_2"
+  ],
+  "processed_targets": [],
+  "results": {},
+  "writeback_attempted": false,
+  "writeback_status": "queued",
+  "writeback_summary": {
+    "enqueued": true,
+    "duplicate": false,
+    "job_id": "mfcjob-fd6f6f0e",
+    "dedupe_hash": "ab12...",
+    "queue_name": "mfc_clappia_jobs",
+    "jobs_key": "mfc_clappia:jobs"
+  },
+  "clappia_input_payload": {
+    "submission_id": "sub_123",
+    "targets": {
+      "ai_pre_weight_1": "https://example.com/images/gross.jpg",
+      "ai_pre_weight_2": "https://example.com/images/net.jpg"
+    }
+  },
+  "clappia_writeback_payload": {},
+  "elapsed_seconds": 0.0
+}
+```
+
+## Field Mapping
+
+Backend-side writeback uses an explicit mapping block in `app.py` so Clappia field writes stay intentional.
+
+Current configured mappings:
+
+- `ai_pre_weight_1 -> pre_weight`
+- `ai_pre_weight_2 -> pre_weight_1`
+- `ai_pre_weight_3 -> pre_weight_2`
+- `ai_pre_weight_4 -> pre_weight_3`
+- `ai_post_weight_1 -> pre_weight_4`
+- `ai_post_weight_2 -> pre_weight_5`
+- `ai_post_weight_3 -> pre_weight_6`
+- `ai_post_weight_4 -> pre_weight_7`
+- `ai_side_wall_1 -> pre_weight_8`
+- `ai_side_wall_2 -> side_wall_1`
+- `ai_side_wall_3 -> side_wall_2`
+- `ai_side_wall_4 -> side_wall_3`
+- `ai_centre_wall_1 -> centre_wal`
+- `ai_centre_wall_2 -> pre_weight_9`
+- `ai_centre_wall_3 -> centre_wal_1`
+- `ai_centre_wall_4 -> centre_wal_2`
+
+Status and reason companion writes are supported by the config structure, but they remain disabled until you add explicit destination fields.
+
+## Sample Log Lines
+
+```text
+2026-03-20 12:01:11,482 INFO mfcvision startup_runtime_config runtime_mode=web log_level=INFO writeback_mode=async queue_name=mfc_clappia_jobs failed_queue_name=mfc_clappia_failed namespace=mfc_clappia redis_configured=true redis_namespace={"configured":true,"dedupe_prefix":"mfc_clappia:dedupe:","failed_key":"mfc_clappia:failed","failed_queue_name":"mfc_clappia_failed","jobs_key":"mfc_clappia:jobs","namespace":"mfc_clappia","processing_key":"mfc_clappia:processing","queue_name":"mfc_clappia_jobs"}
+2026-03-20 12:01:11,483 INFO mfcvision clappia_request_received trace_id=clappia-8c06ec77 submission_id=QEF16211579 payload={"submission_id":"QEF16211579","targets":{"ai_pre_weight_1":"https://drive.google.com/thumbnail","ai_pre_weight_2":"https://drive.google.com/thumbnail"}}
+2026-03-20 12:01:11,483 INFO mfcvision clappia_targets_normalized trace_id=clappia-8c06ec77 submission_id=QEF16211579 targets={"ai_pre_weight_1":"https://drive.google.com/thumbnail","ai_pre_weight_2":"https://drive.google.com/thumbnail"}
+2026-03-20 12:01:11,484 INFO mfcvision mfc_queue_enqueue_complete trace_id=clappia-8c06ec77 submission_id=QEF16211579 result={"dedupe_hash":"ab12...","duplicate":false,"enqueued":true,"job_id":"mfcjob-fd6f6f0e","jobs_key":"mfc_clappia:jobs","queue_name":"mfc_clappia_jobs"}
+2026-03-20 12:01:12,010 INFO mfcvision mfc_worker_job_start trace_id=clappia-8c06ec77 submission_id=QEF16211579 job_id=mfcjob-fd6f6f0e queue_name=mfc_clappia_jobs
+2026-03-20 12:01:12,011 INFO mfcvision clappia_target_start trace_id=clappia-8c06ec77 submission_id=QEF16211579 target=ai_pre_weight_1 url=https://drive.google.com/thumbnail
+2026-03-20 12:01:20,122 INFO mfcvision clappia_writeback_target trace_id=clappia-8c06ec77 submission_id=QEF16211579 target=ai_pre_weight_1 destination_field=pre_weight final_status=ok numeric_value=18.54 included=True skipped_reason=None
+2026-03-20 12:01:20,123 INFO mfcvision clappia_writeback_start trace_id=clappia-8c06ec77 submission_id=QEF16211579 field_map={"ai_pre_weight_1":"pre_weight"} payload_keys=["pre_weight"] payload={"appId":"MFC182090","submissionId":"QEF16211579","workplaceId":"PIP121027","data":{"pre_weight":18.54}}
+2026-03-20 12:01:21,010 INFO mfcvision clappia_writeback_success trace_id=clappia-8c06ec77 submission_id=QEF16211579 response_status=200 application_status=uncertain written_fields=["pre_weight"] response_body={}
+2026-03-20 12:01:21,011 INFO mfcvision clappia_response_payload trace_id=clappia-8c06ec77 submission_id=QEF16211579 response={"ok":true,"mode":"sync","submission_id":"QEF16211579","writeback_status":"success"}
 ```
 
 ## Result Semantics
 
-- `final.status` is `ok` or `needs_review`
-- `value_text` is expected to be a single numeric token
-- `value_number` is cleared when the result is suspicious
-- `confidence` is a bounded heuristic score, not a calibrated probability
-- `ignored_text_present` comes from the model response schema
+- For `POST /api/read-scale`, `final.status` is `ok` or `needs_review`.
+- For `POST /api/clappia/analyze`, each `results.<target>.status` is `ok` or `needs_review`.
+- `value_text` is expected to be a single numeric token.
+- Numeric values are cleared when the result is suspicious.
+- `confidence` is a bounded heuristic score, not a calibrated probability.
+- `ignored_text_present` comes from the model response schema.
 
 ## Known Caveats
 
@@ -372,8 +481,8 @@ Response shape:
 - `crop_diagnostics` is currently placeholder metadata; the live read path does not populate it from `vision.py`.
 - Preview URLs are process-local and only reflect the latest request handled by the running server.
 - The Clappia endpoint fetches remote images over HTTP and applies the same max-size checks as uploads.
-- The endpoint now returns `400` if it cannot find at least one analyzable image URL in the request body.
-- Clappia writeback only sends fields whose final read status is `ok` and `value_number` is present.
+- The endpoint returns `400` if it cannot find at least one analyzable image URL in the request body.
+- Clappia writeback only sends fields whose final read status is `ok` and whose numeric value is present.
 
 ## Troubleshooting
 
@@ -387,22 +496,28 @@ Response shape:
 - Ensure the URL returns an actual image with an `image/*` content type
 - Ensure the URL is reachable from the server running the app
 - Ensure the remote image is within `MAX_IMAGE_MB`
-- Set `LOG_LEVEL=INFO` or higher in Render and inspect request-stage logs for `remote_fetch_*`, `localizer_*`, `reader_*`, and `pipeline_complete`
+- Set `LOG_LEVEL=INFO` or higher and inspect request-stage logs for `remote_fetch_*`, `localizer_*`, `reader_*`, and `pipeline_complete`
 
 ### Clappia Writeback
 
-- Set `CLAPPIA_API_KEY` in Render before expecting backend-side Clappia updates.
-- Set `CLAPPIA_WORKPLACE_ID` in Render; Clappia public `submissions/edit` requires it.
-- Tune `CLAPPIA_ANALYZE_CONCURRENCY` if you change models or hit Gemini/Render limits.
+- Set `CLAPPIA_API_KEY` before expecting backend-side Clappia updates.
+- Set `CLAPPIA_WORKPLACE_ID`; Clappia public `submissions/edit` requires it.
+- Tune `CLAPPIA_ANALYZE_CONCURRENCY` if you change models or hit Gemini or Render limits.
 - Ensure the incoming request includes `submissionId`; writeback is skipped without it.
-- Check the top-level `clappia_writeback` object in the API response for `payload`, `response_status`, and `error`.
-- In Render logs, inspect `clappia_writeback_start`, `clappia_writeback_success`, `clappia_writeback_failed`, and `clappia_writeback_exception`.
+- Inspect `writeback_status`, `writeback_summary`, and `clappia_writeback_payload` in the API response.
+- In logs, inspect `clappia_writeback_start`, `clappia_writeback_target`, `clappia_writeback_success`, `clappia_writeback_failed`, and `clappia_writeback_exception`.
+
+### Async Queue
+
+- Set `REDIS_URL` when `MFC_WRITEBACK_MODE=async`.
+- Run `python app.py worker` in at least one process.
+- Inspect `mfc_queue_enqueue_*`, `mfc_worker_job_*`, and the `mfc_clappia:failed` list for failures.
 
 ### Poor Localization
 
-- Keep the display clearly visible in the image
-- Increase `LOCALIZER_MAX_DIMENSION` for small or distant displays
-- Lower `LOCALIZER_MIN_CONFIDENCE` only if you are willing to accept more aggressive crops
+- Keep the display clearly visible in the image.
+- Increase `LOCALIZER_MAX_DIMENSION` for small or distant displays.
+- Lower `LOCALIZER_MIN_CONFIDENCE` only if you are willing to accept more aggressive crops.
 
 ## Development Notes
 
