@@ -104,12 +104,12 @@ CLAPPIA_FIELD_CONFIG: dict[str, dict[str, Optional[str]]] = {
     "ai_post_weight_3": {"value": "pre_weight_6", "status": None, "reason": None},
     "ai_post_weight_4": {"value": "pre_weight_7", "status": None, "reason": None},
     "ai_side_wall_1": {"value": "pre_weight_8", "status": None, "reason": None},
-    "ai_side_wall_2": {"value": "side_wall_1", "status": None, "reason": None},
+    "ai_side_wall_2": {"value": "side_wall__1", "status": None, "reason": None},
     "ai_side_wall_3": {"value": "side_wall_", "status": None, "reason": None},
-    "ai_side_wall_4": {"value": "side_wall_3", "status": None, "reason": None},
+    "ai_side_wall_4": {"value": "side_wall__3", "status": None, "reason": None},
     "ai_centre_wall_1": {"value": "centre_wal", "status": None, "reason": None},
     "ai_centre_wall_2": {"value": "pre_weight_9", "status": None, "reason": None},
-    "ai_centre_wall_3": {"value": "side_wall_2", "status": None, "reason": None},
+    "ai_centre_wall_3": {"value": "side_wall__2", "status": None, "reason": None},
     "ai_centre_wall_4": {"value": "centre_wal_1", "status": None, "reason": None},
 }
 
