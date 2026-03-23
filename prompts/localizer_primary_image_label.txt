@@ -1,0 +1,1 @@
+PRIMARY image: ORIGINAL full photo. Use this as the source of truth for physical display location.

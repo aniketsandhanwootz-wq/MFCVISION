@@ -507,7 +507,7 @@ DIGIT_TEMPLATES: dict[str, np.ndarray] = {
 
 
 def _extract_active_boxes(mask: np.ndarray) -> list[dict[str, float]]:
-    height, width = mask.shape[:2]
+    _, width = mask.shape[:2]
     col_energy = np.count_nonzero(mask, axis=0).astype(np.float32)
     runs = _projection_runs(
         col_energy,

@@ -1,0 +1,14 @@
+No trustworthy localized ROI is available.
+Read the value directly from the ORIGINAL full photo only.
+Ignore any imagined crop or display box.
+Look carefully for a tiny isolated decimal dot near the numeric row baseline, especially near the right side of the display.
+CRITICAL — DIGIT 1: The digit 1 uses ONLY the two right-side vertical segments of a slot.
+It is narrow and bright green, not a dim full-width 8 placeholder.
+A narrow bright column between placeholders and the main number IS the digit 1 — do NOT skip it.
+If the display appears to start with 88 or 888, treat those as inactive placeholders unless the leading slots are clearly bright and active.
+Do NOT invent a leading 0 unless a full-width zero is clearly visible.
+If a LED reading appears to be 0.xxx, 7.xxx, or 8.xxx while dim placeholder slots exist to the left,
+double-check whether a narrow bright '1' is visible before that digit.
+Never output placeholder separators like 8.8.670 or any token with multiple decimal points.
+Display hint: __DISPLAY_KIND_LABEL__.
+Localization fallback reason: __FALLBACK_REASON__
