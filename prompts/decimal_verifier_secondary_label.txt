@@ -1,0 +1,1 @@
+SECONDARY image: enhanced version of the same display view for decimal inspection.

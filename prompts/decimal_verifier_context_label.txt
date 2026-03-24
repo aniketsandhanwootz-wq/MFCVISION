@@ -1,0 +1,1 @@
+CONTEXT image: original full photo for display context only.

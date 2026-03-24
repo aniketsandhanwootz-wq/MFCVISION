@@ -195,6 +195,15 @@ class ReadVerificationResult(BaseModel):
     reason: str
 
 
+class DecimalVerificationResult(BaseModel):
+    same_digits_except_decimal: bool
+    decimal_visible: Literal["yes", "no", "uncertain"]
+    decimal_after_digit: Optional[int] = Field(default=None, ge=1, le=12)
+    dot_is_real_not_glare: bool
+    confidence: float = Field(ge=0.0, le=1.0)
+    reason: str
+
+
 class ClappiaAnalyzeRequest(BaseModel):
     model_config = ConfigDict(extra="allow")
 
@@ -1454,6 +1463,12 @@ def count_integer_digits(value_text: str) -> int:
     return len(value_text.split(".", 1)[0])
 
 
+def digits_only(value_text: str | None) -> str:
+    if not value_text:
+        return ""
+    return value_text.replace(".", "")
+
+
 def has_probable_missing_leading_digit(
     text: str,
     crop_diagnostics: CropDiagnostics | None = None,
@@ -1626,6 +1641,69 @@ def _support_should_win_led_conflict(
     return False
 
 
+def _same_digits_except_decimal(first_text: str | None, second_text: str | None) -> bool:
+    if not first_text or not second_text or first_text == second_text:
+        return False
+    if not re.fullmatch(r"\d+(\.\d+)?", first_text):
+        return False
+    if not re.fullmatch(r"\d+(\.\d+)?", second_text):
+        return False
+    return digits_only(first_text) == digits_only(second_text)
+
+
+def _collect_decimal_conflict_texts(*value_texts: str | None) -> list[str]:
+    seen: set[str] = set()
+    texts: list[str] = []
+    for value_text in value_texts:
+        if not value_text or value_text in seen:
+            continue
+        if not re.fullmatch(r"\d+(\.\d+)?", value_text):
+            continue
+        seen.add(value_text)
+        texts.append(value_text)
+    for index, left_text in enumerate(texts):
+        for right_text in texts[index + 1 :]:
+            if _same_digits_except_decimal(left_text, right_text):
+                signature = digits_only(left_text)
+                return [text for text in texts if digits_only(text) == signature]
+    return []
+
+
+def _is_decimal_risk_text(value_text: str | None, *, display_kind: str) -> bool:
+    if not value_text or "." in value_text:
+        return False
+    if not re.fullmatch(r"\d+", value_text):
+        return False
+    if count_numeric_digits(value_text) < 4:
+        return False
+    return display_kind in {"led", "lcd", "unknown"}
+
+
+def _decimal_signature_for_verification(
+    primary_text: str | None,
+    verifier_text: str | None,
+    support_text: str | None,
+    *,
+    display_kind: str,
+) -> tuple[list[str], str | None]:
+    conflict_texts = _collect_decimal_conflict_texts(primary_text, verifier_text, support_text)
+    if conflict_texts:
+        return conflict_texts, digits_only(conflict_texts[0])
+    if _is_decimal_risk_text(primary_text, display_kind=display_kind):
+        return [primary_text], digits_only(primary_text)
+    return [], None
+
+
+def _rebuild_decimal_text(digits_text: str, decimal_after_digit: int | None) -> str | None:
+    if not digits_text or decimal_after_digit is None:
+        return None
+    if decimal_after_digit <= 0 or decimal_after_digit >= len(digits_text):
+        return None
+    return normalize_numeric_token_text(
+        f"{digits_text[:decimal_after_digit]}.{digits_text[decimal_after_digit:]}"
+    )
+
+
 def post_process_result(result: ReadingResult) -> ReadingResult:
     if result.status == "ok" and result.value_text:
         try:
@@ -1704,6 +1782,27 @@ def _serialize_read_verification(verification: ReadVerificationResult | None) ->
         "leftmost_digit_fully_visible": verification.leftmost_digit_fully_visible,
         "crop_edge_clipped": verification.crop_edge_clipped,
         "reason": verification.reason,
+    }
+
+
+def _serialize_decimal_verification(
+    verification: DecimalVerificationResult | None,
+    *,
+    candidate_texts: list[str] | None = None,
+    resolved_value_text: str | None = None,
+) -> dict[str, Any]:
+    if verification is None:
+        return {"available": False}
+    return {
+        "available": True,
+        "same_digits_except_decimal": verification.same_digits_except_decimal,
+        "decimal_visible": verification.decimal_visible,
+        "decimal_after_digit": verification.decimal_after_digit,
+        "dot_is_real_not_glare": verification.dot_is_real_not_glare,
+        "confidence": verification.confidence,
+        "reason": verification.reason,
+        "candidate_texts": candidate_texts or [],
+        "resolved_value_text": resolved_value_text,
     }
 
 
@@ -1840,6 +1939,71 @@ def _build_read_verifier_instructions(
     )
 
 
+def _build_decimal_verifier_instructions(
+    *,
+    candidate_texts: list[str],
+    display_kind: str,
+) -> str:
+    candidate_block = "\n".join(f"- {value_text}" for value_text in candidate_texts) or "- none"
+    return render_prompt_template(
+        "decimal_verifier.txt",
+        {
+            "DISPLAY_KIND_LABEL": _display_kind_label(display_kind),
+            "CANDIDATE_LIST": candidate_block,
+        },
+    )
+
+
+def call_gemini_decimal_verifier(
+    primary_img: Image.Image,
+    enhanced_primary_img: Image.Image,
+    original_img: Image.Image,
+    *,
+    candidate_texts: list[str],
+    display_kind: str,
+) -> DecimalVerificationResult:
+    instructions = _build_decimal_verifier_instructions(
+        candidate_texts=candidate_texts,
+        display_kind=display_kind,
+    )
+    contents: list[object] = [
+        instructions,
+        load_prompt_text("decimal_verifier_primary_label.txt"),
+        primary_img,
+        load_prompt_text("decimal_verifier_secondary_label.txt"),
+        enhanced_primary_img,
+        load_prompt_text("decimal_verifier_context_label.txt"),
+        original_img,
+    ]
+
+    response = client.models.generate_content(
+        model=MODEL_NAME,
+        contents=contents,
+        config=types.GenerateContentConfig(
+            response_mime_type="application/json",
+            response_schema=DecimalVerificationResult,
+            temperature=0.0,
+        ),
+    )
+
+    if getattr(response, "parsed", None) is not None:
+        parsed = response.parsed
+        if isinstance(parsed, DecimalVerificationResult):
+            return parsed
+        if isinstance(parsed, dict):
+            return DecimalVerificationResult(**parsed)
+
+    raw_text = getattr(response, "text", None)
+    if not raw_text:
+        raise HTTPException(status_code=502, detail="Gemini decimal verifier returned empty response.")
+
+    try:
+        payload = json.loads(raw_text)
+        return DecimalVerificationResult(**payload)
+    except (json.JSONDecodeError, ValidationError) as e:
+        raise HTTPException(status_code=502, detail=f"Invalid Gemini decimal verifier JSON response: {e}")
+
+
 def call_gemini_read_verifier(
     primary_img: Image.Image,
     original_img: Image.Image,
@@ -1901,6 +2065,9 @@ def _resolve_verified_result(
     local_decode: LocalDecodeResult | None,
     verification: ReadVerificationResult | None,
     support_result: ReadingResult | None,
+    decimal_verification: DecimalVerificationResult | None,
+    decimal_candidate_texts: list[str],
+    decimal_resolved_text: str | None,
     display_kind: str,
     used_full_image_fallback: bool,
 ) -> ReadingResult:
@@ -1937,6 +2104,31 @@ def _resolve_verified_result(
     local_text = local_result.value_text if local_result is not None else None
     verifier_text = verifier_result.value_text if verifier_result is not None else None
     support_text = support_candidate.value_text if support_candidate is not None else None
+    decimal_candidate = (
+        _reading_from_candidate_text(
+            decimal_resolved_text,
+            confidence=decimal_verification.confidence if decimal_verification is not None else 0.0,
+            reason=(
+                f"Decimal-only verifier: {decimal_verification.reason}"
+                if decimal_verification is not None
+                else "Decimal-only verifier produced a decimal-resolved candidate."
+            ),
+        )
+        if decimal_resolved_text
+        and decimal_verification is not None
+        and decimal_verification.decimal_visible == "yes"
+        and decimal_verification.dot_is_real_not_glare
+        else None
+    )
+    decimal_conflict_detected = len(decimal_candidate_texts) >= 2
+    decimal_risk_unresolved = (
+        decimal_verification is not None
+        and decimal_candidate is None
+        and (
+            decimal_conflict_detected
+            or decimal_verification.decimal_visible == "uncertain"
+        )
+    )
     support_suspicious = (
         is_suspicious_read(support_candidate)
         if support_candidate is not None
@@ -1952,6 +2144,19 @@ def _resolve_verified_result(
     if verifier_result is not None and primary_result.status != "ok":
         resolved = verifier_result.model_copy(deep=True)
         resolved.reason = f"{resolved.reason} Structured verifier replaced an invalid primary read."
+        return resolved
+
+    if (
+        decimal_candidate is not None
+        and primary_result.status == "ok"
+        and primary_text
+        and _same_digits_except_decimal(decimal_candidate.value_text, primary_text)
+    ):
+        resolved = decimal_candidate.model_copy(deep=True)
+        resolved.confidence = min(0.98, max(resolved.confidence, primary_result.confidence, 0.86))
+        resolved.reason = (
+            f"{resolved.reason} Decimal-only verifier resolved the decimal placement for the same visible digits."
+        )
         return resolved
 
     if primary_result.status != "ok":
@@ -2074,8 +2279,14 @@ def _resolve_verified_result(
         and (verifier_text is None or verifier_text == primary_text)
     ):
         resolved = primary_result.model_copy(deep=True)
-        resolved.confidence = min(0.99, max(resolved.confidence, verification.confidence))
-        resolved.reason = f"{resolved.reason} Structured verifier confirmed the same reading."
+        if decimal_conflict_detected or decimal_risk_unresolved:
+            resolved.confidence = min(resolved.confidence, 0.78 if not used_full_image_fallback else 0.72)
+            resolved.reason = (
+                f"{resolved.reason} Structured verifier agreed on the digits, but decimal placement remained ambiguous."
+            )
+        else:
+            resolved.confidence = min(0.99, max(resolved.confidence, verification.confidence))
+            resolved.reason = f"{resolved.reason} Structured verifier confirmed the same reading."
         return resolved
 
     if (
@@ -2114,6 +2325,14 @@ def _resolve_verified_result(
             )
             resolved.reason = (
                 f"{resolved.reason} Structured verifier found ambiguity but did not produce a stronger correction."
+            )
+        if decimal_conflict_detected or decimal_risk_unresolved:
+            resolved.confidence = min(
+                resolved.confidence,
+                0.76 if not used_full_image_fallback else 0.70,
+            )
+            resolved.reason = (
+                f"{resolved.reason} Decimal placement was checked separately and remained ambiguous."
             )
         return resolved
 
@@ -2391,6 +2610,9 @@ def run_scale_reader_pipeline(
     local_decode: LocalDecodeResult | None = None
     verification: ReadVerificationResult | None = None
     support_result: ReadingResult | None = None
+    decimal_verification: DecimalVerificationResult | None = None
+    decimal_candidate_texts: list[str] = []
+    decimal_resolved_text: str | None = None
 
     if best_box_pixels is not None and best_localization is not None:
         crop_img = crop_from_box(original_img, best_box_pixels)
@@ -2551,6 +2773,50 @@ def run_scale_reader_pipeline(
     except Exception as e:
         logger.warning("reader_verification_exception %s error=%s", log_context, e)
 
+    verifier_candidate_text = (
+        verification.suggested_value_text
+        if verification is not None and verification.suggested_value_text
+        else None
+    )
+    decimal_candidate_texts, decimal_signature = _decimal_signature_for_verification(
+        primary_result.value_text if primary_result.status == "ok" else None,
+        verifier_candidate_text,
+        None,
+        display_kind=display_kind,
+    )
+    if decimal_signature is not None:
+        try:
+            decimal_primary_img = crop_img if best_box_pixels is not None else original_img
+            decimal_enhanced_img = make_enhanced_display_image(
+                decimal_primary_img,
+                max_dim=MAX_DIMENSION,
+            )
+            decimal_verification = call_gemini_decimal_verifier(
+                decimal_primary_img,
+                decimal_enhanced_img,
+                original_img,
+                candidate_texts=decimal_candidate_texts,
+                display_kind=display_kind,
+            )
+            decimal_resolved_text = (
+                _rebuild_decimal_text(decimal_signature, decimal_verification.decimal_after_digit)
+                if decimal_verification.decimal_visible == "yes"
+                and decimal_verification.dot_is_real_not_glare
+                else None
+            )
+            logger.info(
+                "decimal_verification %s visible=%s after_digit=%s real_dot=%s confidence=%.3f resolved_value_text=%s reason=%s",
+                log_context,
+                decimal_verification.decimal_visible,
+                decimal_verification.decimal_after_digit,
+                decimal_verification.dot_is_real_not_glare,
+                decimal_verification.confidence,
+                decimal_resolved_text,
+                decimal_verification.reason,
+            )
+        except Exception as e:
+            logger.warning("decimal_verification_exception %s error=%s", log_context, e)
+
     support_read_needed = (
         best_box_pixels is not None
         and (
@@ -2566,6 +2832,13 @@ def run_scale_reader_pipeline(
                     verification.crop_edge_clipped
                     or not verification.agrees_with_primary
                     or verification.verdict != "confirmed"
+                )
+            )
+            or (
+                decimal_verification is not None
+                and (
+                    decimal_verification.decimal_visible == "uncertain"
+                    or decimal_resolved_text is None and len(decimal_candidate_texts) >= 2
                 )
             )
         )
@@ -2593,12 +2866,73 @@ def run_scale_reader_pipeline(
         except Exception as e:
             logger.warning("support_read_exception %s error=%s", log_context, e)
 
+    post_support_candidate_texts, post_support_signature = _decimal_signature_for_verification(
+        primary_result.value_text if primary_result.status == "ok" else None,
+        verifier_candidate_text,
+        support_result.value_text if support_result is not None and support_result.status == "ok" else None,
+        display_kind=display_kind,
+    )
+    if len(post_support_candidate_texts) > len(decimal_candidate_texts):
+        decimal_candidate_texts = post_support_candidate_texts
+    if (
+        post_support_signature is not None
+        and (
+            decimal_verification is None
+            or (
+                decimal_resolved_text is None
+                and len(post_support_candidate_texts) >= len(decimal_candidate_texts)
+            )
+        )
+    ):
+        try:
+            decimal_primary_img = crop_img if best_box_pixels is not None else original_img
+            decimal_enhanced_img = make_enhanced_display_image(
+                decimal_primary_img,
+                max_dim=MAX_DIMENSION,
+            )
+            decimal_verification = call_gemini_decimal_verifier(
+                decimal_primary_img,
+                decimal_enhanced_img,
+                original_img,
+                candidate_texts=decimal_candidate_texts,
+                display_kind=display_kind,
+            )
+            decimal_resolved_text = (
+                _rebuild_decimal_text(post_support_signature, decimal_verification.decimal_after_digit)
+                if decimal_verification.decimal_visible == "yes"
+                and decimal_verification.dot_is_real_not_glare
+                else None
+            )
+            logger.info(
+                "decimal_verification_post_support %s visible=%s after_digit=%s real_dot=%s confidence=%.3f resolved_value_text=%s reason=%s",
+                log_context,
+                decimal_verification.decimal_visible,
+                decimal_verification.decimal_after_digit,
+                decimal_verification.dot_is_real_not_glare,
+                decimal_verification.confidence,
+                decimal_resolved_text,
+                decimal_verification.reason,
+            )
+        except Exception as e:
+            logger.warning("decimal_verification_post_support_exception %s error=%s", log_context, e)
+
+    if not decimal_candidate_texts:
+        decimal_candidate_texts, decimal_signature = _decimal_signature_for_verification(
+            primary_result.value_text if primary_result.status == "ok" else None,
+            verifier_candidate_text,
+            support_result.value_text if support_result is not None and support_result.status == "ok" else None,
+            display_kind=display_kind,
+        )
+
     result = _resolve_verified_result(
         primary_result,
         crop_diagnostics=crop_diagnostics,
         local_decode=local_decode,
         verification=verification,
         support_result=support_result,
+        decimal_verification=decimal_verification,
+        decimal_candidate_texts=decimal_candidate_texts,
+        decimal_resolved_text=decimal_resolved_text,
         display_kind=display_kind,
         used_full_image_fallback=best_box_pixels is None,
     )
@@ -2663,6 +2997,11 @@ def run_scale_reader_pipeline(
         },
         "local_decoder": _serialize_local_decode(local_decode),
         "verification": _serialize_read_verification(verification),
+        "decimal_verification": _serialize_decimal_verification(
+            decimal_verification,
+            candidate_texts=decimal_candidate_texts,
+            resolved_value_text=decimal_resolved_text,
+        ),
         "support_read": _serialize_optional_reading_result(support_result),
         "elapsed_seconds": t_elapsed,
         "preview_urls": {
