@@ -1704,6 +1704,74 @@ def _rebuild_decimal_text(digits_text: str, decimal_after_digit: int | None) -> 
     )
 
 
+def _expected_decimals_for_target(target_key: str | None) -> int | None:
+    if EXPECTED_DECIMALS:
+        try:
+            return int(EXPECTED_DECIMALS)
+        except ValueError:
+            return None
+
+    key = (target_key or "").strip().lower()
+    if not key:
+        return None
+
+    three_decimal_prefixes = (
+        "ai_pre_weight_",
+        "ai_post_weight_",
+        "ai_side_wall_",
+        "ai_centre_wall_",
+    )
+    three_decimal_fragments = (
+        "pre_weight_sample_",
+        "post_weight_sample_",
+        "side_wall_thickness_sample_",
+        "centre_wall_thickness_sample_",
+    )
+    if key.startswith(three_decimal_prefixes) or any(fragment in key for fragment in three_decimal_fragments):
+        return 3
+    return None
+
+
+def _apply_target_decimal_contract(
+    result: ReadingResult,
+    *,
+    target_key: str | None,
+) -> ReadingResult:
+    if result.status != "ok" or not result.value_text:
+        return result
+
+    expected = _expected_decimals_for_target(target_key)
+    if expected is None or expected < 0:
+        return result
+
+    text = result.value_text.strip().replace(" ", "")
+    if not re.fullmatch(r"\d+(\.\d+)?", text):
+        return result
+
+    if "." in text and len(text.split(".", 1)[1]) == expected:
+        return result
+
+    digits = digits_only(text)
+    if not digits:
+        return result
+
+    if len(digits) <= expected:
+        rebuilt = f"0.{digits.zfill(expected)}"
+    else:
+        rebuilt = f"{digits[:-expected]}.{digits[-expected:]}"
+    rebuilt = normalize_numeric_token_text(rebuilt)
+    if rebuilt == text:
+        return result
+
+    result.value_text = rebuilt
+    result.value_number = float(rebuilt)
+    result.confidence = min(result.confidence, 0.95)
+    result.reason = (
+        f"{result.reason} Applied the fixed {expected}-decimal contract for this target."
+    )
+    return result
+
+
 def post_process_result(result: ReadingResult) -> ReadingResult:
     if result.status == "ok" and result.value_text:
         try:
@@ -2935,6 +3003,10 @@ def run_scale_reader_pipeline(
         decimal_resolved_text=decimal_resolved_text,
         display_kind=display_kind,
         used_full_image_fallback=best_box_pixels is None,
+    )
+    result = _apply_target_decimal_contract(
+        result,
+        target_key=target_key,
     )
 
     if is_suspicious_read(

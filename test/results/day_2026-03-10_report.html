@@ -1,0 +1,902 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>History Batch Report 2026-03-10</title>
+  <style>
+    :root {
+      --bg: #f5f1e8;
+      --panel: #fffdf8;
+      --ink: #1f2a3a;
+      --muted: #5d6b7a;
+      --line: #d9d1c3;
+      --ok: #d8f4df;
+      --ok-ink: #1d6a35;
+      --bad: #ffe1e1;
+      --bad-ink: #8b2020;
+      --shadow: 0 14px 40px rgba(32, 30, 24, 0.08);
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background: linear-gradient(180deg, #f9f5ec 0%, var(--bg) 100%);
+      color: var(--ink);
+      font-family: Georgia, "Times New Roman", serif;
+    }
+    main {
+      max-width: 1500px;
+      margin: 0 auto;
+      padding: 40px 32px 80px;
+    }
+    h1 { font-size: 64px; line-height: 1; margin: 0 0 16px; }
+    p.lead { font-size: 18px; color: var(--muted); max-width: 980px; }
+    .stats {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 20px;
+      margin: 30px 0 50px;
+    }
+    .stat {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 26px;
+      padding: 28px 30px;
+      box-shadow: var(--shadow);
+    }
+    .stat h2 { margin: 0 0 10px; font-size: 18px; color: var(--muted); letter-spacing: 0.08em; text-transform: uppercase; }
+    .stat strong { font-size: 54px; }
+    details {
+      background: transparent;
+      margin: 24px 0;
+      border-top: 2px solid var(--line);
+      padding-top: 18px;
+    }
+    summary {
+      cursor: pointer;
+      font-size: 42px;
+      font-weight: 700;
+      list-style: none;
+    }
+    summary::-webkit-details-marker { display: none; }
+    .cards {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 28px;
+      margin-top: 24px;
+    }
+    .card {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 28px;
+      padding: 28px;
+      box-shadow: var(--shadow);
+    }
+    .card-head {
+      display: flex;
+      gap: 18px;
+      align-items: flex-start;
+      margin-bottom: 20px;
+    }
+    .meta h3 { margin: 0 0 8px; font-size: 30px; }
+    .meta p { margin: 6px 0; color: var(--muted); font-size: 17px; }
+    .pill {
+      display: inline-block;
+      border-radius: 999px;
+      padding: 10px 16px;
+      font-size: 14px;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      white-space: nowrap;
+    }
+    .pill.ok { background: var(--ok); color: var(--ok-ink); }
+    .pill.bad { background: var(--bad); color: var(--bad-ink); }
+    .image-link {
+      display: inline-block;
+      margin-bottom: 14px;
+      color: #0b4f8a;
+      text-decoration: none;
+      font-weight: 700;
+    }
+    .photo {
+      width: 100%;
+      height: 520px;
+      object-fit: contain;
+      background: #ece8df;
+      border-radius: 18px;
+      border: 1px solid var(--line);
+      display: block;
+      margin-bottom: 20px;
+    }
+    .metrics {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 14px 28px;
+      margin: 0;
+    }
+    .metrics div {
+      display: grid;
+      grid-template-columns: 160px 1fr;
+      gap: 12px;
+    }
+    .metrics dt { font-weight: 700; }
+    .metrics dd { margin: 0; color: var(--muted); word-break: break-word; }
+    @media (max-width: 1100px) {
+      .stats, .cards { grid-template-columns: 1fr; }
+      h1 { font-size: 44px; }
+      summary { font-size: 32px; }
+      .photo { height: 380px; }
+      .metrics div { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>Day 1 Batch Report</h1>
+    <p class="lead">
+      Batch day <code>2026-03-10</code>. This report uses fresh signed Clappia file URLs for image display and keeps the original Clappia wrapper link on each card for traceability.
+    </p>
+    <section class="stats">
+      <article class="stat"><h2>Total Cases</h2><strong>32</strong></article>
+      <article class="stat"><h2>Correct</h2><strong>19</strong></article>
+      <article class="stat"><h2>Did Not Match</h2><strong>13</strong></article>
+      <article class="stat"><h2>Accuracy</h2><strong>59.38%</strong></article>
+    </section>
+    <section class="stats">
+      <article class="stat"><h2>Needs Review</h2><strong>0</strong></article>
+      <article class="stat"><h2>Blocked</h2><strong>0</strong></article>
+      <article class="stat"><h2>Evaluated</h2><strong>32</strong></article>
+      <article class="stat"><h2>Batch Day</h2><strong style="font-size:34px">2026-03-10</strong></article>
+    </section>
+    <details open>
+      <summary>Worked (19)</summary>
+      <div class="cards">
+        
+        <article class="card">
+          <div class="card-head">
+            <span class="pill ok">Correct</span>
+            <div class="meta">
+              <h3>Pre Weight Sample 1</h3>
+              <p>Line 1 - Moisture Test</p>
+              <p>Submission: <code>WQK06619717</code></p>
+              <p>Created At: 10-03-2026 11:01 PM</p>
+              <p>Time Slot: 9 PM - 11 PM</p>
+            </div>
+          </div>
+          <a class="image-link" href="https://eq-app-data-uploads-2017.s3.ap-south-1.amazonaws.com/PIP121027-MLA206324-5b4h38i36pe600000000/IMG-20260310_2058i10l8.jpeg?X-Amz-Algorithm=AWS4-HMAC-SHA256&amp;X-Amz-Content-Sha256=UNSIGNED-PAYLOAD&amp;X-Amz-Credential=ASIAR6XFRJFUM3XVKCNC%2F20260324%2Fap-south-1%2Fs3%2Faws4_request&amp;X-Amz-Date=20260324T144149Z&amp;X-Amz-Expires=300&amp;X-Amz-Security-Token=IQoJb3JpZ2luX2VjEM3%2F%2F%2F%2F%2F%2F%2F%2F%2F%2FwEaCmFwLXNvdXRoLTEiRzBFAiEA6ZkdtLD0wq0AsTPLvA9R6%2F%2BOfs1z0HVF%2BSAajBp9tYkCIFgtbdrMjBmyrZBA1HY6F%2FBmlmNpS3GfzXhrtnsPGzuoKtoECJb%2F%2F%2F%2F%2F%2F%2F%2F%2F%2FwEQAxoMMTM0Njk5MTA4NzEyIgz2eYeCC8MuTGfWu6MqrgR%2FyJShgGkLN3PAP642BBP0J5oU8LQHvXsYq5jC8IbIaV0bt3e2EpKxPO6Q8BsTLOc0CDWKLVuCue4ML%2FJZ9yu3pZXu9zN6squWWeigIewms4if7UtInnsdAcLCtpLRqzs41Lz5Rqd7kb%2FQ6L6W%2F12yDq%2BIiK2IQyPakXN68gy7%2B2DcRPO%2Fn%2BYacUtvft%2B%2Bz%2BnA0%2BLJghcCa4oroJV5nRacoMZ9jTZ2EadbKxdAz5LGZH4P8qnOfwD2OvoL3eLZRgi6It4jpZpAdmM8S3KjvkLYCkxHhU5q7s4RbKJO5PJFZKAO3Xbd2r1sN86BovZQH7%2FqH39RjtWnHjrWog98r9zA2uLo7wHBE4Jiy%2B7Wk0rq8CsFeZj4ahXWxOuSGhJmJZ8rCuQyO8U5eo7K4A9W%2FHm2imeNhFcVTTDj76uU8lu2nSlqDlBqCWKCpNYRkogtFk%2F0i4nKCacel4PYZSByMIVP0Dq6eIO8kCwovyKXq7mHbrNbhnYNq%2FH%2Flol0P0cCdZPOlXL6XRzbWlxVYXejI%2FBG0gE%2BQpPzR5WN9t4sNaqA4ek4zj4bdspe%2FdEmnWtzn9fMx%2F77I0waEu%2BPSLRM5vDsBQQGTO2c%2FE9Kd9hf6bzWK6RbgUd8x%2Bm8m6JX%2F7%2BoKqL7cgxCxqkaHv8S5Lj5P1JalOCMmDWt2FS%2Fskfo8bS9yh8hk1s6%2B9NJ1I0TOt8FncWyUk5zW7uEw%2FCCw7AQ4yvK0O4gm47qGeoaIJdzEhMw4pKKzgY6owFb%2FibGp0Ye8ZBtL6YgFm9lzvM4OYkLa%2F7L6C8XLyFT7UZ6lUlgrP7q9x0vVO1x1PbpiCRr3nh2v%2BzKVyE4Ns7%2FdEllPxwtpCOYlneBEkCz6NrEv4sGrKq%2B8X5UOYD5yiGBjxaM48GXaO4UUV9AhCwBEUrKOfjwLX1kUV5yxbTfZG8OnLWHOrY8iMGAZG1O9Aw10m488nq6WMBzaAspWVkZpqm1&amp;X-Amz-Signature=b00d82388a6ea43ddd5abbd80f967856bea1705e46b32904ca77c773fb2e8f33&amp;X-Amz-SignedHeaders=host&amp;x-amz-checksum-mode=ENABLED&amp;x-id=GetObject" target="_blank" rel="noreferrer">Open image</a>
+          <a class="image-link" href="https://pipl.clappia.com/app/MLA206324/submission/WQK06619717/PIP121027-MLA206324-5b4h38i36pe600000000/IMG-20260310_2058i10l8.jpeg" target="_blank" rel="noreferrer">Open original Clappia link</a>
+          <img class="photo" src="https://eq-app-data-uploads-2017.s3.ap-south-1.amazonaws.com/PIP121027-MLA206324-5b4h38i36pe600000000/IMG-20260310_2058i10l8.jpeg?X-Amz-Algorithm=AWS4-HMAC-SHA256&amp;X-Amz-Content-Sha256=UNSIGNED-PAYLOAD&amp;X-Amz-Credential=ASIAR6XFRJFUM3XVKCNC%2F20260324%2Fap-south-1%2Fs3%2Faws4_request&amp;X-Amz-Date=20260324T144149Z&amp;X-Amz-Expires=300&amp;X-Amz-Security-Token=IQoJb3JpZ2luX2VjEM3%2F%2F%2F%2F%2F%2F%2F%2F%2F%2FwEaCmFwLXNvdXRoLTEiRzBFAiEA6ZkdtLD0wq0AsTPLvA9R6%2F%2BOfs1z0HVF%2BSAajBp9tYkCIFgtbdrMjBmyrZBA1HY6F%2FBmlmNpS3GfzXhrtnsPGzuoKtoECJb%2F%2F%2F%2F%2F%2F%2F%2F%2F%2FwEQAxoMMTM0Njk5MTA4NzEyIgz2eYeCC8MuTGfWu6MqrgR%2FyJShgGkLN3PAP642BBP0J5oU8LQHvXsYq5jC8IbIaV0bt3e2EpKxPO6Q8BsTLOc0CDWKLVuCue4ML%2FJZ9yu3pZXu9zN6squWWeigIewms4if7UtInnsdAcLCtpLRqzs41Lz5Rqd7kb%2FQ6L6W%2F12yDq%2BIiK2IQyPakXN68gy7%2B2DcRPO%2Fn%2BYacUtvft%2B%2Bz%2BnA0%2BLJghcCa4oroJV5nRacoMZ9jTZ2EadbKxdAz5LGZH4P8qnOfwD2OvoL3eLZRgi6It4jpZpAdmM8S3KjvkLYCkxHhU5q7s4RbKJO5PJFZKAO3Xbd2r1sN86BovZQH7%2FqH39RjtWnHjrWog98r9zA2uLo7wHBE4Jiy%2B7Wk0rq8CsFeZj4ahXWxOuSGhJmJZ8rCuQyO8U5eo7K4A9W%2FHm2imeNhFcVTTDj76uU8lu2nSlqDlBqCWKCpNYRkogtFk%2F0i4nKCacel4PYZSByMIVP0Dq6eIO8kCwovyKXq7mHbrNbhnYNq%2FH%2Flol0P0cCdZPOlXL6XRzbWlxVYXejI%2FBG0gE%2BQpPzR5WN9t4sNaqA4ek4zj4bdspe%2FdEmnWtzn9fMx%2F77I0waEu%2BPSLRM5vDsBQQGTO2c%2FE9Kd9hf6bzWK6RbgUd8x%2Bm8m6JX%2F7%2BoKqL7cgxCxqkaHv8S5Lj5P1JalOCMmDWt2FS%2Fskfo8bS9yh8hk1s6%2B9NJ1I0TOt8FncWyUk5zW7uEw%2FCCw7AQ4yvK0O4gm47qGeoaIJdzEhMw4pKKzgY6owFb%2FibGp0Ye8ZBtL6YgFm9lzvM4OYkLa%2F7L6C8XLyFT7UZ6lUlgrP7q9x0vVO1x1PbpiCRr3nh2v%2BzKVyE4Ns7%2FdEllPxwtpCOYlneBEkCz6NrEv4sGrKq%2B8X5UOYD5yiGBjxaM48GXaO4UUV9AhCwBEUrKOfjwLX1kUV5yxbTfZG8OnLWHOrY8iMGAZG1O9Aw10m488nq6WMBzaAspWVkZpqm1&amp;X-Amz-Signature=b00d82388a6ea43ddd5abbd80f967856bea1705e46b32904ca77c773fb2e8f33&amp;X-Amz-SignedHeaders=host&amp;x-amz-checksum-mode=ENABLED&amp;x-id=GetObject" alt="Pre Weight Sample 1" loading="lazy" referrerpolicy="no-referrer" />
+          <dl class="metrics">
+            <div><dt>Expected</dt><dd>18.560</dd></div>
+            <div><dt>System Output</dt><dd>18.560</dd></div>
+            <div><dt>Status</dt><dd>ok</dd></div>
+            <div><dt>Confidence</dt><dd>0.99</dd></div>
+            <div><dt>Reason</dt><dd>The value was read directly from the bright green LED segments on the display. Inactive placeholder &#x27;8&#x27;s were ignored. The narrow &#x27;1&#x27; was correctly identified as the first active digit, followed by &#x27;8&#x27;, a decimal point, &#x27;5&#x27;, &#x27;6&#x27;, and &#x27;0&#x27;. Both primary and context images confirm this reading. Structured verifier confirmed the same reading.</dd></div>
+          </dl>
+        </article>
+        
+        <article class="card">
+          <div class="card-head">
+            <span class="pill ok">Correct</span>
+            <div class="meta">
+              <h3>Pre Weight Sample 2</h3>
+              <p>Line 1 - Moisture Test</p>
+              <p>Submission: <code>WQK06619717</code></p>
+              <p>Created At: 10-03-2026 11:01 PM</p>
+              <p>Time Slot: 9 PM - 11 PM</p>
+            </div>
+          </div>
+          <a class="image-link" href="https://eq-app-data-uploads-2017.s3.ap-south-1.amazonaws.com/PIP121027-MLA206324-3knm2ea48f6c00000000/IMG-20260310_20597b2hj.jpeg?X-Amz-Algorithm=AWS4-HMAC-SHA256&amp;X-Amz-Content-Sha256=UNSIGNED-PAYLOAD&amp;X-Amz-Credential=ASIAR6XFRJFUJXIF2TPT%2F20260324%2Fap-south-1%2Fs3%2Faws4_request&amp;X-Amz-Date=20260324T144149Z&amp;X-Amz-Expires=300&amp;X-Amz-Security-Token=IQoJb3JpZ2luX2VjEM3%2F%2F%2F%2F%2F%2F%2F%2F%2F%2FwEaCmFwLXNvdXRoLTEiSDBGAiEA0ufSuu%2Fbeb%2B7On0C25z6rffeS5CtwKmlLPRDJLm7z7sCIQD8HBY6n1QmtwK5CeJ%2F9v6Mw7YwiwVPZt22gUEIS2Zy8iraBAiX%2F%2F%2F%2F%2F%2F%2F%2F%2F%2F8BEAMaDDEzNDY5OTEwODcxMiIMKOMSd3xnph3LKjV6Kq4EuS4BcfqzpqUPmi46oXe%2F%2FNpyYOA8K%2Bb8IwsnWhJ6PqnKoTSUKdBdSr38JZGRMIDEHskH3vO4T0Z1bGaOwmXUT7CdHN1S%2F74VJuCLG%2BWRzml4K1D1PPL75VGCNVUvQez5tg0m9%2B5DX5D5g%2FEHSrHDzQZWpO5PAybRXuywrA21EQoHuqfHzRHzQWsHrFUhNWEd%2BiAvfHbY7gN%2F9ZbiJRRIXCwQL0JT08ojrBAvmmFikHJW6shXG5G0n9V680CCAb0v8psYHG5Cg8dSoepD1luFkUHjklxCJT7X%2BTjDOB5SIBDgXUVQ6OaNsQZuJMZUc4lS2byL7xzXjft6Zryq3QiAgw8EDhn3xlw%2FRLj18ElnU30Y6hCFkJAbPqBFfN2jqAYNwjehu%2BBFh7hD7laO6khUAQFEGFjs6idBBgQ1KRT96RpipJr8IOI0b%2F%2FWWlln%2FGYJ25dtBlUeeFVcpE8268PA8GmiiVtyTx6SZhspWRWmlZNqz0qdP0kaRsyfmBtLbyxR%2FOvM1yttde4xMeRBRQvUonRvbckfHYaXGKB2pZOww1MeTjhvnmd9tm5lsjQeG4EllY7dtavxeQFVBA0lNq92vAnFWCobvWtgzHhF4wX9rz2PxExlB3g1yJKjpVTrYw2VpdzhPY488c9TqhPkLMMpscuU4vTnWB8Q4s39rxSKX8hOknxmL8eEBB%2Fn2BPb6TVbYBUdeOUxDl5tK2eamiqLWC5pdGIU9FmKlrSDJPUGMMqhis4GOqIBJqG1WnoAaGyYm3B5KUr%2Fzh1YiWLw2Vrug7nfimR4WqQcDajkHwZnjrSZ0%2FJ20v9FrjIqt21tdlcwAiHqqyzA2SNZV2%2Bn7Tz%2FC%2Bupx1V5uXRXbZSPXzb%2FrgLhHg1nRRw8uhuD4OwnXImYR5XuOw%2F19mZeVTVEWX%2F48b%2Ff1zd1DrXi3%2FbHtvffTCLoNWh1zxxG5l%2BHpQE2TEhklheKDMg%2FEFNU&amp;X-Amz-Signature=6d2f4053d6771063e7d158bbc39043b82bdc4cb91c54619c268016d64f5e4b49&amp;X-Amz-SignedHeaders=host&amp;x-amz-checksum-mode=ENABLED&amp;x-id=GetObject" target="_blank" rel="noreferrer">Open image</a>
+          <a class="image-link" href="https://pipl.clappia.com/app/MLA206324/submission/WQK06619717/PIP121027-MLA206324-3knm2ea48f6c00000000/IMG-20260310_20597b2hj.jpeg" target="_blank" rel="noreferrer">Open original Clappia link</a>
+          <img class="photo" src="https://eq-app-data-uploads-2017.s3.ap-south-1.amazonaws.com/PIP121027-MLA206324-3knm2ea48f6c00000000/IMG-20260310_20597b2hj.jpeg?X-Amz-Algorithm=AWS4-HMAC-SHA256&amp;X-Amz-Content-Sha256=UNSIGNED-PAYLOAD&amp;X-Amz-Credential=ASIAR6XFRJFUJXIF2TPT%2F20260324%2Fap-south-1%2Fs3%2Faws4_request&amp;X-Amz-Date=20260324T144149Z&amp;X-Amz-Expires=300&amp;X-Amz-Security-Token=IQoJb3JpZ2luX2VjEM3%2F%2F%2F%2F%2F%2F%2F%2F%2F%2FwEaCmFwLXNvdXRoLTEiSDBGAiEA0ufSuu%2Fbeb%2B7On0C25z6rffeS5CtwKmlLPRDJLm7z7sCIQD8HBY6n1QmtwK5CeJ%2F9v6Mw7YwiwVPZt22gUEIS2Zy8iraBAiX%2F%2F%2F%2F%2F%2F%2F%2F%2F%2F8BEAMaDDEzNDY5OTEwODcxMiIMKOMSd3xnph3LKjV6Kq4EuS4BcfqzpqUPmi46oXe%2F%2FNpyYOA8K%2Bb8IwsnWhJ6PqnKoTSUKdBdSr38JZGRMIDEHskH3vO4T0Z1bGaOwmXUT7CdHN1S%2F74VJuCLG%2BWRzml4K1D1PPL75VGCNVUvQez5tg0m9%2B5DX5D5g%2FEHSrHDzQZWpO5PAybRXuywrA21EQoHuqfHzRHzQWsHrFUhNWEd%2BiAvfHbY7gN%2F9ZbiJRRIXCwQL0JT08ojrBAvmmFikHJW6shXG5G0n9V680CCAb0v8psYHG5Cg8dSoepD1luFkUHjklxCJT7X%2BTjDOB5SIBDgXUVQ6OaNsQZuJMZUc4lS2byL7xzXjft6Zryq3QiAgw8EDhn3xlw%2FRLj18ElnU30Y6hCFkJAbPqBFfN2jqAYNwjehu%2BBFh7hD7laO6khUAQFEGFjs6idBBgQ1KRT96RpipJr8IOI0b%2F%2FWWlln%2FGYJ25dtBlUeeFVcpE8268PA8GmiiVtyTx6SZhspWRWmlZNqz0qdP0kaRsyfmBtLbyxR%2FOvM1yttde4xMeRBRQvUonRvbckfHYaXGKB2pZOww1MeTjhvnmd9tm5lsjQeG4EllY7dtavxeQFVBA0lNq92vAnFWCobvWtgzHhF4wX9rz2PxExlB3g1yJKjpVTrYw2VpdzhPY488c9TqhPkLMMpscuU4vTnWB8Q4s39rxSKX8hOknxmL8eEBB%2Fn2BPb6TVbYBUdeOUxDl5tK2eamiqLWC5pdGIU9FmKlrSDJPUGMMqhis4GOqIBJqG1WnoAaGyYm3B5KUr%2Fzh1YiWLw2Vrug7nfimR4WqQcDajkHwZnjrSZ0%2FJ20v9FrjIqt21tdlcwAiHqqyzA2SNZV2%2Bn7Tz%2FC%2Bupx1V5uXRXbZSPXzb%2FrgLhHg1nRRw8uhuD4OwnXImYR5XuOw%2F19mZeVTVEWX%2F48b%2Ff1zd1DrXi3%2FbHtvffTCLoNWh1zxxG5l%2BHpQE2TEhklheKDMg%2FEFNU&amp;X-Amz-Signature=6d2f4053d6771063e7d158bbc39043b82bdc4cb91c54619c268016d64f5e4b49&amp;X-Amz-SignedHeaders=host&amp;x-amz-checksum-mode=ENABLED&amp;x-id=GetObject" alt="Pre Weight Sample 2" loading="lazy" referrerpolicy="no-referrer" />
+          <dl class="metrics">
+            <div><dt>Expected</dt><dd>18.200</dd></div>
+            <div><dt>System Output</dt><dd>18.200</dd></div>
+            <div><dt>Status</dt><dd>ok</dd></div>
+            <div><dt>Confidence</dt><dd>0.97</dd></div>
+            <div><dt>Reason</dt><dd>Primary image was invalid, reading from context image. Clearly visible LED display shows 18.200. Full-image support read matched the same reading.</dd></div>
+          </dl>
+        </article>
+        
+        <article class="card">
+          <div class="card-head">
+            <span class="pill ok">Correct</span>
+            <div class="meta">
+              <h3>Pre Weight Sample 3</h3>
+              <p>Line 1 - Moisture Test</p>
+              <p>Submission: <code>WQK06619717</code></p>
+              <p>Created At: 10-03-2026 11:01 PM</p>
+              <p>Time Slot: 9 PM - 11 PM</p>
+            </div>
+          </div>
+          <a class="image-link" href="https://eq-app-data-uploads-2017.s3.ap-south-1.amazonaws.com/PIP121027-MLA206324-2pk14g7ndgmo00000000/IMG-20260310_2059jj5h6.jpeg?X-Amz-Algorithm=AWS4-HMAC-SHA256&amp;X-Amz-Content-Sha256=UNSIGNED-PAYLOAD&amp;X-Amz-Credential=ASIAR6XFRJFUM3XVKCNC%2F20260324%2Fap-south-1%2Fs3%2Faws4_request&amp;X-Amz-Date=20260324T144149Z&amp;X-Amz-Expires=300&amp;X-Amz-Security-Token=IQoJb3JpZ2luX2VjEM3%2F%2F%2F%2F%2F%2F%2F%2F%2F%2FwEaCmFwLXNvdXRoLTEiRzBFAiEA6ZkdtLD0wq0AsTPLvA9R6%2F%2BOfs1z0HVF%2BSAajBp9tYkCIFgtbdrMjBmyrZBA1HY6F%2FBmlmNpS3GfzXhrtnsPGzuoKtoECJb%2F%2F%2F%2F%2F%2F%2F%2F%2F%2FwEQAxoMMTM0Njk5MTA4NzEyIgz2eYeCC8MuTGfWu6MqrgR%2FyJShgGkLN3PAP642BBP0J5oU8LQHvXsYq5jC8IbIaV0bt3e2EpKxPO6Q8BsTLOc0CDWKLVuCue4ML%2FJZ9yu3pZXu9zN6squWWeigIewms4if7UtInnsdAcLCtpLRqzs41Lz5Rqd7kb%2FQ6L6W%2F12yDq%2BIiK2IQyPakXN68gy7%2B2DcRPO%2Fn%2BYacUtvft%2B%2Bz%2BnA0%2BLJghcCa4oroJV5nRacoMZ9jTZ2EadbKxdAz5LGZH4P8qnOfwD2OvoL3eLZRgi6It4jpZpAdmM8S3KjvkLYCkxHhU5q7s4RbKJO5PJFZKAO3Xbd2r1sN86BovZQH7%2FqH39RjtWnHjrWog98r9zA2uLo7wHBE4Jiy%2B7Wk0rq8CsFeZj4ahXWxOuSGhJmJZ8rCuQyO8U5eo7K4A9W%2FHm2imeNhFcVTTDj76uU8lu2nSlqDlBqCWKCpNYRkogtFk%2F0i4nKCacel4PYZSByMIVP0Dq6eIO8kCwovyKXq7mHbrNbhnYNq%2FH%2Flol0P0cCdZPOlXL6XRzbWlxVYXejI%2FBG0gE%2BQpPzR5WN9t4sNaqA4ek4zj4bdspe%2FdEmnWtzn9fMx%2F77I0waEu%2BPSLRM5vDsBQQGTO2c%2FE9Kd9hf6bzWK6RbgUd8x%2Bm8m6JX%2F7%2BoKqL7cgxCxqkaHv8S5Lj5P1JalOCMmDWt2FS%2Fskfo8bS9yh8hk1s6%2B9NJ1I0TOt8FncWyUk5zW7uEw%2FCCw7AQ4yvK0O4gm47qGeoaIJdzEhMw4pKKzgY6owFb%2FibGp0Ye8ZBtL6YgFm9lzvM4OYkLa%2F7L6C8XLyFT7UZ6lUlgrP7q9x0vVO1x1PbpiCRr3nh2v%2BzKVyE4Ns7%2FdEllPxwtpCOYlneBEkCz6NrEv4sGrKq%2B8X5UOYD5yiGBjxaM48GXaO4UUV9AhCwBEUrKOfjwLX1kUV5yxbTfZG8OnLWHOrY8iMGAZG1O9Aw10m488nq6WMBzaAspWVkZpqm1&amp;X-Amz-Signature=3b23e5a99b490b3ad5b040e6595830bda2536a0d6d556e129b1648b9f9c71451&amp;X-Amz-SignedHeaders=host&amp;x-amz-checksum-mode=ENABLED&amp;x-id=GetObject" target="_blank" rel="noreferrer">Open image</a>
+          <a class="image-link" href="https://pipl.clappia.com/app/MLA206324/submission/WQK06619717/PIP121027-MLA206324-2pk14g7ndgmo00000000/IMG-20260310_2059jj5h6.jpeg" target="_blank" rel="noreferrer">Open original Clappia link</a>
+          <img class="photo" src="https://eq-app-data-uploads-2017.s3.ap-south-1.amazonaws.com/PIP121027-MLA206324-2pk14g7ndgmo00000000/IMG-20260310_2059jj5h6.jpeg?X-Amz-Algorithm=AWS4-HMAC-SHA256&amp;X-Amz-Content-Sha256=UNSIGNED-PAYLOAD&amp;X-Amz-Credential=ASIAR6XFRJFUM3XVKCNC%2F20260324%2Fap-south-1%2Fs3%2Faws4_request&amp;X-Amz-Date=20260324T144149Z&amp;X-Amz-Expires=300&amp;X-Amz-Security-Token=IQoJb3JpZ2luX2VjEM3%2F%2F%2F%2F%2F%2F%2F%2F%2F%2FwEaCmFwLXNvdXRoLTEiRzBFAiEA6ZkdtLD0wq0AsTPLvA9R6%2F%2BOfs1z0HVF%2BSAajBp9tYkCIFgtbdrMjBmyrZBA1HY6F%2FBmlmNpS3GfzXhrtnsPGzuoKtoECJb%2F%2F%2F%2F%2F%2F%2F%2F%2F%2FwEQAxoMMTM0Njk5MTA4NzEyIgz2eYeCC8MuTGfWu6MqrgR%2FyJShgGkLN3PAP642BBP0J5oU8LQHvXsYq5jC8IbIaV0bt3e2EpKxPO6Q8BsTLOc0CDWKLVuCue4ML%2FJZ9yu3pZXu9zN6squWWeigIewms4if7UtInnsdAcLCtpLRqzs41Lz5Rqd7kb%2FQ6L6W%2F12yDq%2BIiK2IQyPakXN68gy7%2B2DcRPO%2Fn%2BYacUtvft%2B%2Bz%2BnA0%2BLJghcCa4oroJV5nRacoMZ9jTZ2EadbKxdAz5LGZH4P8qnOfwD2OvoL3eLZRgi6It4jpZpAdmM8S3KjvkLYCkxHhU5q7s4RbKJO5PJFZKAO3Xbd2r1sN86BovZQH7%2FqH39RjtWnHjrWog98r9zA2uLo7wHBE4Jiy%2B7Wk0rq8CsFeZj4ahXWxOuSGhJmJZ8rCuQyO8U5eo7K4A9W%2FHm2imeNhFcVTTDj76uU8lu2nSlqDlBqCWKCpNYRkogtFk%2F0i4nKCacel4PYZSByMIVP0Dq6eIO8kCwovyKXq7mHbrNbhnYNq%2FH%2Flol0P0cCdZPOlXL6XRzbWlxVYXejI%2FBG0gE%2BQpPzR5WN9t4sNaqA4ek4zj4bdspe%2FdEmnWtzn9fMx%2F77I0waEu%2BPSLRM5vDsBQQGTO2c%2FE9Kd9hf6bzWK6RbgUd8x%2Bm8m6JX%2F7%2BoKqL7cgxCxqkaHv8S5Lj5P1JalOCMmDWt2FS%2Fskfo8bS9yh8hk1s6%2B9NJ1I0TOt8FncWyUk5zW7uEw%2FCCw7AQ4yvK0O4gm47qGeoaIJdzEhMw4pKKzgY6owFb%2FibGp0Ye8ZBtL6YgFm9lzvM4OYkLa%2F7L6C8XLyFT7UZ6lUlgrP7q9x0vVO1x1PbpiCRr3nh2v%2BzKVyE4Ns7%2FdEllPxwtpCOYlneBEkCz6NrEv4sGrKq%2B8X5UOYD5yiGBjxaM48GXaO4UUV9AhCwBEUrKOfjwLX1kUV5yxbTfZG8OnLWHOrY8iMGAZG1O9Aw10m488nq6WMBzaAspWVkZpqm1&amp;X-Amz-Signature=3b23e5a99b490b3ad5b040e6595830bda2536a0d6d556e129b1648b9f9c71451&amp;X-Amz-SignedHeaders=host&amp;x-amz-checksum-mode=ENABLED&amp;x-id=GetObject" alt="Pre Weight Sample 3" loading="lazy" referrerpolicy="no-referrer" />
+          <dl class="metrics">
+            <div><dt>Expected</dt><dd>18.500</dd></div>
+            <div><dt>System Output</dt><dd>18.500</dd></div>
+            <div><dt>Status</dt><dd>ok</dd></div>
+            <div><dt>Confidence</dt><dd>0.99</dd></div>
+            <div><dt>Reason</dt><dd>The primary localized crop clearly shows the digits 18.500. The leftmost digit &#x27;1&#x27; is narrow and bright, consistent with a true &#x27;1&#x27;. The context image confirms the full display, showing inactive placeholders to the left of the active &#x27;18.500&#x27;, validating the reading. Structured verifier confirmed the same reading.</dd></div>
+          </dl>
+        </article>
+        
+        <article class="card">
+          <div class="card-head">
+            <span class="pill ok">Correct</span>
+            <div class="meta">
+              <h3>Pre Weight Sample 4</h3>
+              <p>Line 1 - Moisture Test</p>
+              <p>Submission: <code>WQK06619717</code></p>
+              <p>Created At: 10-03-2026 11:01 PM</p>
+              <p>Time Slot: 9 PM - 11 PM</p>
+            </div>
+          </div>
+          <a class="image-link" href="https://eq-app-data-uploads-2017.s3.ap-south-1.amazonaws.com/PIP121027-MLA206324-1l370pegni82i0000000/IMG-20260310_20591cop1.jpeg?X-Amz-Algorithm=AWS4-HMAC-SHA256&amp;X-Amz-Content-Sha256=UNSIGNED-PAYLOAD&amp;X-Amz-Credential=ASIAR6XFRJFUG2XIG57K%2F20260324%2Fap-south-1%2Fs3%2Faws4_request&amp;X-Amz-Date=20260324T144149Z&amp;X-Amz-Expires=300&amp;X-Amz-Security-Token=IQoJb3JpZ2luX2VjEM3%2F%2F%2F%2F%2F%2F%2F%2F%2F%2FwEaCmFwLXNvdXRoLTEiRzBFAiBl6pySJ7ww6vcQs6ZTgjRT6A2XslvaHdB8aS2f1xzYWQIhAJpjLg8b8lggzWuESDNTSLRAGdzJtMwWqm5ShYFFmoyVKtoECJb%2F%2F%2F%2F%2F%2F%2F%2F%2F%2FwEQAxoMMTM0Njk5MTA4NzEyIgzlqak3iF%2Bko%2Fw33ysqrgQ%2FXixUQA5za9eQOGJRDDlKzLYfQkLEPCdy50Xazz0ov5nLoVnlGmwPzwdw39sHnOfA8KU7YPRBa3Jev1QwoDtmTbXMiaZrwXHiSncw4f4d8sHlkPGjTyWcWLSZiYeibDJuXpbFTFFsOU9TfrG4ZNUB%2F4z7aTMMRddHP1nkZqJZtbyR1Ak2SgfF8xevt0ACT32%2B%2F644svMozLxJshzGBUqfAJnvOPX1%2FJ1x22N%2BCLzDPhzp5khBOp9s0Bz3vs%2FQWrRgxjunSoJN12NfctvJv%2FtWwOMJumuQrrwpDOBuZ1Oqr3NCCxwDJTBdjqrkbj4gOj%2FMiKMDbC2rVvHwC4OXK6j5A0DWEDKGzSgUaJnmWKd7Pxr8%2BcuAbEvKgEA2br%2Bq8GGSeZbg3rp1PgGIZEWtXhP%2FbWOMClIofXSonfg%2F9oveb2zUS9uDUcro5VLkkE0SKZlloxFhU7X37zO%2FsOBieqeOGzPH0YIfr4BGbRWu1%2BdHmojor2Tj0BeOvry%2BNLo5C8cU1Y6FcboTLRKlgpg0KmrqYT6yF6RQPVfPPiMQ1kHWtuPgPg7NPsVHzVLch91TsSuL%2BKNZNYVCrPlO8OkRdrWMv9HuWgXe4hzb499fy%2BrXsfTEC90Sr2BpG54Mscebh2DRiFqw86F7RGC5tztxWkvSYsH1f77VoCU1SG5JSGU8XOty9bLX39VVPSp0mXXmsGD9oDlHr%2Bdg6rKJZhtC0jCvGlTg%2BhIAEIz98MLVfIow85mKzgY6owHrfjsJbFAob%2FckiXLse6k8oiqLkconZpV6mSQihzeIj6zzo3L0AfwzfnOT9vDMwkj9FuAeujMXHH5BRaZFtRBTWgyZoHzhRZ5SGt%2BCzPen5VmOaUoR9fV4M3qXbhxq9N8ZmM61hGdB9TCoZutYBI6C6KfmkY97%2BIVSpnRGDSAmXZbPpxuqpoU6BzoEOqH%2BzpEg5w3YtKJU%2FNfI5bGWMiDIBzuD&amp;X-Amz-Signature=03d7e28062a50f7960ae15422383dcb93e879f13da104cc04093038c80db4cf6&amp;X-Amz-SignedHeaders=host&amp;x-amz-checksum-mode=ENABLED&amp;x-id=GetObject" target="_blank" rel="noreferrer">Open image</a>
+          <a class="image-link" href="https://pipl.clappia.com/app/MLA206324/submission/WQK06619717/PIP121027-MLA206324-1l370pegni82i0000000/IMG-20260310_20591cop1.jpeg" target="_blank" rel="noreferrer">Open original Clappia link</a>
+          <img class="photo" src="https://eq-app-data-uploads-2017.s3.ap-south-1.amazonaws.com/PIP121027-MLA206324-1l370pegni82i0000000/IMG-20260310_20591cop1.jpeg?X-Amz-Algorithm=AWS4-HMAC-SHA256&amp;X-Amz-Content-Sha256=UNSIGNED-PAYLOAD&amp;X-Amz-Credential=ASIAR6XFRJFUG2XIG57K%2F20260324%2Fap-south-1%2Fs3%2Faws4_request&amp;X-Amz-Date=20260324T144149Z&amp;X-Amz-Expires=300&amp;X-Amz-Security-Token=IQoJb3JpZ2luX2VjEM3%2F%2F%2F%2F%2F%2F%2F%2F%2F%2FwEaCmFwLXNvdXRoLTEiRzBFAiBl6pySJ7ww6vcQs6ZTgjRT6A2XslvaHdB8aS2f1xzYWQIhAJpjLg8b8lggzWuESDNTSLRAGdzJtMwWqm5ShYFFmoyVKtoECJb%2F%2F%2F%2F%2F%2F%2F%2F%2F%2FwEQAxoMMTM0Njk5MTA4NzEyIgzlqak3iF%2Bko%2Fw33ysqrgQ%2FXixUQA5za9eQOGJRDDlKzLYfQkLEPCdy50Xazz0ov5nLoVnlGmwPzwdw39sHnOfA8KU7YPRBa3Jev1QwoDtmTbXMiaZrwXHiSncw4f4d8sHlkPGjTyWcWLSZiYeibDJuXpbFTFFsOU9TfrG4ZNUB%2F4z7aTMMRddHP1nkZqJZtbyR1Ak2SgfF8xevt0ACT32%2B%2F644svMozLxJshzGBUqfAJnvOPX1%2FJ1x22N%2BCLzDPhzp5khBOp9s0Bz3vs%2FQWrRgxjunSoJN12NfctvJv%2FtWwOMJumuQrrwpDOBuZ1Oqr3NCCxwDJTBdjqrkbj4gOj%2FMiKMDbC2rVvHwC4OXK6j5A0DWEDKGzSgUaJnmWKd7Pxr8%2BcuAbEvKgEA2br%2Bq8GGSeZbg3rp1PgGIZEWtXhP%2FbWOMClIofXSonfg%2F9oveb2zUS9uDUcro5VLkkE0SKZlloxFhU7X37zO%2FsOBieqeOGzPH0YIfr4BGbRWu1%2BdHmojor2Tj0BeOvry%2BNLo5C8cU1Y6FcboTLRKlgpg0KmrqYT6yF6RQPVfPPiMQ1kHWtuPgPg7NPsVHzVLch91TsSuL%2BKNZNYVCrPlO8OkRdrWMv9HuWgXe4hzb499fy%2BrXsfTEC90Sr2BpG54Mscebh2DRiFqw86F7RGC5tztxWkvSYsH1f77VoCU1SG5JSGU8XOty9bLX39VVPSp0mXXmsGD9oDlHr%2Bdg6rKJZhtC0jCvGlTg%2BhIAEIz98MLVfIow85mKzgY6owHrfjsJbFAob%2FckiXLse6k8oiqLkconZpV6mSQihzeIj6zzo3L0AfwzfnOT9vDMwkj9FuAeujMXHH5BRaZFtRBTWgyZoHzhRZ5SGt%2BCzPen5VmOaUoR9fV4M3qXbhxq9N8ZmM61hGdB9TCoZutYBI6C6KfmkY97%2BIVSpnRGDSAmXZbPpxuqpoU6BzoEOqH%2BzpEg5w3YtKJU%2FNfI5bGWMiDIBzuD&amp;X-Amz-Signature=03d7e28062a50f7960ae15422383dcb93e879f13da104cc04093038c80db4cf6&amp;X-Amz-SignedHeaders=host&amp;x-amz-checksum-mode=ENABLED&amp;x-id=GetObject" alt="Pre Weight Sample 4" loading="lazy" referrerpolicy="no-referrer" />
+          <dl class="metrics">
+            <div><dt>Expected</dt><dd>18.220</dd></div>
+            <div><dt>System Output</dt><dd>18.220</dd></div>
+            <div><dt>Status</dt><dd>ok</dd></div>
+            <div><dt>Confidence</dt><dd>0.97</dd></div>
+            <div><dt>Reason</dt><dd>The primary image was an invalid crop, showing no display. The value was clearly read from the LED display in the context image, which shows &#x27;18.220&#x27;. Full-image support read matched the same reading.</dd></div>
+          </dl>
+        </article>
+        
+        <article class="card">
+          <div class="card-head">
+            <span class="pill ok">Correct</span>
+            <div class="meta">
+              <h3>Post Weight Sample 1</h3>
+              <p>Line 1 - Moisture Test</p>
+              <p>Submission: <code>WQK06619717</code></p>
+              <p>Created At: 10-03-2026 11:01 PM</p>
+              <p>Time Slot: 9 PM - 11 PM</p>
+            </div>
+          </div>
+          <a class="image-link" href="https://eq-app-data-uploads-2017.s3.ap-south-1.amazonaws.com/PIP121027-MLA206324-308co387d8kk0000000/IMG-20260310_2248a5l9p.jpeg?X-Amz-Algorithm=AWS4-HMAC-SHA256&amp;X-Amz-Content-Sha256=UNSIGNED-PAYLOAD&amp;X-Amz-Credential=ASIAR6XFRJFUG2XIG57K%2F20260324%2Fap-south-1%2Fs3%2Faws4_request&amp;X-Amz-Date=20260324T144149Z&amp;X-Amz-Expires=300&amp;X-Amz-Security-Token=IQoJb3JpZ2luX2VjEM3%2F%2F%2F%2F%2F%2F%2F%2F%2F%2FwEaCmFwLXNvdXRoLTEiRzBFAiBl6pySJ7ww6vcQs6ZTgjRT6A2XslvaHdB8aS2f1xzYWQIhAJpjLg8b8lggzWuESDNTSLRAGdzJtMwWqm5ShYFFmoyVKtoECJb%2F%2F%2F%2F%2F%2F%2F%2F%2F%2FwEQAxoMMTM0Njk5MTA4NzEyIgzlqak3iF%2Bko%2Fw33ysqrgQ%2FXixUQA5za9eQOGJRDDlKzLYfQkLEPCdy50Xazz0ov5nLoVnlGmwPzwdw39sHnOfA8KU7YPRBa3Jev1QwoDtmTbXMiaZrwXHiSncw4f4d8sHlkPGjTyWcWLSZiYeibDJuXpbFTFFsOU9TfrG4ZNUB%2F4z7aTMMRddHP1nkZqJZtbyR1Ak2SgfF8xevt0ACT32%2B%2F644svMozLxJshzGBUqfAJnvOPX1%2FJ1x22N%2BCLzDPhzp5khBOp9s0Bz3vs%2FQWrRgxjunSoJN12NfctvJv%2FtWwOMJumuQrrwpDOBuZ1Oqr3NCCxwDJTBdjqrkbj4gOj%2FMiKMDbC2rVvHwC4OXK6j5A0DWEDKGzSgUaJnmWKd7Pxr8%2BcuAbEvKgEA2br%2Bq8GGSeZbg3rp1PgGIZEWtXhP%2FbWOMClIofXSonfg%2F9oveb2zUS9uDUcro5VLkkE0SKZlloxFhU7X37zO%2FsOBieqeOGzPH0YIfr4BGbRWu1%2BdHmojor2Tj0BeOvry%2BNLo5C8cU1Y6FcboTLRKlgpg0KmrqYT6yF6RQPVfPPiMQ1kHWtuPgPg7NPsVHzVLch91TsSuL%2BKNZNYVCrPlO8OkRdrWMv9HuWgXe4hzb499fy%2BrXsfTEC90Sr2BpG54Mscebh2DRiFqw86F7RGC5tztxWkvSYsH1f77VoCU1SG5JSGU8XOty9bLX39VVPSp0mXXmsGD9oDlHr%2Bdg6rKJZhtC0jCvGlTg%2BhIAEIz98MLVfIow85mKzgY6owHrfjsJbFAob%2FckiXLse6k8oiqLkconZpV6mSQihzeIj6zzo3L0AfwzfnOT9vDMwkj9FuAeujMXHH5BRaZFtRBTWgyZoHzhRZ5SGt%2BCzPen5VmOaUoR9fV4M3qXbhxq9N8ZmM61hGdB9TCoZutYBI6C6KfmkY97%2BIVSpnRGDSAmXZbPpxuqpoU6BzoEOqH%2BzpEg5w3YtKJU%2FNfI5bGWMiDIBzuD&amp;X-Amz-Signature=fc87579161e6cd169cc9c44ef6d486d364ada95ab14b6667bdf3aad694f431ef&amp;X-Amz-SignedHeaders=host&amp;x-amz-checksum-mode=ENABLED&amp;x-id=GetObject" target="_blank" rel="noreferrer">Open image</a>
+          <a class="image-link" href="https://pipl.clappia.com/app/MLA206324/submission/WQK06619717/PIP121027-MLA206324-308co387d8kk0000000/IMG-20260310_2248a5l9p.jpeg" target="_blank" rel="noreferrer">Open original Clappia link</a>
+          <img class="photo" src="https://eq-app-data-uploads-2017.s3.ap-south-1.amazonaws.com/PIP121027-MLA206324-308co387d8kk0000000/IMG-20260310_2248a5l9p.jpeg?X-Amz-Algorithm=AWS4-HMAC-SHA256&amp;X-Amz-Content-Sha256=UNSIGNED-PAYLOAD&amp;X-Amz-Credential=ASIAR6XFRJFUG2XIG57K%2F20260324%2Fap-south-1%2Fs3%2Faws4_request&amp;X-Amz-Date=20260324T144149Z&amp;X-Amz-Expires=300&amp;X-Amz-Security-Token=IQoJb3JpZ2luX2VjEM3%2F%2F%2F%2F%2F%2F%2F%2F%2F%2FwEaCmFwLXNvdXRoLTEiRzBFAiBl6pySJ7ww6vcQs6ZTgjRT6A2XslvaHdB8aS2f1xzYWQIhAJpjLg8b8lggzWuESDNTSLRAGdzJtMwWqm5ShYFFmoyVKtoECJb%2F%2F%2F%2F%2F%2F%2F%2F%2F%2FwEQAxoMMTM0Njk5MTA4NzEyIgzlqak3iF%2Bko%2Fw33ysqrgQ%2FXixUQA5za9eQOGJRDDlKzLYfQkLEPCdy50Xazz0ov5nLoVnlGmwPzwdw39sHnOfA8KU7YPRBa3Jev1QwoDtmTbXMiaZrwXHiSncw4f4d8sHlkPGjTyWcWLSZiYeibDJuXpbFTFFsOU9TfrG4ZNUB%2F4z7aTMMRddHP1nkZqJZtbyR1Ak2SgfF8xevt0ACT32%2B%2F644svMozLxJshzGBUqfAJnvOPX1%2FJ1x22N%2BCLzDPhzp5khBOp9s0Bz3vs%2FQWrRgxjunSoJN12NfctvJv%2FtWwOMJumuQrrwpDOBuZ1Oqr3NCCxwDJTBdjqrkbj4gOj%2FMiKMDbC2rVvHwC4OXK6j5A0DWEDKGzSgUaJnmWKd7Pxr8%2BcuAbEvKgEA2br%2Bq8GGSeZbg3rp1PgGIZEWtXhP%2FbWOMClIofXSonfg%2F9oveb2zUS9uDUcro5VLkkE0SKZlloxFhU7X37zO%2FsOBieqeOGzPH0YIfr4BGbRWu1%2BdHmojor2Tj0BeOvry%2BNLo5C8cU1Y6FcboTLRKlgpg0KmrqYT6yF6RQPVfPPiMQ1kHWtuPgPg7NPsVHzVLch91TsSuL%2BKNZNYVCrPlO8OkRdrWMv9HuWgXe4hzb499fy%2BrXsfTEC90Sr2BpG54Mscebh2DRiFqw86F7RGC5tztxWkvSYsH1f77VoCU1SG5JSGU8XOty9bLX39VVPSp0mXXmsGD9oDlHr%2Bdg6rKJZhtC0jCvGlTg%2BhIAEIz98MLVfIow85mKzgY6owHrfjsJbFAob%2FckiXLse6k8oiqLkconZpV6mSQihzeIj6zzo3L0AfwzfnOT9vDMwkj9FuAeujMXHH5BRaZFtRBTWgyZoHzhRZ5SGt%2BCzPen5VmOaUoR9fV4M3qXbhxq9N8ZmM61hGdB9TCoZutYBI6C6KfmkY97%2BIVSpnRGDSAmXZbPpxuqpoU6BzoEOqH%2BzpEg5w3YtKJU%2FNfI5bGWMiDIBzuD&amp;X-Amz-Signature=fc87579161e6cd169cc9c44ef6d486d364ada95ab14b6667bdf3aad694f431ef&amp;X-Amz-SignedHeaders=host&amp;x-amz-checksum-mode=ENABLED&amp;x-id=GetObject" alt="Post Weight Sample 1" loading="lazy" referrerpolicy="no-referrer" />
+          <dl class="metrics">
+            <div><dt>Expected</dt><dd>17.370</dd></div>
+            <div><dt>System Output</dt><dd>17.370</dd></div>
+            <div><dt>Status</dt><dd>ok</dd></div>
+            <div><dt>Confidence</dt><dd>0.95</dd></div>
+            <div><dt>Reason</dt><dd>All digits are clearly visible and unambiguous on the LED display, including the leading &#x27;1&#x27; and the decimal point. The primary crop is complete and clear. Structured verifier confirmed the same reading. Applied the fixed 3-decimal contract for this target.</dd></div>
+          </dl>
+        </article>
+        
+        <article class="card">
+          <div class="card-head">
+            <span class="pill ok">Correct</span>
+            <div class="meta">
+              <h3>Post Weight Sample 2</h3>
+              <p>Line 1 - Moisture Test</p>
+              <p>Submission: <code>WQK06619717</code></p>
+              <p>Created At: 10-03-2026 11:01 PM</p>
+              <p>Time Slot: 9 PM - 11 PM</p>
+            </div>
+          </div>
+          <a class="image-link" href="https://eq-app-data-uploads-2017.s3.ap-south-1.amazonaws.com/PIP121027-MLA206324-4j75ip4i2lce00000000/IMG-20260310_2248gjk7c.jpeg?X-Amz-Algorithm=AWS4-HMAC-SHA256&amp;X-Amz-Content-Sha256=UNSIGNED-PAYLOAD&amp;X-Amz-Credential=ASIAR6XFRJFUG3HOGLY5%2F20260324%2Fap-south-1%2Fs3%2Faws4_request&amp;X-Amz-Date=20260324T144150Z&amp;X-Amz-Expires=300&amp;X-Amz-Security-Token=IQoJb3JpZ2luX2VjEM%2F%2F%2F%2F%2F%2F%2F%2F%2F%2F%2FwEaCmFwLXNvdXRoLTEiRjBEAiBwxRMpPOoNGDqTs2V5WgAVa53nMp2ZT%2BqnmaGp5C6bzAIgeew9CeXixOPKi%2FOo64%2FlsBMfYVQmEz%2FeLigj%2B3nuRlsq2gQImP%2F%2F%2F%2F%2F%2F%2F%2F%2F%2FARADGgwxMzQ2OTkxMDg3MTIiDFUzqMUo%2FYAMTPG%2FsiquBER3cXdmgsWnSCdKOYh5344x1JlzOG%2FbhtucOIcXA24MPpCQhYQNrWARhW5JtZf6Bv9Lls89jHMR9ydbwsntsv8Ba6h0mBr%2F3mCvD9BNVeT%2FZt8K4eSRg6TgXZfpAPkFN6L4ID8Z7BQpU0%2F%2FrbGhGXUs8GZCqz1%2BFn0i3wptJM%2FMRTFx3zgAEa0HxczOy4tPtmp2EsoNKiEBHhfNLQgpG1M9FdaNlYu2oYT70VAdILtTEAaQTg94bw6qbKIm7V0FvlwFyoKZbJyaetUIjOhp%2BL1sifgOvM6Dm3DcZGoC9%2BiHG7naEmw4h7Kzw0uas%2BupbS7bi1jx46Gu9eZnuF%2Bkp6nHswLFX%2BC4VUUORZm%2Fx0Kby1AP4fEd3XswmsBqm7nAtDiY87FrYDfB5g8Aj6AAfPfvtjGZwws2Nvb50IQ9VZgpK%2BE%2FhZ3W6Rx%2B8r0TPsW2N62t0guFfWM3je%2BirUIl02Gqk7UvnFTz6ihSfSZ6n7fWoIWOsnqKTr2knA4YEnW0wTkBwcH58a7Bv5vzKnyu8v9hBRy2G0bSHMshvsFpu3un5LG5eB5CO%2FKqhuwUZjoadrLeUybMJcfl9dfMHCybgr5t9ImE375Jhz7hONZ9EX2t1nDrpMQMgfnt%2B0%2B2vWu7VQAgaIMNVtoiVNYO2x4nYxRkKKOVCbx%2FjrvZ7SbFzzNZY56C3KAE5Eob8TTcdXq89byz%2BhxRG1jITpGAXJvsZckk0JPHLJkmj1JHbOdkoTC8xIrOBjqkAb%2FVL3ooelq3jvGXc1W0CR9fZlpK2J9wVyOpy5f6h%2B6BHqOxTr7x6IEVDZGGGNXKgabNMUJSjHr8STdevCTO79oFXlujfMIk4Fl%2F1ZMGomJQyxC9kbAmJ3ghFN7nPxGY9bSGs%2BOg8vvyLz%2Bbz%2BKeZrWa6QWBs3lIbEUv2mAxVxyvuwvrIUdcsxmVeX50DaosdKlfC7d8lh1lKa17PJ4syb7DGwNl&amp;X-Amz-Signature=9d4245b93484ca1fcc8573a293797980cd8d9d59f9bd009f88281422c704ff54&amp;X-Amz-SignedHeaders=host&amp;x-amz-checksum-mode=ENABLED&amp;x-id=GetObject" target="_blank" rel="noreferrer">Open image</a>
+          <a class="image-link" href="https://pipl.clappia.com/app/MLA206324/submission/WQK06619717/PIP121027-MLA206324-4j75ip4i2lce00000000/IMG-20260310_2248gjk7c.jpeg" target="_blank" rel="noreferrer">Open original Clappia link</a>
+          <img class="photo" src="https://eq-app-data-uploads-2017.s3.ap-south-1.amazonaws.com/PIP121027-MLA206324-4j75ip4i2lce00000000/IMG-20260310_2248gjk7c.jpeg?X-Amz-Algorithm=AWS4-HMAC-SHA256&amp;X-Amz-Content-Sha256=UNSIGNED-PAYLOAD&amp;X-Amz-Credential=ASIAR6XFRJFUG3HOGLY5%2F20260324%2Fap-south-1%2Fs3%2Faws4_request&amp;X-Amz-Date=20260324T144150Z&amp;X-Amz-Expires=300&amp;X-Amz-Security-Token=IQoJb3JpZ2luX2VjEM%2F%2F%2F%2F%2F%2F%2F%2F%2F%2F%2FwEaCmFwLXNvdXRoLTEiRjBEAiBwxRMpPOoNGDqTs2V5WgAVa53nMp2ZT%2BqnmaGp5C6bzAIgeew9CeXixOPKi%2FOo64%2FlsBMfYVQmEz%2FeLigj%2B3nuRlsq2gQImP%2F%2F%2F%2F%2F%2F%2F%2F%2F%2FARADGgwxMzQ2OTkxMDg3MTIiDFUzqMUo%2FYAMTPG%2FsiquBER3cXdmgsWnSCdKOYh5344x1JlzOG%2FbhtucOIcXA24MPpCQhYQNrWARhW5JtZf6Bv9Lls89jHMR9ydbwsntsv8Ba6h0mBr%2F3mCvD9BNVeT%2FZt8K4eSRg6TgXZfpAPkFN6L4ID8Z7BQpU0%2F%2FrbGhGXUs8GZCqz1%2BFn0i3wptJM%2FMRTFx3zgAEa0HxczOy4tPtmp2EsoNKiEBHhfNLQgpG1M9FdaNlYu2oYT70VAdILtTEAaQTg94bw6qbKIm7V0FvlwFyoKZbJyaetUIjOhp%2BL1sifgOvM6Dm3DcZGoC9%2BiHG7naEmw4h7Kzw0uas%2BupbS7bi1jx46Gu9eZnuF%2Bkp6nHswLFX%2BC4VUUORZm%2Fx0Kby1AP4fEd3XswmsBqm7nAtDiY87FrYDfB5g8Aj6AAfPfvtjGZwws2Nvb50IQ9VZgpK%2BE%2FhZ3W6Rx%2B8r0TPsW2N62t0guFfWM3je%2BirUIl02Gqk7UvnFTz6ihSfSZ6n7fWoIWOsnqKTr2knA4YEnW0wTkBwcH58a7Bv5vzKnyu8v9hBRy2G0bSHMshvsFpu3un5LG5eB5CO%2FKqhuwUZjoadrLeUybMJcfl9dfMHCybgr5t9ImE375Jhz7hONZ9EX2t1nDrpMQMgfnt%2B0%2B2vWu7VQAgaIMNVtoiVNYO2x4nYxRkKKOVCbx%2FjrvZ7SbFzzNZY56C3KAE5Eob8TTcdXq89byz%2BhxRG1jITpGAXJvsZckk0JPHLJkmj1JHbOdkoTC8xIrOBjqkAb%2FVL3ooelq3jvGXc1W0CR9fZlpK2J9wVyOpy5f6h%2B6BHqOxTr7x6IEVDZGGGNXKgabNMUJSjHr8STdevCTO79oFXlujfMIk4Fl%2F1ZMGomJQyxC9kbAmJ3ghFN7nPxGY9bSGs%2BOg8vvyLz%2Bbz%2BKeZrWa6QWBs3lIbEUv2mAxVxyvuwvrIUdcsxmVeX50DaosdKlfC7d8lh1lKa17PJ4syb7DGwNl&amp;X-Amz-Signature=9d4245b93484ca1fcc8573a293797980cd8d9d59f9bd009f88281422c704ff54&amp;X-Amz-SignedHeaders=host&amp;x-amz-checksum-mode=ENABLED&amp;x-id=GetObject" alt="Post Weight Sample 2" loading="lazy" referrerpolicy="no-referrer" />
+          <dl class="metrics">
+            <div><dt>Expected</dt><dd>17.520</dd></div>
+            <div><dt>System Output</dt><dd>17.520</dd></div>
+            <div><dt>Status</dt><dd>ok</dd></div>
+            <div><dt>Confidence</dt><dd>0.99</dd></div>
+            <div><dt>Reason</dt><dd>The LED display clearly shows &#x27;17.520&#x27;. The leading &#x27;1&#x27; is a narrow, bright segment, distinct from the dim, full-width placeholder &#x27;8&#x27;s to its left. The decimal point is visible between &#x27;7&#x27; and &#x27;5&#x27;. Both primary and context images confirm this reading. Structured verifier confirmed the same reading.</dd></div>
+          </dl>
+        </article>
+        
+        <article class="card">
+          <div class="card-head">
+            <span class="pill ok">Correct</span>
+            <div class="meta">
+              <h3>Post Weight Sample 3</h3>
+              <p>Line 1 - Moisture Test</p>
+              <p>Submission: <code>WQK06619717</code></p>
+              <p>Created At: 10-03-2026 11:01 PM</p>
+              <p>Time Slot: 9 PM - 11 PM</p>
+            </div>
+          </div>
+          <a class="image-link" href="https://eq-app-data-uploads-2017.s3.ap-south-1.amazonaws.com/PIP121027-MLA206324-5m87h6l6pbam00000000/IMG-20260310_2248be68a.jpeg?X-Amz-Algorithm=AWS4-HMAC-SHA256&amp;X-Amz-Content-Sha256=UNSIGNED-PAYLOAD&amp;X-Amz-Credential=ASIAR6XFRJFUG2XIG57K%2F20260324%2Fap-south-1%2Fs3%2Faws4_request&amp;X-Amz-Date=20260324T144149Z&amp;X-Amz-Expires=300&amp;X-Amz-Security-Token=IQoJb3JpZ2luX2VjEM3%2F%2F%2F%2F%2F%2F%2F%2F%2F%2FwEaCmFwLXNvdXRoLTEiRzBFAiBl6pySJ7ww6vcQs6ZTgjRT6A2XslvaHdB8aS2f1xzYWQIhAJpjLg8b8lggzWuESDNTSLRAGdzJtMwWqm5ShYFFmoyVKtoECJb%2F%2F%2F%2F%2F%2F%2F%2F%2F%2FwEQAxoMMTM0Njk5MTA4NzEyIgzlqak3iF%2Bko%2Fw33ysqrgQ%2FXixUQA5za9eQOGJRDDlKzLYfQkLEPCdy50Xazz0ov5nLoVnlGmwPzwdw39sHnOfA8KU7YPRBa3Jev1QwoDtmTbXMiaZrwXHiSncw4f4d8sHlkPGjTyWcWLSZiYeibDJuXpbFTFFsOU9TfrG4ZNUB%2F4z7aTMMRddHP1nkZqJZtbyR1Ak2SgfF8xevt0ACT32%2B%2F644svMozLxJshzGBUqfAJnvOPX1%2FJ1x22N%2BCLzDPhzp5khBOp9s0Bz3vs%2FQWrRgxjunSoJN12NfctvJv%2FtWwOMJumuQrrwpDOBuZ1Oqr3NCCxwDJTBdjqrkbj4gOj%2FMiKMDbC2rVvHwC4OXK6j5A0DWEDKGzSgUaJnmWKd7Pxr8%2BcuAbEvKgEA2br%2Bq8GGSeZbg3rp1PgGIZEWtXhP%2FbWOMClIofXSonfg%2F9oveb2zUS9uDUcro5VLkkE0SKZlloxFhU7X37zO%2FsOBieqeOGzPH0YIfr4BGbRWu1%2BdHmojor2Tj0BeOvry%2BNLo5C8cU1Y6FcboTLRKlgpg0KmrqYT6yF6RQPVfPPiMQ1kHWtuPgPg7NPsVHzVLch91TsSuL%2BKNZNYVCrPlO8OkRdrWMv9HuWgXe4hzb499fy%2BrXsfTEC90Sr2BpG54Mscebh2DRiFqw86F7RGC5tztxWkvSYsH1f77VoCU1SG5JSGU8XOty9bLX39VVPSp0mXXmsGD9oDlHr%2Bdg6rKJZhtC0jCvGlTg%2BhIAEIz98MLVfIow85mKzgY6owHrfjsJbFAob%2FckiXLse6k8oiqLkconZpV6mSQihzeIj6zzo3L0AfwzfnOT9vDMwkj9FuAeujMXHH5BRaZFtRBTWgyZoHzhRZ5SGt%2BCzPen5VmOaUoR9fV4M3qXbhxq9N8ZmM61hGdB9TCoZutYBI6C6KfmkY97%2BIVSpnRGDSAmXZbPpxuqpoU6BzoEOqH%2BzpEg5w3YtKJU%2FNfI5bGWMiDIBzuD&amp;X-Amz-Signature=bbbdb7a97d8d04d705bae384242fce881db534ddd19ffa217b3c0f16de70fc3f&amp;X-Amz-SignedHeaders=host&amp;x-amz-checksum-mode=ENABLED&amp;x-id=GetObject" target="_blank" rel="noreferrer">Open image</a>
+          <a class="image-link" href="https://pipl.clappia.com/app/MLA206324/submission/WQK06619717/PIP121027-MLA206324-5m87h6l6pbam00000000/IMG-20260310_2248be68a.jpeg" target="_blank" rel="noreferrer">Open original Clappia link</a>
+          <img class="photo" src="https://eq-app-data-uploads-2017.s3.ap-south-1.amazonaws.com/PIP121027-MLA206324-5m87h6l6pbam00000000/IMG-20260310_2248be68a.jpeg?X-Amz-Algorithm=AWS4-HMAC-SHA256&amp;X-Amz-Content-Sha256=UNSIGNED-PAYLOAD&amp;X-Amz-Credential=ASIAR6XFRJFUG2XIG57K%2F20260324%2Fap-south-1%2Fs3%2Faws4_request&amp;X-Amz-Date=20260324T144149Z&amp;X-Amz-Expires=300&amp;X-Amz-Security-Token=IQoJb3JpZ2luX2VjEM3%2F%2F%2F%2F%2F%2F%2F%2F%2F%2FwEaCmFwLXNvdXRoLTEiRzBFAiBl6pySJ7ww6vcQs6ZTgjRT6A2XslvaHdB8aS2f1xzYWQIhAJpjLg8b8lggzWuESDNTSLRAGdzJtMwWqm5ShYFFmoyVKtoECJb%2F%2F%2F%2F%2F%2F%2F%2F%2F%2FwEQAxoMMTM0Njk5MTA4NzEyIgzlqak3iF%2Bko%2Fw33ysqrgQ%2FXixUQA5za9eQOGJRDDlKzLYfQkLEPCdy50Xazz0ov5nLoVnlGmwPzwdw39sHnOfA8KU7YPRBa3Jev1QwoDtmTbXMiaZrwXHiSncw4f4d8sHlkPGjTyWcWLSZiYeibDJuXpbFTFFsOU9TfrG4ZNUB%2F4z7aTMMRddHP1nkZqJZtbyR1Ak2SgfF8xevt0ACT32%2B%2F644svMozLxJshzGBUqfAJnvOPX1%2FJ1x22N%2BCLzDPhzp5khBOp9s0Bz3vs%2FQWrRgxjunSoJN12NfctvJv%2FtWwOMJumuQrrwpDOBuZ1Oqr3NCCxwDJTBdjqrkbj4gOj%2FMiKMDbC2rVvHwC4OXK6j5A0DWEDKGzSgUaJnmWKd7Pxr8%2BcuAbEvKgEA2br%2Bq8GGSeZbg3rp1PgGIZEWtXhP%2FbWOMClIofXSonfg%2F9oveb2zUS9uDUcro5VLkkE0SKZlloxFhU7X37zO%2FsOBieqeOGzPH0YIfr4BGbRWu1%2BdHmojor2Tj0BeOvry%2BNLo5C8cU1Y6FcboTLRKlgpg0KmrqYT6yF6RQPVfPPiMQ1kHWtuPgPg7NPsVHzVLch91TsSuL%2BKNZNYVCrPlO8OkRdrWMv9HuWgXe4hzb499fy%2BrXsfTEC90Sr2BpG54Mscebh2DRiFqw86F7RGC5tztxWkvSYsH1f77VoCU1SG5JSGU8XOty9bLX39VVPSp0mXXmsGD9oDlHr%2Bdg6rKJZhtC0jCvGlTg%2BhIAEIz98MLVfIow85mKzgY6owHrfjsJbFAob%2FckiXLse6k8oiqLkconZpV6mSQihzeIj6zzo3L0AfwzfnOT9vDMwkj9FuAeujMXHH5BRaZFtRBTWgyZoHzhRZ5SGt%2BCzPen5VmOaUoR9fV4M3qXbhxq9N8ZmM61hGdB9TCoZutYBI6C6KfmkY97%2BIVSpnRGDSAmXZbPpxuqpoU6BzoEOqH%2BzpEg5w3YtKJU%2FNfI5bGWMiDIBzuD&amp;X-Amz-Signature=bbbdb7a97d8d04d705bae384242fce881db534ddd19ffa217b3c0f16de70fc3f&amp;X-Amz-SignedHeaders=host&amp;x-amz-checksum-mode=ENABLED&amp;x-id=GetObject" alt="Post Weight Sample 3" loading="lazy" referrerpolicy="no-referrer" />
+          <dl class="metrics">
+            <div><dt>Expected</dt><dd>17.350</dd></div>
+            <div><dt>System Output</dt><dd>17.350</dd></div>
+            <div><dt>Status</dt><dd>ok</dd></div>
+            <div><dt>Confidence</dt><dd>0.99</dd></div>
+            <div><dt>Reason</dt><dd>The display clearly shows &#x27;17.350&#x27;. The leading &#x27;88&#x27; are inactive placeholders. The &#x27;1&#x27; is a narrow, bright digit, correctly identified. The decimal point is clearly visible. Structured verifier confirmed the same reading.</dd></div>
+          </dl>
+        </article>
+        
+        <article class="card">
+          <div class="card-head">
+            <span class="pill ok">Correct</span>
+            <div class="meta">
+              <h3>Post Weight Sample 4</h3>
+              <p>Line 1 - Moisture Test</p>
+              <p>Submission: <code>WQK06619717</code></p>
+              <p>Created At: 10-03-2026 11:01 PM</p>
+              <p>Time Slot: 9 PM - 11 PM</p>
+            </div>
+          </div>
+          <a class="image-link" href="https://eq-app-data-uploads-2017.s3.ap-south-1.amazonaws.com/PIP121027-MLA206324-5b1m8481coek00000000/IMG-20260310_2249136p6n.jpeg?X-Amz-Algorithm=AWS4-HMAC-SHA256&amp;X-Amz-Content-Sha256=UNSIGNED-PAYLOAD&amp;X-Amz-Credential=ASIAR6XFRJFUJXIF2TPT%2F20260324%2Fap-south-1%2Fs3%2Faws4_request&amp;X-Amz-Date=20260324T144149Z&amp;X-Amz-Expires=300&amp;X-Amz-Security-Token=IQoJb3JpZ2luX2VjEM3%2F%2F%2F%2F%2F%2F%2F%2F%2F%2FwEaCmFwLXNvdXRoLTEiSDBGAiEA0ufSuu%2Fbeb%2B7On0C25z6rffeS5CtwKmlLPRDJLm7z7sCIQD8HBY6n1QmtwK5CeJ%2F9v6Mw7YwiwVPZt22gUEIS2Zy8iraBAiX%2F%2F%2F%2F%2F%2F%2F%2F%2F%2F8BEAMaDDEzNDY5OTEwODcxMiIMKOMSd3xnph3LKjV6Kq4EuS4BcfqzpqUPmi46oXe%2F%2FNpyYOA8K%2Bb8IwsnWhJ6PqnKoTSUKdBdSr38JZGRMIDEHskH3vO4T0Z1bGaOwmXUT7CdHN1S%2F74VJuCLG%2BWRzml4K1D1PPL75VGCNVUvQez5tg0m9%2B5DX5D5g%2FEHSrHDzQZWpO5PAybRXuywrA21EQoHuqfHzRHzQWsHrFUhNWEd%2BiAvfHbY7gN%2F9ZbiJRRIXCwQL0JT08ojrBAvmmFikHJW6shXG5G0n9V680CCAb0v8psYHG5Cg8dSoepD1luFkUHjklxCJT7X%2BTjDOB5SIBDgXUVQ6OaNsQZuJMZUc4lS2byL7xzXjft6Zryq3QiAgw8EDhn3xlw%2FRLj18ElnU30Y6hCFkJAbPqBFfN2jqAYNwjehu%2BBFh7hD7laO6khUAQFEGFjs6idBBgQ1KRT96RpipJr8IOI0b%2F%2FWWlln%2FGYJ25dtBlUeeFVcpE8268PA8GmiiVtyTx6SZhspWRWmlZNqz0qdP0kaRsyfmBtLbyxR%2FOvM1yttde4xMeRBRQvUonRvbckfHYaXGKB2pZOww1MeTjhvnmd9tm5lsjQeG4EllY7dtavxeQFVBA0lNq92vAnFWCobvWtgzHhF4wX9rz2PxExlB3g1yJKjpVTrYw2VpdzhPY488c9TqhPkLMMpscuU4vTnWB8Q4s39rxSKX8hOknxmL8eEBB%2Fn2BPb6TVbYBUdeOUxDl5tK2eamiqLWC5pdGIU9FmKlrSDJPUGMMqhis4GOqIBJqG1WnoAaGyYm3B5KUr%2Fzh1YiWLw2Vrug7nfimR4WqQcDajkHwZnjrSZ0%2FJ20v9FrjIqt21tdlcwAiHqqyzA2SNZV2%2Bn7Tz%2FC%2Bupx1V5uXRXbZSPXzb%2FrgLhHg1nRRw8uhuD4OwnXImYR5XuOw%2F19mZeVTVEWX%2F48b%2Ff1zd1DrXi3%2FbHtvffTCLoNWh1zxxG5l%2BHpQE2TEhklheKDMg%2FEFNU&amp;X-Amz-Signature=ea48e06d259d19911c925a1119e2cfe6754b3d5a096be61824017ad109af9fcc&amp;X-Amz-SignedHeaders=host&amp;x-amz-checksum-mode=ENABLED&amp;x-id=GetObject" target="_blank" rel="noreferrer">Open image</a>
+          <a class="image-link" href="https://pipl.clappia.com/app/MLA206324/submission/WQK06619717/PIP121027-MLA206324-5b1m8481coek00000000/IMG-20260310_2249136p6n.jpeg" target="_blank" rel="noreferrer">Open original Clappia link</a>
+          <img class="photo" src="https://eq-app-data-uploads-2017.s3.ap-south-1.amazonaws.com/PIP121027-MLA206324-5b1m8481coek00000000/IMG-20260310_2249136p6n.jpeg?X-Amz-Algorithm=AWS4-HMAC-SHA256&amp;X-Amz-Content-Sha256=UNSIGNED-PAYLOAD&amp;X-Amz-Credential=ASIAR6XFRJFUJXIF2TPT%2F20260324%2Fap-south-1%2Fs3%2Faws4_request&amp;X-Amz-Date=20260324T144149Z&amp;X-Amz-Expires=300&amp;X-Amz-Security-Token=IQoJb3JpZ2luX2VjEM3%2F%2F%2F%2F%2F%2F%2F%2F%2F%2FwEaCmFwLXNvdXRoLTEiSDBGAiEA0ufSuu%2Fbeb%2B7On0C25z6rffeS5CtwKmlLPRDJLm7z7sCIQD8HBY6n1QmtwK5CeJ%2F9v6Mw7YwiwVPZt22gUEIS2Zy8iraBAiX%2F%2F%2F%2F%2F%2F%2F%2F%2F%2F8BEAMaDDEzNDY5OTEwODcxMiIMKOMSd3xnph3LKjV6Kq4EuS4BcfqzpqUPmi46oXe%2F%2FNpyYOA8K%2Bb8IwsnWhJ6PqnKoTSUKdBdSr38JZGRMIDEHskH3vO4T0Z1bGaOwmXUT7CdHN1S%2F74VJuCLG%2BWRzml4K1D1PPL75VGCNVUvQez5tg0m9%2B5DX5D5g%2FEHSrHDzQZWpO5PAybRXuywrA21EQoHuqfHzRHzQWsHrFUhNWEd%2BiAvfHbY7gN%2F9ZbiJRRIXCwQL0JT08ojrBAvmmFikHJW6shXG5G0n9V680CCAb0v8psYHG5Cg8dSoepD1luFkUHjklxCJT7X%2BTjDOB5SIBDgXUVQ6OaNsQZuJMZUc4lS2byL7xzXjft6Zryq3QiAgw8EDhn3xlw%2FRLj18ElnU30Y6hCFkJAbPqBFfN2jqAYNwjehu%2BBFh7hD7laO6khUAQFEGFjs6idBBgQ1KRT96RpipJr8IOI0b%2F%2FWWlln%2FGYJ25dtBlUeeFVcpE8268PA8GmiiVtyTx6SZhspWRWmlZNqz0qdP0kaRsyfmBtLbyxR%2FOvM1yttde4xMeRBRQvUonRvbckfHYaXGKB2pZOww1MeTjhvnmd9tm5lsjQeG4EllY7dtavxeQFVBA0lNq92vAnFWCobvWtgzHhF4wX9rz2PxExlB3g1yJKjpVTrYw2VpdzhPY488c9TqhPkLMMpscuU4vTnWB8Q4s39rxSKX8hOknxmL8eEBB%2Fn2BPb6TVbYBUdeOUxDl5tK2eamiqLWC5pdGIU9FmKlrSDJPUGMMqhis4GOqIBJqG1WnoAaGyYm3B5KUr%2Fzh1YiWLw2Vrug7nfimR4WqQcDajkHwZnjrSZ0%2FJ20v9FrjIqt21tdlcwAiHqqyzA2SNZV2%2Bn7Tz%2FC%2Bupx1V5uXRXbZSPXzb%2FrgLhHg1nRRw8uhuD4OwnXImYR5XuOw%2F19mZeVTVEWX%2F48b%2Ff1zd1DrXi3%2FbHtvffTCLoNWh1zxxG5l%2BHpQE2TEhklheKDMg%2FEFNU&amp;X-Amz-Signature=ea48e06d259d19911c925a1119e2cfe6754b3d5a096be61824017ad109af9fcc&amp;X-Amz-SignedHeaders=host&amp;x-amz-checksum-mode=ENABLED&amp;x-id=GetObject" alt="Post Weight Sample 4" loading="lazy" referrerpolicy="no-referrer" />
+          <dl class="metrics">
+            <div><dt>Expected</dt><dd>17.490</dd></div>
+            <div><dt>System Output</dt><dd>17.490</dd></div>
+            <div><dt>Status</dt><dd>ok</dd></div>
+            <div><dt>Confidence</dt><dd>0.99</dd></div>
+            <div><dt>Reason</dt><dd>Read value from the clearly visible LED display on the scale. The leading &#x27;8.8&#x27; are inactive placeholders, and the active reading starts with &#x27;1&#x27;. Structured verifier confirmed the same reading.</dd></div>
+          </dl>
+        </article>
+        
+        <article class="card">
+          <div class="card-head">
+            <span class="pill ok">Correct</span>
+            <div class="meta">
+              <h3>Centre wall thickness Sample 3</h3>
+              <p>Line 1 - Thickness Test</p>
+              <p>Submission: <code>WQK06619717</code></p>
+              <p>Created At: 10-03-2026 11:01 PM</p>
+              <p>Time Slot: 9 PM - 11 PM</p>
+            </div>
+          </div>
+          <a class="image-link" href="https://eq-app-data-uploads-2017.s3.ap-south-1.amazonaws.com/PIP121027-MLA206324-3hommgg14nm200000000/IMG-20260310_2253n45cb.jpeg?X-Amz-Algorithm=AWS4-HMAC-SHA256&amp;X-Amz-Content-Sha256=UNSIGNED-PAYLOAD&amp;X-Amz-Credential=ASIAR6XFRJFUG2XIG57K%2F20260324%2Fap-south-1%2Fs3%2Faws4_request&amp;X-Amz-Date=20260324T144210Z&amp;X-Amz-Expires=300&amp;X-Amz-Security-Token=IQoJb3JpZ2luX2VjEM3%2F%2F%2F%2F%2F%2F%2F%2F%2F%2FwEaCmFwLXNvdXRoLTEiRzBFAiBl6pySJ7ww6vcQs6ZTgjRT6A2XslvaHdB8aS2f1xzYWQIhAJpjLg8b8lggzWuESDNTSLRAGdzJtMwWqm5ShYFFmoyVKtoECJb%2F%2F%2F%2F%2F%2F%2F%2F%2F%2FwEQAxoMMTM0Njk5MTA4NzEyIgzlqak3iF%2Bko%2Fw33ysqrgQ%2FXixUQA5za9eQOGJRDDlKzLYfQkLEPCdy50Xazz0ov5nLoVnlGmwPzwdw39sHnOfA8KU7YPRBa3Jev1QwoDtmTbXMiaZrwXHiSncw4f4d8sHlkPGjTyWcWLSZiYeibDJuXpbFTFFsOU9TfrG4ZNUB%2F4z7aTMMRddHP1nkZqJZtbyR1Ak2SgfF8xevt0ACT32%2B%2F644svMozLxJshzGBUqfAJnvOPX1%2FJ1x22N%2BCLzDPhzp5khBOp9s0Bz3vs%2FQWrRgxjunSoJN12NfctvJv%2FtWwOMJumuQrrwpDOBuZ1Oqr3NCCxwDJTBdjqrkbj4gOj%2FMiKMDbC2rVvHwC4OXK6j5A0DWEDKGzSgUaJnmWKd7Pxr8%2BcuAbEvKgEA2br%2Bq8GGSeZbg3rp1PgGIZEWtXhP%2FbWOMClIofXSonfg%2F9oveb2zUS9uDUcro5VLkkE0SKZlloxFhU7X37zO%2FsOBieqeOGzPH0YIfr4BGbRWu1%2BdHmojor2Tj0BeOvry%2BNLo5C8cU1Y6FcboTLRKlgpg0KmrqYT6yF6RQPVfPPiMQ1kHWtuPgPg7NPsVHzVLch91TsSuL%2BKNZNYVCrPlO8OkRdrWMv9HuWgXe4hzb499fy%2BrXsfTEC90Sr2BpG54Mscebh2DRiFqw86F7RGC5tztxWkvSYsH1f77VoCU1SG5JSGU8XOty9bLX39VVPSp0mXXmsGD9oDlHr%2Bdg6rKJZhtC0jCvGlTg%2BhIAEIz98MLVfIow85mKzgY6owHrfjsJbFAob%2FckiXLse6k8oiqLkconZpV6mSQihzeIj6zzo3L0AfwzfnOT9vDMwkj9FuAeujMXHH5BRaZFtRBTWgyZoHzhRZ5SGt%2BCzPen5VmOaUoR9fV4M3qXbhxq9N8ZmM61hGdB9TCoZutYBI6C6KfmkY97%2BIVSpnRGDSAmXZbPpxuqpoU6BzoEOqH%2BzpEg5w3YtKJU%2FNfI5bGWMiDIBzuD&amp;X-Amz-Signature=04b55bbf79fee482b9b04c1b0d653a825deb4c6df07da2438632486979cacf45&amp;X-Amz-SignedHeaders=host&amp;x-amz-checksum-mode=ENABLED&amp;x-id=GetObject" target="_blank" rel="noreferrer">Open image</a>
+          <a class="image-link" href="https://pipl.clappia.com/app/MLA206324/submission/WQK06619717/PIP121027-MLA206324-3hommgg14nm200000000/IMG-20260310_2253n45cb.jpeg" target="_blank" rel="noreferrer">Open original Clappia link</a>
+          <img class="photo" src="https://eq-app-data-uploads-2017.s3.ap-south-1.amazonaws.com/PIP121027-MLA206324-3hommgg14nm200000000/IMG-20260310_2253n45cb.jpeg?X-Amz-Algorithm=AWS4-HMAC-SHA256&amp;X-Amz-Content-Sha256=UNSIGNED-PAYLOAD&amp;X-Amz-Credential=ASIAR6XFRJFUG2XIG57K%2F20260324%2Fap-south-1%2Fs3%2Faws4_request&amp;X-Amz-Date=20260324T144210Z&amp;X-Amz-Expires=300&amp;X-Amz-Security-Token=IQoJb3JpZ2luX2VjEM3%2F%2F%2F%2F%2F%2F%2F%2F%2F%2FwEaCmFwLXNvdXRoLTEiRzBFAiBl6pySJ7ww6vcQs6ZTgjRT6A2XslvaHdB8aS2f1xzYWQIhAJpjLg8b8lggzWuESDNTSLRAGdzJtMwWqm5ShYFFmoyVKtoECJb%2F%2F%2F%2F%2F%2F%2F%2F%2F%2FwEQAxoMMTM0Njk5MTA4NzEyIgzlqak3iF%2Bko%2Fw33ysqrgQ%2FXixUQA5za9eQOGJRDDlKzLYfQkLEPCdy50Xazz0ov5nLoVnlGmwPzwdw39sHnOfA8KU7YPRBa3Jev1QwoDtmTbXMiaZrwXHiSncw4f4d8sHlkPGjTyWcWLSZiYeibDJuXpbFTFFsOU9TfrG4ZNUB%2F4z7aTMMRddHP1nkZqJZtbyR1Ak2SgfF8xevt0ACT32%2B%2F644svMozLxJshzGBUqfAJnvOPX1%2FJ1x22N%2BCLzDPhzp5khBOp9s0Bz3vs%2FQWrRgxjunSoJN12NfctvJv%2FtWwOMJumuQrrwpDOBuZ1Oqr3NCCxwDJTBdjqrkbj4gOj%2FMiKMDbC2rVvHwC4OXK6j5A0DWEDKGzSgUaJnmWKd7Pxr8%2BcuAbEvKgEA2br%2Bq8GGSeZbg3rp1PgGIZEWtXhP%2FbWOMClIofXSonfg%2F9oveb2zUS9uDUcro5VLkkE0SKZlloxFhU7X37zO%2FsOBieqeOGzPH0YIfr4BGbRWu1%2BdHmojor2Tj0BeOvry%2BNLo5C8cU1Y6FcboTLRKlgpg0KmrqYT6yF6RQPVfPPiMQ1kHWtuPgPg7NPsVHzVLch91TsSuL%2BKNZNYVCrPlO8OkRdrWMv9HuWgXe4hzb499fy%2BrXsfTEC90Sr2BpG54Mscebh2DRiFqw86F7RGC5tztxWkvSYsH1f77VoCU1SG5JSGU8XOty9bLX39VVPSp0mXXmsGD9oDlHr%2Bdg6rKJZhtC0jCvGlTg%2BhIAEIz98MLVfIow85mKzgY6owHrfjsJbFAob%2FckiXLse6k8oiqLkconZpV6mSQihzeIj6zzo3L0AfwzfnOT9vDMwkj9FuAeujMXHH5BRaZFtRBTWgyZoHzhRZ5SGt%2BCzPen5VmOaUoR9fV4M3qXbhxq9N8ZmM61hGdB9TCoZutYBI6C6KfmkY97%2BIVSpnRGDSAmXZbPpxuqpoU6BzoEOqH%2BzpEg5w3YtKJU%2FNfI5bGWMiDIBzuD&amp;X-Amz-Signature=04b55bbf79fee482b9b04c1b0d653a825deb4c6df07da2438632486979cacf45&amp;X-Amz-SignedHeaders=host&amp;x-amz-checksum-mode=ENABLED&amp;x-id=GetObject" alt="Centre wall thickness Sample 3" loading="lazy" referrerpolicy="no-referrer" />
+          <dl class="metrics">
+            <div><dt>Expected</dt><dd>0.600</dd></div>
+            <div><dt>System Output</dt><dd>0.600</dd></div>
+            <div><dt>Status</dt><dd>ok</dd></div>
+            <div><dt>Confidence</dt><dd>0.62</dd></div>
+            <div><dt>Reason</dt><dd>The value &quot;0.600&quot; is clearly visible on the LCD display in the primary crop. Structured verifier confirmed the same reading. Final read remained partially ambiguous after verification; returning the best-supported value.</dd></div>
+          </dl>
+        </article>
+        
+        <article class="card">
+          <div class="card-head">
+            <span class="pill ok">Correct</span>
+            <div class="meta">
+              <h3>Centre wall thickness Sample 4</h3>
+              <p>Line 1 - Thickness Test</p>
+              <p>Submission: <code>WQK06619717</code></p>
+              <p>Created At: 10-03-2026 11:01 PM</p>
+              <p>Time Slot: 9 PM - 11 PM</p>
+            </div>
+          </div>
+          <a class="image-link" href="https://eq-app-data-uploads-2017.s3.ap-south-1.amazonaws.com/PIP121027-MLA206324-3epkij38pn9600000000/IMG-20260310_2254pbicl.jpeg?X-Amz-Algorithm=AWS4-HMAC-SHA256&amp;X-Amz-Content-Sha256=UNSIGNED-PAYLOAD&amp;X-Amz-Credential=ASIAR6XFRJFUG2XIG57K%2F20260324%2Fap-south-1%2Fs3%2Faws4_request&amp;X-Amz-Date=20260324T144216Z&amp;X-Amz-Expires=300&amp;X-Amz-Security-Token=IQoJb3JpZ2luX2VjEM3%2F%2F%2F%2F%2F%2F%2F%2F%2F%2FwEaCmFwLXNvdXRoLTEiRzBFAiBl6pySJ7ww6vcQs6ZTgjRT6A2XslvaHdB8aS2f1xzYWQIhAJpjLg8b8lggzWuESDNTSLRAGdzJtMwWqm5ShYFFmoyVKtoECJb%2F%2F%2F%2F%2F%2F%2F%2F%2F%2FwEQAxoMMTM0Njk5MTA4NzEyIgzlqak3iF%2Bko%2Fw33ysqrgQ%2FXixUQA5za9eQOGJRDDlKzLYfQkLEPCdy50Xazz0ov5nLoVnlGmwPzwdw39sHnOfA8KU7YPRBa3Jev1QwoDtmTbXMiaZrwXHiSncw4f4d8sHlkPGjTyWcWLSZiYeibDJuXpbFTFFsOU9TfrG4ZNUB%2F4z7aTMMRddHP1nkZqJZtbyR1Ak2SgfF8xevt0ACT32%2B%2F644svMozLxJshzGBUqfAJnvOPX1%2FJ1x22N%2BCLzDPhzp5khBOp9s0Bz3vs%2FQWrRgxjunSoJN12NfctvJv%2FtWwOMJumuQrrwpDOBuZ1Oqr3NCCxwDJTBdjqrkbj4gOj%2FMiKMDbC2rVvHwC4OXK6j5A0DWEDKGzSgUaJnmWKd7Pxr8%2BcuAbEvKgEA2br%2Bq8GGSeZbg3rp1PgGIZEWtXhP%2FbWOMClIofXSonfg%2F9oveb2zUS9uDUcro5VLkkE0SKZlloxFhU7X37zO%2FsOBieqeOGzPH0YIfr4BGbRWu1%2BdHmojor2Tj0BeOvry%2BNLo5C8cU1Y6FcboTLRKlgpg0KmrqYT6yF6RQPVfPPiMQ1kHWtuPgPg7NPsVHzVLch91TsSuL%2BKNZNYVCrPlO8OkRdrWMv9HuWgXe4hzb499fy%2BrXsfTEC90Sr2BpG54Mscebh2DRiFqw86F7RGC5tztxWkvSYsH1f77VoCU1SG5JSGU8XOty9bLX39VVPSp0mXXmsGD9oDlHr%2Bdg6rKJZhtC0jCvGlTg%2BhIAEIz98MLVfIow85mKzgY6owHrfjsJbFAob%2FckiXLse6k8oiqLkconZpV6mSQihzeIj6zzo3L0AfwzfnOT9vDMwkj9FuAeujMXHH5BRaZFtRBTWgyZoHzhRZ5SGt%2BCzPen5VmOaUoR9fV4M3qXbhxq9N8ZmM61hGdB9TCoZutYBI6C6KfmkY97%2BIVSpnRGDSAmXZbPpxuqpoU6BzoEOqH%2BzpEg5w3YtKJU%2FNfI5bGWMiDIBzuD&amp;X-Amz-Signature=fb210908c9e89f70b9b438a7fafd5149b433443152ac94e8538cf595af9ccc7c&amp;X-Amz-SignedHeaders=host&amp;x-amz-checksum-mode=ENABLED&amp;x-id=GetObject" target="_blank" rel="noreferrer">Open image</a>
+          <a class="image-link" href="https://pipl.clappia.com/app/MLA206324/submission/WQK06619717/PIP121027-MLA206324-3epkij38pn9600000000/IMG-20260310_2254pbicl.jpeg" target="_blank" rel="noreferrer">Open original Clappia link</a>
+          <img class="photo" src="https://eq-app-data-uploads-2017.s3.ap-south-1.amazonaws.com/PIP121027-MLA206324-3epkij38pn9600000000/IMG-20260310_2254pbicl.jpeg?X-Amz-Algorithm=AWS4-HMAC-SHA256&amp;X-Amz-Content-Sha256=UNSIGNED-PAYLOAD&amp;X-Amz-Credential=ASIAR6XFRJFUG2XIG57K%2F20260324%2Fap-south-1%2Fs3%2Faws4_request&amp;X-Amz-Date=20260324T144216Z&amp;X-Amz-Expires=300&amp;X-Amz-Security-Token=IQoJb3JpZ2luX2VjEM3%2F%2F%2F%2F%2F%2F%2F%2F%2F%2FwEaCmFwLXNvdXRoLTEiRzBFAiBl6pySJ7ww6vcQs6ZTgjRT6A2XslvaHdB8aS2f1xzYWQIhAJpjLg8b8lggzWuESDNTSLRAGdzJtMwWqm5ShYFFmoyVKtoECJb%2F%2F%2F%2F%2F%2F%2F%2F%2F%2FwEQAxoMMTM0Njk5MTA4NzEyIgzlqak3iF%2Bko%2Fw33ysqrgQ%2FXixUQA5za9eQOGJRDDlKzLYfQkLEPCdy50Xazz0ov5nLoVnlGmwPzwdw39sHnOfA8KU7YPRBa3Jev1QwoDtmTbXMiaZrwXHiSncw4f4d8sHlkPGjTyWcWLSZiYeibDJuXpbFTFFsOU9TfrG4ZNUB%2F4z7aTMMRddHP1nkZqJZtbyR1Ak2SgfF8xevt0ACT32%2B%2F644svMozLxJshzGBUqfAJnvOPX1%2FJ1x22N%2BCLzDPhzp5khBOp9s0Bz3vs%2FQWrRgxjunSoJN12NfctvJv%2FtWwOMJumuQrrwpDOBuZ1Oqr3NCCxwDJTBdjqrkbj4gOj%2FMiKMDbC2rVvHwC4OXK6j5A0DWEDKGzSgUaJnmWKd7Pxr8%2BcuAbEvKgEA2br%2Bq8GGSeZbg3rp1PgGIZEWtXhP%2FbWOMClIofXSonfg%2F9oveb2zUS9uDUcro5VLkkE0SKZlloxFhU7X37zO%2FsOBieqeOGzPH0YIfr4BGbRWu1%2BdHmojor2Tj0BeOvry%2BNLo5C8cU1Y6FcboTLRKlgpg0KmrqYT6yF6RQPVfPPiMQ1kHWtuPgPg7NPsVHzVLch91TsSuL%2BKNZNYVCrPlO8OkRdrWMv9HuWgXe4hzb499fy%2BrXsfTEC90Sr2BpG54Mscebh2DRiFqw86F7RGC5tztxWkvSYsH1f77VoCU1SG5JSGU8XOty9bLX39VVPSp0mXXmsGD9oDlHr%2Bdg6rKJZhtC0jCvGlTg%2BhIAEIz98MLVfIow85mKzgY6owHrfjsJbFAob%2FckiXLse6k8oiqLkconZpV6mSQihzeIj6zzo3L0AfwzfnOT9vDMwkj9FuAeujMXHH5BRaZFtRBTWgyZoHzhRZ5SGt%2BCzPen5VmOaUoR9fV4M3qXbhxq9N8ZmM61hGdB9TCoZutYBI6C6KfmkY97%2BIVSpnRGDSAmXZbPpxuqpoU6BzoEOqH%2BzpEg5w3YtKJU%2FNfI5bGWMiDIBzuD&amp;X-Amz-Signature=fb210908c9e89f70b9b438a7fafd5149b433443152ac94e8538cf595af9ccc7c&amp;X-Amz-SignedHeaders=host&amp;x-amz-checksum-mode=ENABLED&amp;x-id=GetObject" alt="Centre wall thickness Sample 4" loading="lazy" referrerpolicy="no-referrer" />
+          <dl class="metrics">
+            <div><dt>Expected</dt><dd>0.660</dd></div>
+            <div><dt>System Output</dt><dd>0.660</dd></div>
+            <div><dt>Status</dt><dd>ok</dd></div>
+            <div><dt>Confidence</dt><dd>0.62</dd></div>
+            <div><dt>Reason</dt><dd>The value &quot;0.660&quot; was clearly read from the LCD display in the PRIMARY crop. Structured verifier confirmed the same reading. Final read remained partially ambiguous after verification; returning the best-supported value.</dd></div>
+          </dl>
+        </article>
+        
+        <article class="card">
+          <div class="card-head">
+            <span class="pill ok">Correct</span>
+            <div class="meta">
+              <h3>Pre Weight Sample 1</h3>
+              <p>Line 1 - Moisture Test</p>
+              <p>Submission: <code>PWU74061577</code></p>
+              <p>Created At: 10-03-2026 08:58 PM</p>
+              <p>Time Slot: 7 PM - 9 PM</p>
+            </div>
+          </div>
+          <a class="image-link" href="https://eq-app-data-uploads-2017.s3.ap-south-1.amazonaws.com/PIP121027-MLA206324-1gdpah977fmb20000000/IMG-20260309_1915k6777.jpeg?X-Amz-Algorithm=AWS4-HMAC-SHA256&amp;X-Amz-Content-Sha256=UNSIGNED-PAYLOAD&amp;X-Amz-Credential=ASIAR6XFRJFUG2XIG57K%2F20260324%2Fap-south-1%2Fs3%2Faws4_request&amp;X-Amz-Date=20260324T144219Z&amp;X-Amz-Expires=300&amp;X-Amz-Security-Token=IQoJb3JpZ2luX2VjEM3%2F%2F%2F%2F%2F%2F%2F%2F%2F%2FwEaCmFwLXNvdXRoLTEiRzBFAiBl6pySJ7ww6vcQs6ZTgjRT6A2XslvaHdB8aS2f1xzYWQIhAJpjLg8b8lggzWuESDNTSLRAGdzJtMwWqm5ShYFFmoyVKtoECJb%2F%2F%2F%2F%2F%2F%2F%2F%2F%2FwEQAxoMMTM0Njk5MTA4NzEyIgzlqak3iF%2Bko%2Fw33ysqrgQ%2FXixUQA5za9eQOGJRDDlKzLYfQkLEPCdy50Xazz0ov5nLoVnlGmwPzwdw39sHnOfA8KU7YPRBa3Jev1QwoDtmTbXMiaZrwXHiSncw4f4d8sHlkPGjTyWcWLSZiYeibDJuXpbFTFFsOU9TfrG4ZNUB%2F4z7aTMMRddHP1nkZqJZtbyR1Ak2SgfF8xevt0ACT32%2B%2F644svMozLxJshzGBUqfAJnvOPX1%2FJ1x22N%2BCLzDPhzp5khBOp9s0Bz3vs%2FQWrRgxjunSoJN12NfctvJv%2FtWwOMJumuQrrwpDOBuZ1Oqr3NCCxwDJTBdjqrkbj4gOj%2FMiKMDbC2rVvHwC4OXK6j5A0DWEDKGzSgUaJnmWKd7Pxr8%2BcuAbEvKgEA2br%2Bq8GGSeZbg3rp1PgGIZEWtXhP%2FbWOMClIofXSonfg%2F9oveb2zUS9uDUcro5VLkkE0SKZlloxFhU7X37zO%2FsOBieqeOGzPH0YIfr4BGbRWu1%2BdHmojor2Tj0BeOvry%2BNLo5C8cU1Y6FcboTLRKlgpg0KmrqYT6yF6RQPVfPPiMQ1kHWtuPgPg7NPsVHzVLch91TsSuL%2BKNZNYVCrPlO8OkRdrWMv9HuWgXe4hzb499fy%2BrXsfTEC90Sr2BpG54Mscebh2DRiFqw86F7RGC5tztxWkvSYsH1f77VoCU1SG5JSGU8XOty9bLX39VVPSp0mXXmsGD9oDlHr%2Bdg6rKJZhtC0jCvGlTg%2BhIAEIz98MLVfIow85mKzgY6owHrfjsJbFAob%2FckiXLse6k8oiqLkconZpV6mSQihzeIj6zzo3L0AfwzfnOT9vDMwkj9FuAeujMXHH5BRaZFtRBTWgyZoHzhRZ5SGt%2BCzPen5VmOaUoR9fV4M3qXbhxq9N8ZmM61hGdB9TCoZutYBI6C6KfmkY97%2BIVSpnRGDSAmXZbPpxuqpoU6BzoEOqH%2BzpEg5w3YtKJU%2FNfI5bGWMiDIBzuD&amp;X-Amz-Signature=8ff1ddb66fb2ec99bb9624dcc5a4891d3ad80ebb6acd1294f1dac7b3350994e1&amp;X-Amz-SignedHeaders=host&amp;x-amz-checksum-mode=ENABLED&amp;x-id=GetObject" target="_blank" rel="noreferrer">Open image</a>
+          <a class="image-link" href="https://pipl.clappia.com/app/MLA206324/submission/PWU74061577/PIP121027-MLA206324-1gdpah977fmb20000000/IMG-20260309_1915k6777.jpeg" target="_blank" rel="noreferrer">Open original Clappia link</a>
+          <img class="photo" src="https://eq-app-data-uploads-2017.s3.ap-south-1.amazonaws.com/PIP121027-MLA206324-1gdpah977fmb20000000/IMG-20260309_1915k6777.jpeg?X-Amz-Algorithm=AWS4-HMAC-SHA256&amp;X-Amz-Content-Sha256=UNSIGNED-PAYLOAD&amp;X-Amz-Credential=ASIAR6XFRJFUG2XIG57K%2F20260324%2Fap-south-1%2Fs3%2Faws4_request&amp;X-Amz-Date=20260324T144219Z&amp;X-Amz-Expires=300&amp;X-Amz-Security-Token=IQoJb3JpZ2luX2VjEM3%2F%2F%2F%2F%2F%2F%2F%2F%2F%2FwEaCmFwLXNvdXRoLTEiRzBFAiBl6pySJ7ww6vcQs6ZTgjRT6A2XslvaHdB8aS2f1xzYWQIhAJpjLg8b8lggzWuESDNTSLRAGdzJtMwWqm5ShYFFmoyVKtoECJb%2F%2F%2F%2F%2F%2F%2F%2F%2F%2FwEQAxoMMTM0Njk5MTA4NzEyIgzlqak3iF%2Bko%2Fw33ysqrgQ%2FXixUQA5za9eQOGJRDDlKzLYfQkLEPCdy50Xazz0ov5nLoVnlGmwPzwdw39sHnOfA8KU7YPRBa3Jev1QwoDtmTbXMiaZrwXHiSncw4f4d8sHlkPGjTyWcWLSZiYeibDJuXpbFTFFsOU9TfrG4ZNUB%2F4z7aTMMRddHP1nkZqJZtbyR1Ak2SgfF8xevt0ACT32%2B%2F644svMozLxJshzGBUqfAJnvOPX1%2FJ1x22N%2BCLzDPhzp5khBOp9s0Bz3vs%2FQWrRgxjunSoJN12NfctvJv%2FtWwOMJumuQrrwpDOBuZ1Oqr3NCCxwDJTBdjqrkbj4gOj%2FMiKMDbC2rVvHwC4OXK6j5A0DWEDKGzSgUaJnmWKd7Pxr8%2BcuAbEvKgEA2br%2Bq8GGSeZbg3rp1PgGIZEWtXhP%2FbWOMClIofXSonfg%2F9oveb2zUS9uDUcro5VLkkE0SKZlloxFhU7X37zO%2FsOBieqeOGzPH0YIfr4BGbRWu1%2BdHmojor2Tj0BeOvry%2BNLo5C8cU1Y6FcboTLRKlgpg0KmrqYT6yF6RQPVfPPiMQ1kHWtuPgPg7NPsVHzVLch91TsSuL%2BKNZNYVCrPlO8OkRdrWMv9HuWgXe4hzb499fy%2BrXsfTEC90Sr2BpG54Mscebh2DRiFqw86F7RGC5tztxWkvSYsH1f77VoCU1SG5JSGU8XOty9bLX39VVPSp0mXXmsGD9oDlHr%2Bdg6rKJZhtC0jCvGlTg%2BhIAEIz98MLVfIow85mKzgY6owHrfjsJbFAob%2FckiXLse6k8oiqLkconZpV6mSQihzeIj6zzo3L0AfwzfnOT9vDMwkj9FuAeujMXHH5BRaZFtRBTWgyZoHzhRZ5SGt%2BCzPen5VmOaUoR9fV4M3qXbhxq9N8ZmM61hGdB9TCoZutYBI6C6KfmkY97%2BIVSpnRGDSAmXZbPpxuqpoU6BzoEOqH%2BzpEg5w3YtKJU%2FNfI5bGWMiDIBzuD&amp;X-Amz-Signature=8ff1ddb66fb2ec99bb9624dcc5a4891d3ad80ebb6acd1294f1dac7b3350994e1&amp;X-Amz-SignedHeaders=host&amp;x-amz-checksum-mode=ENABLED&amp;x-id=GetObject" alt="Pre Weight Sample 1" loading="lazy" referrerpolicy="no-referrer" />
+          <dl class="metrics">
+            <div><dt>Expected</dt><dd>18.510</dd></div>
+            <div><dt>System Output</dt><dd>18.510</dd></div>
+            <div><dt>Status</dt><dd>ok</dd></div>
+            <div><dt>Confidence</dt><dd>0.97</dd></div>
+            <div><dt>Reason</dt><dd>The primary image was an invalid crop. The value was clearly read from the LED display in the context image, including the leading digit &#x27;1&#x27; and the decimal point. Full-image support read matched the same reading.</dd></div>
+          </dl>
+        </article>
+        
+        <article class="card">
+          <div class="card-head">
+            <span class="pill ok">Correct</span>
+            <div class="meta">
+              <h3>Pre Weight Sample 2</h3>
+              <p>Line 1 - Moisture Test</p>
+              <p>Submission: <code>PWU74061577</code></p>
+              <p>Created At: 10-03-2026 08:58 PM</p>
+              <p>Time Slot: 7 PM - 9 PM</p>
+            </div>
+          </div>
+          <a class="image-link" href="https://eq-app-data-uploads-2017.s3.ap-south-1.amazonaws.com/PIP121027-MLA206324-3n71j5ieplfk00000000/IMG-20260309_19153g8l6.jpeg?X-Amz-Algorithm=AWS4-HMAC-SHA256&amp;X-Amz-Content-Sha256=UNSIGNED-PAYLOAD&amp;X-Amz-Credential=ASIAR6XFRJFUG2XIG57K%2F20260324%2Fap-south-1%2Fs3%2Faws4_request&amp;X-Amz-Date=20260324T144222Z&amp;X-Amz-Expires=300&amp;X-Amz-Security-Token=IQoJb3JpZ2luX2VjEM3%2F%2F%2F%2F%2F%2F%2F%2F%2F%2FwEaCmFwLXNvdXRoLTEiRzBFAiBl6pySJ7ww6vcQs6ZTgjRT6A2XslvaHdB8aS2f1xzYWQIhAJpjLg8b8lggzWuESDNTSLRAGdzJtMwWqm5ShYFFmoyVKtoECJb%2F%2F%2F%2F%2F%2F%2F%2F%2F%2FwEQAxoMMTM0Njk5MTA4NzEyIgzlqak3iF%2Bko%2Fw33ysqrgQ%2FXixUQA5za9eQOGJRDDlKzLYfQkLEPCdy50Xazz0ov5nLoVnlGmwPzwdw39sHnOfA8KU7YPRBa3Jev1QwoDtmTbXMiaZrwXHiSncw4f4d8sHlkPGjTyWcWLSZiYeibDJuXpbFTFFsOU9TfrG4ZNUB%2F4z7aTMMRddHP1nkZqJZtbyR1Ak2SgfF8xevt0ACT32%2B%2F644svMozLxJshzGBUqfAJnvOPX1%2FJ1x22N%2BCLzDPhzp5khBOp9s0Bz3vs%2FQWrRgxjunSoJN12NfctvJv%2FtWwOMJumuQrrwpDOBuZ1Oqr3NCCxwDJTBdjqrkbj4gOj%2FMiKMDbC2rVvHwC4OXK6j5A0DWEDKGzSgUaJnmWKd7Pxr8%2BcuAbEvKgEA2br%2Bq8GGSeZbg3rp1PgGIZEWtXhP%2FbWOMClIofXSonfg%2F9oveb2zUS9uDUcro5VLkkE0SKZlloxFhU7X37zO%2FsOBieqeOGzPH0YIfr4BGbRWu1%2BdHmojor2Tj0BeOvry%2BNLo5C8cU1Y6FcboTLRKlgpg0KmrqYT6yF6RQPVfPPiMQ1kHWtuPgPg7NPsVHzVLch91TsSuL%2BKNZNYVCrPlO8OkRdrWMv9HuWgXe4hzb499fy%2BrXsfTEC90Sr2BpG54Mscebh2DRiFqw86F7RGC5tztxWkvSYsH1f77VoCU1SG5JSGU8XOty9bLX39VVPSp0mXXmsGD9oDlHr%2Bdg6rKJZhtC0jCvGlTg%2BhIAEIz98MLVfIow85mKzgY6owHrfjsJbFAob%2FckiXLse6k8oiqLkconZpV6mSQihzeIj6zzo3L0AfwzfnOT9vDMwkj9FuAeujMXHH5BRaZFtRBTWgyZoHzhRZ5SGt%2BCzPen5VmOaUoR9fV4M3qXbhxq9N8ZmM61hGdB9TCoZutYBI6C6KfmkY97%2BIVSpnRGDSAmXZbPpxuqpoU6BzoEOqH%2BzpEg5w3YtKJU%2FNfI5bGWMiDIBzuD&amp;X-Amz-Signature=0f84938ae46707cb3eaad8ed34eba238bdf5c7fbdcce57364a6fa499930a1c61&amp;X-Amz-SignedHeaders=host&amp;x-amz-checksum-mode=ENABLED&amp;x-id=GetObject" target="_blank" rel="noreferrer">Open image</a>
+          <a class="image-link" href="https://pipl.clappia.com/app/MLA206324/submission/PWU74061577/PIP121027-MLA206324-3n71j5ieplfk00000000/IMG-20260309_19153g8l6.jpeg" target="_blank" rel="noreferrer">Open original Clappia link</a>
+          <img class="photo" src="https://eq-app-data-uploads-2017.s3.ap-south-1.amazonaws.com/PIP121027-MLA206324-3n71j5ieplfk00000000/IMG-20260309_19153g8l6.jpeg?X-Amz-Algorithm=AWS4-HMAC-SHA256&amp;X-Amz-Content-Sha256=UNSIGNED-PAYLOAD&amp;X-Amz-Credential=ASIAR6XFRJFUG2XIG57K%2F20260324%2Fap-south-1%2Fs3%2Faws4_request&amp;X-Amz-Date=20260324T144222Z&amp;X-Amz-Expires=300&amp;X-Amz-Security-Token=IQoJb3JpZ2luX2VjEM3%2F%2F%2F%2F%2F%2F%2F%2F%2F%2FwEaCmFwLXNvdXRoLTEiRzBFAiBl6pySJ7ww6vcQs6ZTgjRT6A2XslvaHdB8aS2f1xzYWQIhAJpjLg8b8lggzWuESDNTSLRAGdzJtMwWqm5ShYFFmoyVKtoECJb%2F%2F%2F%2F%2F%2F%2F%2F%2F%2FwEQAxoMMTM0Njk5MTA4NzEyIgzlqak3iF%2Bko%2Fw33ysqrgQ%2FXixUQA5za9eQOGJRDDlKzLYfQkLEPCdy50Xazz0ov5nLoVnlGmwPzwdw39sHnOfA8KU7YPRBa3Jev1QwoDtmTbXMiaZrwXHiSncw4f4d8sHlkPGjTyWcWLSZiYeibDJuXpbFTFFsOU9TfrG4ZNUB%2F4z7aTMMRddHP1nkZqJZtbyR1Ak2SgfF8xevt0ACT32%2B%2F644svMozLxJshzGBUqfAJnvOPX1%2FJ1x22N%2BCLzDPhzp5khBOp9s0Bz3vs%2FQWrRgxjunSoJN12NfctvJv%2FtWwOMJumuQrrwpDOBuZ1Oqr3NCCxwDJTBdjqrkbj4gOj%2FMiKMDbC2rVvHwC4OXK6j5A0DWEDKGzSgUaJnmWKd7Pxr8%2BcuAbEvKgEA2br%2Bq8GGSeZbg3rp1PgGIZEWtXhP%2FbWOMClIofXSonfg%2F9oveb2zUS9uDUcro5VLkkE0SKZlloxFhU7X37zO%2FsOBieqeOGzPH0YIfr4BGbRWu1%2BdHmojor2Tj0BeOvry%2BNLo5C8cU1Y6FcboTLRKlgpg0KmrqYT6yF6RQPVfPPiMQ1kHWtuPgPg7NPsVHzVLch91TsSuL%2BKNZNYVCrPlO8OkRdrWMv9HuWgXe4hzb499fy%2BrXsfTEC90Sr2BpG54Mscebh2DRiFqw86F7RGC5tztxWkvSYsH1f77VoCU1SG5JSGU8XOty9bLX39VVPSp0mXXmsGD9oDlHr%2Bdg6rKJZhtC0jCvGlTg%2BhIAEIz98MLVfIow85mKzgY6owHrfjsJbFAob%2FckiXLse6k8oiqLkconZpV6mSQihzeIj6zzo3L0AfwzfnOT9vDMwkj9FuAeujMXHH5BRaZFtRBTWgyZoHzhRZ5SGt%2BCzPen5VmOaUoR9fV4M3qXbhxq9N8ZmM61hGdB9TCoZutYBI6C6KfmkY97%2BIVSpnRGDSAmXZbPpxuqpoU6BzoEOqH%2BzpEg5w3YtKJU%2FNfI5bGWMiDIBzuD&amp;X-Amz-Signature=0f84938ae46707cb3eaad8ed34eba238bdf5c7fbdcce57364a6fa499930a1c61&amp;X-Amz-SignedHeaders=host&amp;x-amz-checksum-mode=ENABLED&amp;x-id=GetObject" alt="Pre Weight Sample 2" loading="lazy" referrerpolicy="no-referrer" />
+          <dl class="metrics">
+            <div><dt>Expected</dt><dd>18.200</dd></div>
+            <div><dt>System Output</dt><dd>18.200</dd></div>
+            <div><dt>Status</dt><dd>ok</dd></div>
+            <div><dt>Confidence</dt><dd>0.97</dd></div>
+            <div><dt>Reason</dt><dd>Primary image was invalid (showed a bowl, not a display). Read from the context image. The LED display clearly shows &#x27;18.200&#x27;. The leading &#x27;1&#x27; is a narrow, bright digit, not a placeholder. The two leftmost &#x27;8&#x27; outlines are dim placeholders and were ignored. Full-image support read matched the same reading.</dd></div>
+          </dl>
+        </article>
+        
+        <article class="card">
+          <div class="card-head">
+            <span class="pill ok">Correct</span>
+            <div class="meta">
+              <h3>Pre Weight Sample 3</h3>
+              <p>Line 1 - Moisture Test</p>
+              <p>Submission: <code>PWU74061577</code></p>
+              <p>Created At: 10-03-2026 08:58 PM</p>
+              <p>Time Slot: 7 PM - 9 PM</p>
+            </div>
+          </div>
+          <a class="image-link" href="https://eq-app-data-uploads-2017.s3.ap-south-1.amazonaws.com/PIP121027-MLA206324-1d552c2m85jbe0000000/IMG-20260309_19168acec.jpeg?X-Amz-Algorithm=AWS4-HMAC-SHA256&amp;X-Amz-Content-Sha256=UNSIGNED-PAYLOAD&amp;X-Amz-Credential=ASIAR6XFRJFUG2XIG57K%2F20260324%2Fap-south-1%2Fs3%2Faws4_request&amp;X-Amz-Date=20260324T144230Z&amp;X-Amz-Expires=300&amp;X-Amz-Security-Token=IQoJb3JpZ2luX2VjEM3%2F%2F%2F%2F%2F%2F%2F%2F%2F%2FwEaCmFwLXNvdXRoLTEiRzBFAiBl6pySJ7ww6vcQs6ZTgjRT6A2XslvaHdB8aS2f1xzYWQIhAJpjLg8b8lggzWuESDNTSLRAGdzJtMwWqm5ShYFFmoyVKtoECJb%2F%2F%2F%2F%2F%2F%2F%2F%2F%2FwEQAxoMMTM0Njk5MTA4NzEyIgzlqak3iF%2Bko%2Fw33ysqrgQ%2FXixUQA5za9eQOGJRDDlKzLYfQkLEPCdy50Xazz0ov5nLoVnlGmwPzwdw39sHnOfA8KU7YPRBa3Jev1QwoDtmTbXMiaZrwXHiSncw4f4d8sHlkPGjTyWcWLSZiYeibDJuXpbFTFFsOU9TfrG4ZNUB%2F4z7aTMMRddHP1nkZqJZtbyR1Ak2SgfF8xevt0ACT32%2B%2F644svMozLxJshzGBUqfAJnvOPX1%2FJ1x22N%2BCLzDPhzp5khBOp9s0Bz3vs%2FQWrRgxjunSoJN12NfctvJv%2FtWwOMJumuQrrwpDOBuZ1Oqr3NCCxwDJTBdjqrkbj4gOj%2FMiKMDbC2rVvHwC4OXK6j5A0DWEDKGzSgUaJnmWKd7Pxr8%2BcuAbEvKgEA2br%2Bq8GGSeZbg3rp1PgGIZEWtXhP%2FbWOMClIofXSonfg%2F9oveb2zUS9uDUcro5VLkkE0SKZlloxFhU7X37zO%2FsOBieqeOGzPH0YIfr4BGbRWu1%2BdHmojor2Tj0BeOvry%2BNLo5C8cU1Y6FcboTLRKlgpg0KmrqYT6yF6RQPVfPPiMQ1kHWtuPgPg7NPsVHzVLch91TsSuL%2BKNZNYVCrPlO8OkRdrWMv9HuWgXe4hzb499fy%2BrXsfTEC90Sr2BpG54Mscebh2DRiFqw86F7RGC5tztxWkvSYsH1f77VoCU1SG5JSGU8XOty9bLX39VVPSp0mXXmsGD9oDlHr%2Bdg6rKJZhtC0jCvGlTg%2BhIAEIz98MLVfIow85mKzgY6owHrfjsJbFAob%2FckiXLse6k8oiqLkconZpV6mSQihzeIj6zzo3L0AfwzfnOT9vDMwkj9FuAeujMXHH5BRaZFtRBTWgyZoHzhRZ5SGt%2BCzPen5VmOaUoR9fV4M3qXbhxq9N8ZmM61hGdB9TCoZutYBI6C6KfmkY97%2BIVSpnRGDSAmXZbPpxuqpoU6BzoEOqH%2BzpEg5w3YtKJU%2FNfI5bGWMiDIBzuD&amp;X-Amz-Signature=57c09ea6d1ca99d88da1808cf68fc3193cc9797752bfeac3cacc621e2e0e17da&amp;X-Amz-SignedHeaders=host&amp;x-amz-checksum-mode=ENABLED&amp;x-id=GetObject" target="_blank" rel="noreferrer">Open image</a>
+          <a class="image-link" href="https://pipl.clappia.com/app/MLA206324/submission/PWU74061577/PIP121027-MLA206324-1d552c2m85jbe0000000/IMG-20260309_19168acec.jpeg" target="_blank" rel="noreferrer">Open original Clappia link</a>
+          <img class="photo" src="https://eq-app-data-uploads-2017.s3.ap-south-1.amazonaws.com/PIP121027-MLA206324-1d552c2m85jbe0000000/IMG-20260309_19168acec.jpeg?X-Amz-Algorithm=AWS4-HMAC-SHA256&amp;X-Amz-Content-Sha256=UNSIGNED-PAYLOAD&amp;X-Amz-Credential=ASIAR6XFRJFUG2XIG57K%2F20260324%2Fap-south-1%2Fs3%2Faws4_request&amp;X-Amz-Date=20260324T144230Z&amp;X-Amz-Expires=300&amp;X-Amz-Security-Token=IQoJb3JpZ2luX2VjEM3%2F%2F%2F%2F%2F%2F%2F%2F%2F%2FwEaCmFwLXNvdXRoLTEiRzBFAiBl6pySJ7ww6vcQs6ZTgjRT6A2XslvaHdB8aS2f1xzYWQIhAJpjLg8b8lggzWuESDNTSLRAGdzJtMwWqm5ShYFFmoyVKtoECJb%2F%2F%2F%2F%2F%2F%2F%2F%2F%2FwEQAxoMMTM0Njk5MTA4NzEyIgzlqak3iF%2Bko%2Fw33ysqrgQ%2FXixUQA5za9eQOGJRDDlKzLYfQkLEPCdy50Xazz0ov5nLoVnlGmwPzwdw39sHnOfA8KU7YPRBa3Jev1QwoDtmTbXMiaZrwXHiSncw4f4d8sHlkPGjTyWcWLSZiYeibDJuXpbFTFFsOU9TfrG4ZNUB%2F4z7aTMMRddHP1nkZqJZtbyR1Ak2SgfF8xevt0ACT32%2B%2F644svMozLxJshzGBUqfAJnvOPX1%2FJ1x22N%2BCLzDPhzp5khBOp9s0Bz3vs%2FQWrRgxjunSoJN12NfctvJv%2FtWwOMJumuQrrwpDOBuZ1Oqr3NCCxwDJTBdjqrkbj4gOj%2FMiKMDbC2rVvHwC4OXK6j5A0DWEDKGzSgUaJnmWKd7Pxr8%2BcuAbEvKgEA2br%2Bq8GGSeZbg3rp1PgGIZEWtXhP%2FbWOMClIofXSonfg%2F9oveb2zUS9uDUcro5VLkkE0SKZlloxFhU7X37zO%2FsOBieqeOGzPH0YIfr4BGbRWu1%2BdHmojor2Tj0BeOvry%2BNLo5C8cU1Y6FcboTLRKlgpg0KmrqYT6yF6RQPVfPPiMQ1kHWtuPgPg7NPsVHzVLch91TsSuL%2BKNZNYVCrPlO8OkRdrWMv9HuWgXe4hzb499fy%2BrXsfTEC90Sr2BpG54Mscebh2DRiFqw86F7RGC5tztxWkvSYsH1f77VoCU1SG5JSGU8XOty9bLX39VVPSp0mXXmsGD9oDlHr%2Bdg6rKJZhtC0jCvGlTg%2BhIAEIz98MLVfIow85mKzgY6owHrfjsJbFAob%2FckiXLse6k8oiqLkconZpV6mSQihzeIj6zzo3L0AfwzfnOT9vDMwkj9FuAeujMXHH5BRaZFtRBTWgyZoHzhRZ5SGt%2BCzPen5VmOaUoR9fV4M3qXbhxq9N8ZmM61hGdB9TCoZutYBI6C6KfmkY97%2BIVSpnRGDSAmXZbPpxuqpoU6BzoEOqH%2BzpEg5w3YtKJU%2FNfI5bGWMiDIBzuD&amp;X-Amz-Signature=57c09ea6d1ca99d88da1808cf68fc3193cc9797752bfeac3cacc621e2e0e17da&amp;X-Amz-SignedHeaders=host&amp;x-amz-checksum-mode=ENABLED&amp;x-id=GetObject" alt="Pre Weight Sample 3" loading="lazy" referrerpolicy="no-referrer" />
+          <dl class="metrics">
+            <div><dt>Expected</dt><dd>18.170</dd></div>
+            <div><dt>System Output</dt><dd>18.170</dd></div>
+            <div><dt>Status</dt><dd>ok</dd></div>
+            <div><dt>Confidence</dt><dd>0.99</dd></div>
+            <div><dt>Reason</dt><dd>The primary image was invalid, showing a blank area. The value was clearly read from the LED display in the context image, showing &#x27;18.170&#x27;. The leftmost &#x27;8&#x27; is a dim placeholder, and the first active digit is a bright, narrow &#x27;1&#x27;. Structured verifier confirmed the same reading.</dd></div>
+          </dl>
+        </article>
+        
+        <article class="card">
+          <div class="card-head">
+            <span class="pill ok">Correct</span>
+            <div class="meta">
+              <h3>Pre Weight Sample 4</h3>
+              <p>Line 1 - Moisture Test</p>
+              <p>Submission: <code>PWU74061577</code></p>
+              <p>Created At: 10-03-2026 08:58 PM</p>
+              <p>Time Slot: 7 PM - 9 PM</p>
+            </div>
+          </div>
+          <a class="image-link" href="https://eq-app-data-uploads-2017.s3.ap-south-1.amazonaws.com/PIP121027-MLA206324-656m7aem424a00000000/IMG-20260309_1916cb297.jpeg?X-Amz-Algorithm=AWS4-HMAC-SHA256&amp;X-Amz-Content-Sha256=UNSIGNED-PAYLOAD&amp;X-Amz-Credential=ASIAR6XFRJFUG2XIG57K%2F20260324%2Fap-south-1%2Fs3%2Faws4_request&amp;X-Amz-Date=20260324T144231Z&amp;X-Amz-Expires=300&amp;X-Amz-Security-Token=IQoJb3JpZ2luX2VjEM3%2F%2F%2F%2F%2F%2F%2F%2F%2F%2FwEaCmFwLXNvdXRoLTEiRzBFAiBl6pySJ7ww6vcQs6ZTgjRT6A2XslvaHdB8aS2f1xzYWQIhAJpjLg8b8lggzWuESDNTSLRAGdzJtMwWqm5ShYFFmoyVKtoECJb%2F%2F%2F%2F%2F%2F%2F%2F%2F%2FwEQAxoMMTM0Njk5MTA4NzEyIgzlqak3iF%2Bko%2Fw33ysqrgQ%2FXixUQA5za9eQOGJRDDlKzLYfQkLEPCdy50Xazz0ov5nLoVnlGmwPzwdw39sHnOfA8KU7YPRBa3Jev1QwoDtmTbXMiaZrwXHiSncw4f4d8sHlkPGjTyWcWLSZiYeibDJuXpbFTFFsOU9TfrG4ZNUB%2F4z7aTMMRddHP1nkZqJZtbyR1Ak2SgfF8xevt0ACT32%2B%2F644svMozLxJshzGBUqfAJnvOPX1%2FJ1x22N%2BCLzDPhzp5khBOp9s0Bz3vs%2FQWrRgxjunSoJN12NfctvJv%2FtWwOMJumuQrrwpDOBuZ1Oqr3NCCxwDJTBdjqrkbj4gOj%2FMiKMDbC2rVvHwC4OXK6j5A0DWEDKGzSgUaJnmWKd7Pxr8%2BcuAbEvKgEA2br%2Bq8GGSeZbg3rp1PgGIZEWtXhP%2FbWOMClIofXSonfg%2F9oveb2zUS9uDUcro5VLkkE0SKZlloxFhU7X37zO%2FsOBieqeOGzPH0YIfr4BGbRWu1%2BdHmojor2Tj0BeOvry%2BNLo5C8cU1Y6FcboTLRKlgpg0KmrqYT6yF6RQPVfPPiMQ1kHWtuPgPg7NPsVHzVLch91TsSuL%2BKNZNYVCrPlO8OkRdrWMv9HuWgXe4hzb499fy%2BrXsfTEC90Sr2BpG54Mscebh2DRiFqw86F7RGC5tztxWkvSYsH1f77VoCU1SG5JSGU8XOty9bLX39VVPSp0mXXmsGD9oDlHr%2Bdg6rKJZhtC0jCvGlTg%2BhIAEIz98MLVfIow85mKzgY6owHrfjsJbFAob%2FckiXLse6k8oiqLkconZpV6mSQihzeIj6zzo3L0AfwzfnOT9vDMwkj9FuAeujMXHH5BRaZFtRBTWgyZoHzhRZ5SGt%2BCzPen5VmOaUoR9fV4M3qXbhxq9N8ZmM61hGdB9TCoZutYBI6C6KfmkY97%2BIVSpnRGDSAmXZbPpxuqpoU6BzoEOqH%2BzpEg5w3YtKJU%2FNfI5bGWMiDIBzuD&amp;X-Amz-Signature=e76ce8e4e2d57fa7fb400ec9d05da7366f66ef5ecbc67dfa4d6b07d1b833523f&amp;X-Amz-SignedHeaders=host&amp;x-amz-checksum-mode=ENABLED&amp;x-id=GetObject" target="_blank" rel="noreferrer">Open image</a>
+          <a class="image-link" href="https://pipl.clappia.com/app/MLA206324/submission/PWU74061577/PIP121027-MLA206324-656m7aem424a00000000/IMG-20260309_1916cb297.jpeg" target="_blank" rel="noreferrer">Open original Clappia link</a>
+          <img class="photo" src="https://eq-app-data-uploads-2017.s3.ap-south-1.amazonaws.com/PIP121027-MLA206324-656m7aem424a00000000/IMG-20260309_1916cb297.jpeg?X-Amz-Algorithm=AWS4-HMAC-SHA256&amp;X-Amz-Content-Sha256=UNSIGNED-PAYLOAD&amp;X-Amz-Credential=ASIAR6XFRJFUG2XIG57K%2F20260324%2Fap-south-1%2Fs3%2Faws4_request&amp;X-Amz-Date=20260324T144231Z&amp;X-Amz-Expires=300&amp;X-Amz-Security-Token=IQoJb3JpZ2luX2VjEM3%2F%2F%2F%2F%2F%2F%2F%2F%2F%2FwEaCmFwLXNvdXRoLTEiRzBFAiBl6pySJ7ww6vcQs6ZTgjRT6A2XslvaHdB8aS2f1xzYWQIhAJpjLg8b8lggzWuESDNTSLRAGdzJtMwWqm5ShYFFmoyVKtoECJb%2F%2F%2F%2F%2F%2F%2F%2F%2F%2FwEQAxoMMTM0Njk5MTA4NzEyIgzlqak3iF%2Bko%2Fw33ysqrgQ%2FXixUQA5za9eQOGJRDDlKzLYfQkLEPCdy50Xazz0ov5nLoVnlGmwPzwdw39sHnOfA8KU7YPRBa3Jev1QwoDtmTbXMiaZrwXHiSncw4f4d8sHlkPGjTyWcWLSZiYeibDJuXpbFTFFsOU9TfrG4ZNUB%2F4z7aTMMRddHP1nkZqJZtbyR1Ak2SgfF8xevt0ACT32%2B%2F644svMozLxJshzGBUqfAJnvOPX1%2FJ1x22N%2BCLzDPhzp5khBOp9s0Bz3vs%2FQWrRgxjunSoJN12NfctvJv%2FtWwOMJumuQrrwpDOBuZ1Oqr3NCCxwDJTBdjqrkbj4gOj%2FMiKMDbC2rVvHwC4OXK6j5A0DWEDKGzSgUaJnmWKd7Pxr8%2BcuAbEvKgEA2br%2Bq8GGSeZbg3rp1PgGIZEWtXhP%2FbWOMClIofXSonfg%2F9oveb2zUS9uDUcro5VLkkE0SKZlloxFhU7X37zO%2FsOBieqeOGzPH0YIfr4BGbRWu1%2BdHmojor2Tj0BeOvry%2BNLo5C8cU1Y6FcboTLRKlgpg0KmrqYT6yF6RQPVfPPiMQ1kHWtuPgPg7NPsVHzVLch91TsSuL%2BKNZNYVCrPlO8OkRdrWMv9HuWgXe4hzb499fy%2BrXsfTEC90Sr2BpG54Mscebh2DRiFqw86F7RGC5tztxWkvSYsH1f77VoCU1SG5JSGU8XOty9bLX39VVPSp0mXXmsGD9oDlHr%2Bdg6rKJZhtC0jCvGlTg%2BhIAEIz98MLVfIow85mKzgY6owHrfjsJbFAob%2FckiXLse6k8oiqLkconZpV6mSQihzeIj6zzo3L0AfwzfnOT9vDMwkj9FuAeujMXHH5BRaZFtRBTWgyZoHzhRZ5SGt%2BCzPen5VmOaUoR9fV4M3qXbhxq9N8ZmM61hGdB9TCoZutYBI6C6KfmkY97%2BIVSpnRGDSAmXZbPpxuqpoU6BzoEOqH%2BzpEg5w3YtKJU%2FNfI5bGWMiDIBzuD&amp;X-Amz-Signature=e76ce8e4e2d57fa7fb400ec9d05da7366f66ef5ecbc67dfa4d6b07d1b833523f&amp;X-Amz-SignedHeaders=host&amp;x-amz-checksum-mode=ENABLED&amp;x-id=GetObject" alt="Pre Weight Sample 4" loading="lazy" referrerpolicy="no-referrer" />
+          <dl class="metrics">
+            <div><dt>Expected</dt><dd>18.170</dd></div>
+            <div><dt>System Output</dt><dd>18.170</dd></div>
+            <div><dt>Status</dt><dd>ok</dd></div>
+            <div><dt>Confidence</dt><dd>0.97</dd></div>
+            <div><dt>Reason</dt><dd>PRIMARY image was a blank crop of the object on the scale, not the display. Value was clearly read from the LED display in the CONTEXT image. Full-image support read matched the same reading.</dd></div>
+          </dl>
+        </article>
+        
+        <article class="card">
+          <div class="card-head">
+            <span class="pill ok">Correct</span>
+            <div class="meta">
+              <h3>Post Weight Sample 1</h3>
+              <p>Line 1 - Moisture Test</p>
+              <p>Submission: <code>PWU74061577</code></p>
+              <p>Created At: 10-03-2026 08:58 PM</p>
+              <p>Time Slot: 7 PM - 9 PM</p>
+            </div>
+          </div>
+          <a class="image-link" href="https://eq-app-data-uploads-2017.s3.ap-south-1.amazonaws.com/PIP121027-MLA206324-5n8pifj91e0c00000000/IMG-20260310_2053kh1om.jpeg?X-Amz-Algorithm=AWS4-HMAC-SHA256&amp;X-Amz-Content-Sha256=UNSIGNED-PAYLOAD&amp;X-Amz-Credential=ASIAR6XFRJFUG2XIG57K%2F20260324%2Fap-south-1%2Fs3%2Faws4_request&amp;X-Amz-Date=20260324T144232Z&amp;X-Amz-Expires=300&amp;X-Amz-Security-Token=IQoJb3JpZ2luX2VjEM3%2F%2F%2F%2F%2F%2F%2F%2F%2F%2FwEaCmFwLXNvdXRoLTEiRzBFAiBl6pySJ7ww6vcQs6ZTgjRT6A2XslvaHdB8aS2f1xzYWQIhAJpjLg8b8lggzWuESDNTSLRAGdzJtMwWqm5ShYFFmoyVKtoECJb%2F%2F%2F%2F%2F%2F%2F%2F%2F%2FwEQAxoMMTM0Njk5MTA4NzEyIgzlqak3iF%2Bko%2Fw33ysqrgQ%2FXixUQA5za9eQOGJRDDlKzLYfQkLEPCdy50Xazz0ov5nLoVnlGmwPzwdw39sHnOfA8KU7YPRBa3Jev1QwoDtmTbXMiaZrwXHiSncw4f4d8sHlkPGjTyWcWLSZiYeibDJuXpbFTFFsOU9TfrG4ZNUB%2F4z7aTMMRddHP1nkZqJZtbyR1Ak2SgfF8xevt0ACT32%2B%2F644svMozLxJshzGBUqfAJnvOPX1%2FJ1x22N%2BCLzDPhzp5khBOp9s0Bz3vs%2FQWrRgxjunSoJN12NfctvJv%2FtWwOMJumuQrrwpDOBuZ1Oqr3NCCxwDJTBdjqrkbj4gOj%2FMiKMDbC2rVvHwC4OXK6j5A0DWEDKGzSgUaJnmWKd7Pxr8%2BcuAbEvKgEA2br%2Bq8GGSeZbg3rp1PgGIZEWtXhP%2FbWOMClIofXSonfg%2F9oveb2zUS9uDUcro5VLkkE0SKZlloxFhU7X37zO%2FsOBieqeOGzPH0YIfr4BGbRWu1%2BdHmojor2Tj0BeOvry%2BNLo5C8cU1Y6FcboTLRKlgpg0KmrqYT6yF6RQPVfPPiMQ1kHWtuPgPg7NPsVHzVLch91TsSuL%2BKNZNYVCrPlO8OkRdrWMv9HuWgXe4hzb499fy%2BrXsfTEC90Sr2BpG54Mscebh2DRiFqw86F7RGC5tztxWkvSYsH1f77VoCU1SG5JSGU8XOty9bLX39VVPSp0mXXmsGD9oDlHr%2Bdg6rKJZhtC0jCvGlTg%2BhIAEIz98MLVfIow85mKzgY6owHrfjsJbFAob%2FckiXLse6k8oiqLkconZpV6mSQihzeIj6zzo3L0AfwzfnOT9vDMwkj9FuAeujMXHH5BRaZFtRBTWgyZoHzhRZ5SGt%2BCzPen5VmOaUoR9fV4M3qXbhxq9N8ZmM61hGdB9TCoZutYBI6C6KfmkY97%2BIVSpnRGDSAmXZbPpxuqpoU6BzoEOqH%2BzpEg5w3YtKJU%2FNfI5bGWMiDIBzuD&amp;X-Amz-Signature=ae4fcb70b369907ca08975b865dc01b9e77a9e27af7edb55fde0666cb027e8ce&amp;X-Amz-SignedHeaders=host&amp;x-amz-checksum-mode=ENABLED&amp;x-id=GetObject" target="_blank" rel="noreferrer">Open image</a>
+          <a class="image-link" href="https://pipl.clappia.com/app/MLA206324/submission/PWU74061577/PIP121027-MLA206324-5n8pifj91e0c00000000/IMG-20260310_2053kh1om.jpeg" target="_blank" rel="noreferrer">Open original Clappia link</a>
+          <img class="photo" src="https://eq-app-data-uploads-2017.s3.ap-south-1.amazonaws.com/PIP121027-MLA206324-5n8pifj91e0c00000000/IMG-20260310_2053kh1om.jpeg?X-Amz-Algorithm=AWS4-HMAC-SHA256&amp;X-Amz-Content-Sha256=UNSIGNED-PAYLOAD&amp;X-Amz-Credential=ASIAR6XFRJFUG2XIG57K%2F20260324%2Fap-south-1%2Fs3%2Faws4_request&amp;X-Amz-Date=20260324T144232Z&amp;X-Amz-Expires=300&amp;X-Amz-Security-Token=IQoJb3JpZ2luX2VjEM3%2F%2F%2F%2F%2F%2F%2F%2F%2F%2FwEaCmFwLXNvdXRoLTEiRzBFAiBl6pySJ7ww6vcQs6ZTgjRT6A2XslvaHdB8aS2f1xzYWQIhAJpjLg8b8lggzWuESDNTSLRAGdzJtMwWqm5ShYFFmoyVKtoECJb%2F%2F%2F%2F%2F%2F%2F%2F%2F%2FwEQAxoMMTM0Njk5MTA4NzEyIgzlqak3iF%2Bko%2Fw33ysqrgQ%2FXixUQA5za9eQOGJRDDlKzLYfQkLEPCdy50Xazz0ov5nLoVnlGmwPzwdw39sHnOfA8KU7YPRBa3Jev1QwoDtmTbXMiaZrwXHiSncw4f4d8sHlkPGjTyWcWLSZiYeibDJuXpbFTFFsOU9TfrG4ZNUB%2F4z7aTMMRddHP1nkZqJZtbyR1Ak2SgfF8xevt0ACT32%2B%2F644svMozLxJshzGBUqfAJnvOPX1%2FJ1x22N%2BCLzDPhzp5khBOp9s0Bz3vs%2FQWrRgxjunSoJN12NfctvJv%2FtWwOMJumuQrrwpDOBuZ1Oqr3NCCxwDJTBdjqrkbj4gOj%2FMiKMDbC2rVvHwC4OXK6j5A0DWEDKGzSgUaJnmWKd7Pxr8%2BcuAbEvKgEA2br%2Bq8GGSeZbg3rp1PgGIZEWtXhP%2FbWOMClIofXSonfg%2F9oveb2zUS9uDUcro5VLkkE0SKZlloxFhU7X37zO%2FsOBieqeOGzPH0YIfr4BGbRWu1%2BdHmojor2Tj0BeOvry%2BNLo5C8cU1Y6FcboTLRKlgpg0KmrqYT6yF6RQPVfPPiMQ1kHWtuPgPg7NPsVHzVLch91TsSuL%2BKNZNYVCrPlO8OkRdrWMv9HuWgXe4hzb499fy%2BrXsfTEC90Sr2BpG54Mscebh2DRiFqw86F7RGC5tztxWkvSYsH1f77VoCU1SG5JSGU8XOty9bLX39VVPSp0mXXmsGD9oDlHr%2Bdg6rKJZhtC0jCvGlTg%2BhIAEIz98MLVfIow85mKzgY6owHrfjsJbFAob%2FckiXLse6k8oiqLkconZpV6mSQihzeIj6zzo3L0AfwzfnOT9vDMwkj9FuAeujMXHH5BRaZFtRBTWgyZoHzhRZ5SGt%2BCzPen5VmOaUoR9fV4M3qXbhxq9N8ZmM61hGdB9TCoZutYBI6C6KfmkY97%2BIVSpnRGDSAmXZbPpxuqpoU6BzoEOqH%2BzpEg5w3YtKJU%2FNfI5bGWMiDIBzuD&amp;X-Amz-Signature=ae4fcb70b369907ca08975b865dc01b9e77a9e27af7edb55fde0666cb027e8ce&amp;X-Amz-SignedHeaders=host&amp;x-amz-checksum-mode=ENABLED&amp;x-id=GetObject" alt="Post Weight Sample 1" loading="lazy" referrerpolicy="no-referrer" />
+          <dl class="metrics">
+            <div><dt>Expected</dt><dd>17.600</dd></div>
+            <div><dt>System Output</dt><dd>17.600</dd></div>
+            <div><dt>Status</dt><dd>ok</dd></div>
+            <div><dt>Confidence</dt><dd>0.99</dd></div>
+            <div><dt>Reason</dt><dd>The primary localized crop clearly shows the value 17.600. The leftmost digit is a bright, narrow &#x27;1&#x27;, preceded by a dim placeholder &#x27;8&#x27;. The context image confirms this reading, showing the same bright digits and the dim placeholder. Structured verifier confirmed the same reading.</dd></div>
+          </dl>
+        </article>
+        
+        <article class="card">
+          <div class="card-head">
+            <span class="pill ok">Correct</span>
+            <div class="meta">
+              <h3>Post Weight Sample 2</h3>
+              <p>Line 1 - Moisture Test</p>
+              <p>Submission: <code>PWU74061577</code></p>
+              <p>Created At: 10-03-2026 08:58 PM</p>
+              <p>Time Slot: 7 PM - 9 PM</p>
+            </div>
+          </div>
+          <a class="image-link" href="https://eq-app-data-uploads-2017.s3.ap-south-1.amazonaws.com/PIP121027-MLA206324-4f1nb622kmj600000000/IMG-20260310_2053b1c29.jpeg?X-Amz-Algorithm=AWS4-HMAC-SHA256&amp;X-Amz-Content-Sha256=UNSIGNED-PAYLOAD&amp;X-Amz-Credential=ASIAR6XFRJFUG2XIG57K%2F20260324%2Fap-south-1%2Fs3%2Faws4_request&amp;X-Amz-Date=20260324T144233Z&amp;X-Amz-Expires=300&amp;X-Amz-Security-Token=IQoJb3JpZ2luX2VjEM3%2F%2F%2F%2F%2F%2F%2F%2F%2F%2FwEaCmFwLXNvdXRoLTEiRzBFAiBl6pySJ7ww6vcQs6ZTgjRT6A2XslvaHdB8aS2f1xzYWQIhAJpjLg8b8lggzWuESDNTSLRAGdzJtMwWqm5ShYFFmoyVKtoECJb%2F%2F%2F%2F%2F%2F%2F%2F%2F%2FwEQAxoMMTM0Njk5MTA4NzEyIgzlqak3iF%2Bko%2Fw33ysqrgQ%2FXixUQA5za9eQOGJRDDlKzLYfQkLEPCdy50Xazz0ov5nLoVnlGmwPzwdw39sHnOfA8KU7YPRBa3Jev1QwoDtmTbXMiaZrwXHiSncw4f4d8sHlkPGjTyWcWLSZiYeibDJuXpbFTFFsOU9TfrG4ZNUB%2F4z7aTMMRddHP1nkZqJZtbyR1Ak2SgfF8xevt0ACT32%2B%2F644svMozLxJshzGBUqfAJnvOPX1%2FJ1x22N%2BCLzDPhzp5khBOp9s0Bz3vs%2FQWrRgxjunSoJN12NfctvJv%2FtWwOMJumuQrrwpDOBuZ1Oqr3NCCxwDJTBdjqrkbj4gOj%2FMiKMDbC2rVvHwC4OXK6j5A0DWEDKGzSgUaJnmWKd7Pxr8%2BcuAbEvKgEA2br%2Bq8GGSeZbg3rp1PgGIZEWtXhP%2FbWOMClIofXSonfg%2F9oveb2zUS9uDUcro5VLkkE0SKZlloxFhU7X37zO%2FsOBieqeOGzPH0YIfr4BGbRWu1%2BdHmojor2Tj0BeOvry%2BNLo5C8cU1Y6FcboTLRKlgpg0KmrqYT6yF6RQPVfPPiMQ1kHWtuPgPg7NPsVHzVLch91TsSuL%2BKNZNYVCrPlO8OkRdrWMv9HuWgXe4hzb499fy%2BrXsfTEC90Sr2BpG54Mscebh2DRiFqw86F7RGC5tztxWkvSYsH1f77VoCU1SG5JSGU8XOty9bLX39VVPSp0mXXmsGD9oDlHr%2Bdg6rKJZhtC0jCvGlTg%2BhIAEIz98MLVfIow85mKzgY6owHrfjsJbFAob%2FckiXLse6k8oiqLkconZpV6mSQihzeIj6zzo3L0AfwzfnOT9vDMwkj9FuAeujMXHH5BRaZFtRBTWgyZoHzhRZ5SGt%2BCzPen5VmOaUoR9fV4M3qXbhxq9N8ZmM61hGdB9TCoZutYBI6C6KfmkY97%2BIVSpnRGDSAmXZbPpxuqpoU6BzoEOqH%2BzpEg5w3YtKJU%2FNfI5bGWMiDIBzuD&amp;X-Amz-Signature=e92b94e41f4b72edd8379be270598ad4d06da1c99342797f124ce33f1556fe0c&amp;X-Amz-SignedHeaders=host&amp;x-amz-checksum-mode=ENABLED&amp;x-id=GetObject" target="_blank" rel="noreferrer">Open image</a>
+          <a class="image-link" href="https://pipl.clappia.com/app/MLA206324/submission/PWU74061577/PIP121027-MLA206324-4f1nb622kmj600000000/IMG-20260310_2053b1c29.jpeg" target="_blank" rel="noreferrer">Open original Clappia link</a>
+          <img class="photo" src="https://eq-app-data-uploads-2017.s3.ap-south-1.amazonaws.com/PIP121027-MLA206324-4f1nb622kmj600000000/IMG-20260310_2053b1c29.jpeg?X-Amz-Algorithm=AWS4-HMAC-SHA256&amp;X-Amz-Content-Sha256=UNSIGNED-PAYLOAD&amp;X-Amz-Credential=ASIAR6XFRJFUG2XIG57K%2F20260324%2Fap-south-1%2Fs3%2Faws4_request&amp;X-Amz-Date=20260324T144233Z&amp;X-Amz-Expires=300&amp;X-Amz-Security-Token=IQoJb3JpZ2luX2VjEM3%2F%2F%2F%2F%2F%2F%2F%2F%2F%2FwEaCmFwLXNvdXRoLTEiRzBFAiBl6pySJ7ww6vcQs6ZTgjRT6A2XslvaHdB8aS2f1xzYWQIhAJpjLg8b8lggzWuESDNTSLRAGdzJtMwWqm5ShYFFmoyVKtoECJb%2F%2F%2F%2F%2F%2F%2F%2F%2F%2FwEQAxoMMTM0Njk5MTA4NzEyIgzlqak3iF%2Bko%2Fw33ysqrgQ%2FXixUQA5za9eQOGJRDDlKzLYfQkLEPCdy50Xazz0ov5nLoVnlGmwPzwdw39sHnOfA8KU7YPRBa3Jev1QwoDtmTbXMiaZrwXHiSncw4f4d8sHlkPGjTyWcWLSZiYeibDJuXpbFTFFsOU9TfrG4ZNUB%2F4z7aTMMRddHP1nkZqJZtbyR1Ak2SgfF8xevt0ACT32%2B%2F644svMozLxJshzGBUqfAJnvOPX1%2FJ1x22N%2BCLzDPhzp5khBOp9s0Bz3vs%2FQWrRgxjunSoJN12NfctvJv%2FtWwOMJumuQrrwpDOBuZ1Oqr3NCCxwDJTBdjqrkbj4gOj%2FMiKMDbC2rVvHwC4OXK6j5A0DWEDKGzSgUaJnmWKd7Pxr8%2BcuAbEvKgEA2br%2Bq8GGSeZbg3rp1PgGIZEWtXhP%2FbWOMClIofXSonfg%2F9oveb2zUS9uDUcro5VLkkE0SKZlloxFhU7X37zO%2FsOBieqeOGzPH0YIfr4BGbRWu1%2BdHmojor2Tj0BeOvry%2BNLo5C8cU1Y6FcboTLRKlgpg0KmrqYT6yF6RQPVfPPiMQ1kHWtuPgPg7NPsVHzVLch91TsSuL%2BKNZNYVCrPlO8OkRdrWMv9HuWgXe4hzb499fy%2BrXsfTEC90Sr2BpG54Mscebh2DRiFqw86F7RGC5tztxWkvSYsH1f77VoCU1SG5JSGU8XOty9bLX39VVPSp0mXXmsGD9oDlHr%2Bdg6rKJZhtC0jCvGlTg%2BhIAEIz98MLVfIow85mKzgY6owHrfjsJbFAob%2FckiXLse6k8oiqLkconZpV6mSQihzeIj6zzo3L0AfwzfnOT9vDMwkj9FuAeujMXHH5BRaZFtRBTWgyZoHzhRZ5SGt%2BCzPen5VmOaUoR9fV4M3qXbhxq9N8ZmM61hGdB9TCoZutYBI6C6KfmkY97%2BIVSpnRGDSAmXZbPpxuqpoU6BzoEOqH%2BzpEg5w3YtKJU%2FNfI5bGWMiDIBzuD&amp;X-Amz-Signature=e92b94e41f4b72edd8379be270598ad4d06da1c99342797f124ce33f1556fe0c&amp;X-Amz-SignedHeaders=host&amp;x-amz-checksum-mode=ENABLED&amp;x-id=GetObject" alt="Post Weight Sample 2" loading="lazy" referrerpolicy="no-referrer" />
+          <dl class="metrics">
+            <div><dt>Expected</dt><dd>17.380</dd></div>
+            <div><dt>System Output</dt><dd>17.380</dd></div>
+            <div><dt>Status</dt><dd>ok</dd></div>
+            <div><dt>Confidence</dt><dd>0.99</dd></div>
+            <div><dt>Reason</dt><dd>The primary crop was invalid as it did not show clear digits. The context image clearly shows an LED display with the value 17.380. The leftmost digit is a clear &#x27;1&#x27;, followed by &#x27;7&#x27;, a decimal point, &#x27;3&#x27;, &#x27;8&#x27;, and &#x27;0&#x27;. There is a dim placeholder &#x27;8&#x27; to the left of the &#x27;1&#x27;, which is correctly ignored. Structured verifier confirmed the same reading.</dd></div>
+          </dl>
+        </article>
+        
+        <article class="card">
+          <div class="card-head">
+            <span class="pill ok">Correct</span>
+            <div class="meta">
+              <h3>Post Weight Sample 3</h3>
+              <p>Line 1 - Moisture Test</p>
+              <p>Submission: <code>PWU74061577</code></p>
+              <p>Created At: 10-03-2026 08:58 PM</p>
+              <p>Time Slot: 7 PM - 9 PM</p>
+            </div>
+          </div>
+          <a class="image-link" href="https://eq-app-data-uploads-2017.s3.ap-south-1.amazonaws.com/PIP121027-MLA206324-40j2o06bg34k00000000/IMG-20260310_205415hd.jpeg?X-Amz-Algorithm=AWS4-HMAC-SHA256&amp;X-Amz-Content-Sha256=UNSIGNED-PAYLOAD&amp;X-Amz-Credential=ASIAR6XFRJFUJXIF2TPT%2F20260324%2Fap-south-1%2Fs3%2Faws4_request&amp;X-Amz-Date=20260324T144233Z&amp;X-Amz-Expires=300&amp;X-Amz-Security-Token=IQoJb3JpZ2luX2VjEM3%2F%2F%2F%2F%2F%2F%2F%2F%2F%2FwEaCmFwLXNvdXRoLTEiSDBGAiEA0ufSuu%2Fbeb%2B7On0C25z6rffeS5CtwKmlLPRDJLm7z7sCIQD8HBY6n1QmtwK5CeJ%2F9v6Mw7YwiwVPZt22gUEIS2Zy8iraBAiX%2F%2F%2F%2F%2F%2F%2F%2F%2F%2F8BEAMaDDEzNDY5OTEwODcxMiIMKOMSd3xnph3LKjV6Kq4EuS4BcfqzpqUPmi46oXe%2F%2FNpyYOA8K%2Bb8IwsnWhJ6PqnKoTSUKdBdSr38JZGRMIDEHskH3vO4T0Z1bGaOwmXUT7CdHN1S%2F74VJuCLG%2BWRzml4K1D1PPL75VGCNVUvQez5tg0m9%2B5DX5D5g%2FEHSrHDzQZWpO5PAybRXuywrA21EQoHuqfHzRHzQWsHrFUhNWEd%2BiAvfHbY7gN%2F9ZbiJRRIXCwQL0JT08ojrBAvmmFikHJW6shXG5G0n9V680CCAb0v8psYHG5Cg8dSoepD1luFkUHjklxCJT7X%2BTjDOB5SIBDgXUVQ6OaNsQZuJMZUc4lS2byL7xzXjft6Zryq3QiAgw8EDhn3xlw%2FRLj18ElnU30Y6hCFkJAbPqBFfN2jqAYNwjehu%2BBFh7hD7laO6khUAQFEGFjs6idBBgQ1KRT96RpipJr8IOI0b%2F%2FWWlln%2FGYJ25dtBlUeeFVcpE8268PA8GmiiVtyTx6SZhspWRWmlZNqz0qdP0kaRsyfmBtLbyxR%2FOvM1yttde4xMeRBRQvUonRvbckfHYaXGKB2pZOww1MeTjhvnmd9tm5lsjQeG4EllY7dtavxeQFVBA0lNq92vAnFWCobvWtgzHhF4wX9rz2PxExlB3g1yJKjpVTrYw2VpdzhPY488c9TqhPkLMMpscuU4vTnWB8Q4s39rxSKX8hOknxmL8eEBB%2Fn2BPb6TVbYBUdeOUxDl5tK2eamiqLWC5pdGIU9FmKlrSDJPUGMMqhis4GOqIBJqG1WnoAaGyYm3B5KUr%2Fzh1YiWLw2Vrug7nfimR4WqQcDajkHwZnjrSZ0%2FJ20v9FrjIqt21tdlcwAiHqqyzA2SNZV2%2Bn7Tz%2FC%2Bupx1V5uXRXbZSPXzb%2FrgLhHg1nRRw8uhuD4OwnXImYR5XuOw%2F19mZeVTVEWX%2F48b%2Ff1zd1DrXi3%2FbHtvffTCLoNWh1zxxG5l%2BHpQE2TEhklheKDMg%2FEFNU&amp;X-Amz-Signature=67de665a8735a6040fa664887a342509882eacf987ca23b156e55a3b33a9bb2d&amp;X-Amz-SignedHeaders=host&amp;x-amz-checksum-mode=ENABLED&amp;x-id=GetObject" target="_blank" rel="noreferrer">Open image</a>
+          <a class="image-link" href="https://pipl.clappia.com/app/MLA206324/submission/PWU74061577/PIP121027-MLA206324-40j2o06bg34k00000000/IMG-20260310_205415hd.jpeg" target="_blank" rel="noreferrer">Open original Clappia link</a>
+          <img class="photo" src="https://eq-app-data-uploads-2017.s3.ap-south-1.amazonaws.com/PIP121027-MLA206324-40j2o06bg34k00000000/IMG-20260310_205415hd.jpeg?X-Amz-Algorithm=AWS4-HMAC-SHA256&amp;X-Amz-Content-Sha256=UNSIGNED-PAYLOAD&amp;X-Amz-Credential=ASIAR6XFRJFUJXIF2TPT%2F20260324%2Fap-south-1%2Fs3%2Faws4_request&amp;X-Amz-Date=20260324T144233Z&amp;X-Amz-Expires=300&amp;X-Amz-Security-Token=IQoJb3JpZ2luX2VjEM3%2F%2F%2F%2F%2F%2F%2F%2F%2F%2FwEaCmFwLXNvdXRoLTEiSDBGAiEA0ufSuu%2Fbeb%2B7On0C25z6rffeS5CtwKmlLPRDJLm7z7sCIQD8HBY6n1QmtwK5CeJ%2F9v6Mw7YwiwVPZt22gUEIS2Zy8iraBAiX%2F%2F%2F%2F%2F%2F%2F%2F%2F%2F8BEAMaDDEzNDY5OTEwODcxMiIMKOMSd3xnph3LKjV6Kq4EuS4BcfqzpqUPmi46oXe%2F%2FNpyYOA8K%2Bb8IwsnWhJ6PqnKoTSUKdBdSr38JZGRMIDEHskH3vO4T0Z1bGaOwmXUT7CdHN1S%2F74VJuCLG%2BWRzml4K1D1PPL75VGCNVUvQez5tg0m9%2B5DX5D5g%2FEHSrHDzQZWpO5PAybRXuywrA21EQoHuqfHzRHzQWsHrFUhNWEd%2BiAvfHbY7gN%2F9ZbiJRRIXCwQL0JT08ojrBAvmmFikHJW6shXG5G0n9V680CCAb0v8psYHG5Cg8dSoepD1luFkUHjklxCJT7X%2BTjDOB5SIBDgXUVQ6OaNsQZuJMZUc4lS2byL7xzXjft6Zryq3QiAgw8EDhn3xlw%2FRLj18ElnU30Y6hCFkJAbPqBFfN2jqAYNwjehu%2BBFh7hD7laO6khUAQFEGFjs6idBBgQ1KRT96RpipJr8IOI0b%2F%2FWWlln%2FGYJ25dtBlUeeFVcpE8268PA8GmiiVtyTx6SZhspWRWmlZNqz0qdP0kaRsyfmBtLbyxR%2FOvM1yttde4xMeRBRQvUonRvbckfHYaXGKB2pZOww1MeTjhvnmd9tm5lsjQeG4EllY7dtavxeQFVBA0lNq92vAnFWCobvWtgzHhF4wX9rz2PxExlB3g1yJKjpVTrYw2VpdzhPY488c9TqhPkLMMpscuU4vTnWB8Q4s39rxSKX8hOknxmL8eEBB%2Fn2BPb6TVbYBUdeOUxDl5tK2eamiqLWC5pdGIU9FmKlrSDJPUGMMqhis4GOqIBJqG1WnoAaGyYm3B5KUr%2Fzh1YiWLw2Vrug7nfimR4WqQcDajkHwZnjrSZ0%2FJ20v9FrjIqt21tdlcwAiHqqyzA2SNZV2%2Bn7Tz%2FC%2Bupx1V5uXRXbZSPXzb%2FrgLhHg1nRRw8uhuD4OwnXImYR5XuOw%2F19mZeVTVEWX%2F48b%2Ff1zd1DrXi3%2FbHtvffTCLoNWh1zxxG5l%2BHpQE2TEhklheKDMg%2FEFNU&amp;X-Amz-Signature=67de665a8735a6040fa664887a342509882eacf987ca23b156e55a3b33a9bb2d&amp;X-Amz-SignedHeaders=host&amp;x-amz-checksum-mode=ENABLED&amp;x-id=GetObject" alt="Post Weight Sample 3" loading="lazy" referrerpolicy="no-referrer" />
+          <dl class="metrics">
+            <div><dt>Expected</dt><dd>17.470</dd></div>
+            <div><dt>System Output</dt><dd>17.470</dd></div>
+            <div><dt>Status</dt><dd>ok</dd></div>
+            <div><dt>Confidence</dt><dd>0.95</dd></div>
+            <div><dt>Reason</dt><dd>The value was clearly read from the bright green LED segments, ignoring dim placeholder 8s. The digit &#x27;1&#x27; was correctly identified as the first active digit. Structured verifier confirmed the same reading. Applied the fixed 3-decimal contract for this target.</dd></div>
+          </dl>
+        </article>
+        
+        <article class="card">
+          <div class="card-head">
+            <span class="pill ok">Correct</span>
+            <div class="meta">
+              <h3>Post Weight Sample 4</h3>
+              <p>Line 1 - Moisture Test</p>
+              <p>Submission: <code>PWU74061577</code></p>
+              <p>Created At: 10-03-2026 08:58 PM</p>
+              <p>Time Slot: 7 PM - 9 PM</p>
+            </div>
+          </div>
+          <a class="image-link" href="https://eq-app-data-uploads-2017.s3.ap-south-1.amazonaws.com/PIP121027-MLA206324-219l03cl0m33m0000000/IMG-20260310_205422hhk.jpeg?X-Amz-Algorithm=AWS4-HMAC-SHA256&amp;X-Amz-Content-Sha256=UNSIGNED-PAYLOAD&amp;X-Amz-Credential=ASIAR6XFRJFUG2XIG57K%2F20260324%2Fap-south-1%2Fs3%2Faws4_request&amp;X-Amz-Date=20260324T144233Z&amp;X-Amz-Expires=300&amp;X-Amz-Security-Token=IQoJb3JpZ2luX2VjEM3%2F%2F%2F%2F%2F%2F%2F%2F%2F%2FwEaCmFwLXNvdXRoLTEiRzBFAiBl6pySJ7ww6vcQs6ZTgjRT6A2XslvaHdB8aS2f1xzYWQIhAJpjLg8b8lggzWuESDNTSLRAGdzJtMwWqm5ShYFFmoyVKtoECJb%2F%2F%2F%2F%2F%2F%2F%2F%2F%2FwEQAxoMMTM0Njk5MTA4NzEyIgzlqak3iF%2Bko%2Fw33ysqrgQ%2FXixUQA5za9eQOGJRDDlKzLYfQkLEPCdy50Xazz0ov5nLoVnlGmwPzwdw39sHnOfA8KU7YPRBa3Jev1QwoDtmTbXMiaZrwXHiSncw4f4d8sHlkPGjTyWcWLSZiYeibDJuXpbFTFFsOU9TfrG4ZNUB%2F4z7aTMMRddHP1nkZqJZtbyR1Ak2SgfF8xevt0ACT32%2B%2F644svMozLxJshzGBUqfAJnvOPX1%2FJ1x22N%2BCLzDPhzp5khBOp9s0Bz3vs%2FQWrRgxjunSoJN12NfctvJv%2FtWwOMJumuQrrwpDOBuZ1Oqr3NCCxwDJTBdjqrkbj4gOj%2FMiKMDbC2rVvHwC4OXK6j5A0DWEDKGzSgUaJnmWKd7Pxr8%2BcuAbEvKgEA2br%2Bq8GGSeZbg3rp1PgGIZEWtXhP%2FbWOMClIofXSonfg%2F9oveb2zUS9uDUcro5VLkkE0SKZlloxFhU7X37zO%2FsOBieqeOGzPH0YIfr4BGbRWu1%2BdHmojor2Tj0BeOvry%2BNLo5C8cU1Y6FcboTLRKlgpg0KmrqYT6yF6RQPVfPPiMQ1kHWtuPgPg7NPsVHzVLch91TsSuL%2BKNZNYVCrPlO8OkRdrWMv9HuWgXe4hzb499fy%2BrXsfTEC90Sr2BpG54Mscebh2DRiFqw86F7RGC5tztxWkvSYsH1f77VoCU1SG5JSGU8XOty9bLX39VVPSp0mXXmsGD9oDlHr%2Bdg6rKJZhtC0jCvGlTg%2BhIAEIz98MLVfIow85mKzgY6owHrfjsJbFAob%2FckiXLse6k8oiqLkconZpV6mSQihzeIj6zzo3L0AfwzfnOT9vDMwkj9FuAeujMXHH5BRaZFtRBTWgyZoHzhRZ5SGt%2BCzPen5VmOaUoR9fV4M3qXbhxq9N8ZmM61hGdB9TCoZutYBI6C6KfmkY97%2BIVSpnRGDSAmXZbPpxuqpoU6BzoEOqH%2BzpEg5w3YtKJU%2FNfI5bGWMiDIBzuD&amp;X-Amz-Signature=a5c8cc269f1c48f280baba47b084bb9c75f2312d403afe8d6441ad30f848f96e&amp;X-Amz-SignedHeaders=host&amp;x-amz-checksum-mode=ENABLED&amp;x-id=GetObject" target="_blank" rel="noreferrer">Open image</a>
+          <a class="image-link" href="https://pipl.clappia.com/app/MLA206324/submission/PWU74061577/PIP121027-MLA206324-219l03cl0m33m0000000/IMG-20260310_205422hhk.jpeg" target="_blank" rel="noreferrer">Open original Clappia link</a>
+          <img class="photo" src="https://eq-app-data-uploads-2017.s3.ap-south-1.amazonaws.com/PIP121027-MLA206324-219l03cl0m33m0000000/IMG-20260310_205422hhk.jpeg?X-Amz-Algorithm=AWS4-HMAC-SHA256&amp;X-Amz-Content-Sha256=UNSIGNED-PAYLOAD&amp;X-Amz-Credential=ASIAR6XFRJFUG2XIG57K%2F20260324%2Fap-south-1%2Fs3%2Faws4_request&amp;X-Amz-Date=20260324T144233Z&amp;X-Amz-Expires=300&amp;X-Amz-Security-Token=IQoJb3JpZ2luX2VjEM3%2F%2F%2F%2F%2F%2F%2F%2F%2F%2FwEaCmFwLXNvdXRoLTEiRzBFAiBl6pySJ7ww6vcQs6ZTgjRT6A2XslvaHdB8aS2f1xzYWQIhAJpjLg8b8lggzWuESDNTSLRAGdzJtMwWqm5ShYFFmoyVKtoECJb%2F%2F%2F%2F%2F%2F%2F%2F%2F%2FwEQAxoMMTM0Njk5MTA4NzEyIgzlqak3iF%2Bko%2Fw33ysqrgQ%2FXixUQA5za9eQOGJRDDlKzLYfQkLEPCdy50Xazz0ov5nLoVnlGmwPzwdw39sHnOfA8KU7YPRBa3Jev1QwoDtmTbXMiaZrwXHiSncw4f4d8sHlkPGjTyWcWLSZiYeibDJuXpbFTFFsOU9TfrG4ZNUB%2F4z7aTMMRddHP1nkZqJZtbyR1Ak2SgfF8xevt0ACT32%2B%2F644svMozLxJshzGBUqfAJnvOPX1%2FJ1x22N%2BCLzDPhzp5khBOp9s0Bz3vs%2FQWrRgxjunSoJN12NfctvJv%2FtWwOMJumuQrrwpDOBuZ1Oqr3NCCxwDJTBdjqrkbj4gOj%2FMiKMDbC2rVvHwC4OXK6j5A0DWEDKGzSgUaJnmWKd7Pxr8%2BcuAbEvKgEA2br%2Bq8GGSeZbg3rp1PgGIZEWtXhP%2FbWOMClIofXSonfg%2F9oveb2zUS9uDUcro5VLkkE0SKZlloxFhU7X37zO%2FsOBieqeOGzPH0YIfr4BGbRWu1%2BdHmojor2Tj0BeOvry%2BNLo5C8cU1Y6FcboTLRKlgpg0KmrqYT6yF6RQPVfPPiMQ1kHWtuPgPg7NPsVHzVLch91TsSuL%2BKNZNYVCrPlO8OkRdrWMv9HuWgXe4hzb499fy%2BrXsfTEC90Sr2BpG54Mscebh2DRiFqw86F7RGC5tztxWkvSYsH1f77VoCU1SG5JSGU8XOty9bLX39VVPSp0mXXmsGD9oDlHr%2Bdg6rKJZhtC0jCvGlTg%2BhIAEIz98MLVfIow85mKzgY6owHrfjsJbFAob%2FckiXLse6k8oiqLkconZpV6mSQihzeIj6zzo3L0AfwzfnOT9vDMwkj9FuAeujMXHH5BRaZFtRBTWgyZoHzhRZ5SGt%2BCzPen5VmOaUoR9fV4M3qXbhxq9N8ZmM61hGdB9TCoZutYBI6C6KfmkY97%2BIVSpnRGDSAmXZbPpxuqpoU6BzoEOqH%2BzpEg5w3YtKJU%2FNfI5bGWMiDIBzuD&amp;X-Amz-Signature=a5c8cc269f1c48f280baba47b084bb9c75f2312d403afe8d6441ad30f848f96e&amp;X-Amz-SignedHeaders=host&amp;x-amz-checksum-mode=ENABLED&amp;x-id=GetObject" alt="Post Weight Sample 4" loading="lazy" referrerpolicy="no-referrer" />
+          <dl class="metrics">
+            <div><dt>Expected</dt><dd>17.580</dd></div>
+            <div><dt>System Output</dt><dd>17.580</dd></div>
+            <div><dt>Status</dt><dd>ok</dd></div>
+            <div><dt>Confidence</dt><dd>0.95</dd></div>
+            <div><dt>Reason</dt><dd>Primary image was an invalid crop, so the value was read from the context image. The LED display clearly shows &#x27;17580&#x27;. The leading &#x27;1&#x27; is bright and distinct from the dim placeholder &#x27;8&#x27; to its left. Structured verifier confirmed the same reading. Applied the fixed 3-decimal contract for this target.</dd></div>
+          </dl>
+        </article>
+        
+        <article class="card">
+          <div class="card-head">
+            <span class="pill ok">Correct</span>
+            <div class="meta">
+              <h3>Centre wall thickness Sample 3</h3>
+              <p>Line 1 - Thickness Test</p>
+              <p>Submission: <code>PWU74061577</code></p>
+              <p>Created At: 10-03-2026 08:58 PM</p>
+              <p>Time Slot: 7 PM - 9 PM</p>
+            </div>
+          </div>
+          <a class="image-link" href="https://eq-app-data-uploads-2017.s3.ap-south-1.amazonaws.com/PIP121027-MLA206324-3f6hkdbn8j980000000/IMG-20260310_2056em6op.jpeg?X-Amz-Algorithm=AWS4-HMAC-SHA256&amp;X-Amz-Content-Sha256=UNSIGNED-PAYLOAD&amp;X-Amz-Credential=ASIAR6XFRJFUG2XIG57K%2F20260324%2Fap-south-1%2Fs3%2Faws4_request&amp;X-Amz-Date=20260324T144300Z&amp;X-Amz-Expires=300&amp;X-Amz-Security-Token=IQoJb3JpZ2luX2VjEM3%2F%2F%2F%2F%2F%2F%2F%2F%2F%2FwEaCmFwLXNvdXRoLTEiRzBFAiBl6pySJ7ww6vcQs6ZTgjRT6A2XslvaHdB8aS2f1xzYWQIhAJpjLg8b8lggzWuESDNTSLRAGdzJtMwWqm5ShYFFmoyVKtoECJb%2F%2F%2F%2F%2F%2F%2F%2F%2F%2FwEQAxoMMTM0Njk5MTA4NzEyIgzlqak3iF%2Bko%2Fw33ysqrgQ%2FXixUQA5za9eQOGJRDDlKzLYfQkLEPCdy50Xazz0ov5nLoVnlGmwPzwdw39sHnOfA8KU7YPRBa3Jev1QwoDtmTbXMiaZrwXHiSncw4f4d8sHlkPGjTyWcWLSZiYeibDJuXpbFTFFsOU9TfrG4ZNUB%2F4z7aTMMRddHP1nkZqJZtbyR1Ak2SgfF8xevt0ACT32%2B%2F644svMozLxJshzGBUqfAJnvOPX1%2FJ1x22N%2BCLzDPhzp5khBOp9s0Bz3vs%2FQWrRgxjunSoJN12NfctvJv%2FtWwOMJumuQrrwpDOBuZ1Oqr3NCCxwDJTBdjqrkbj4gOj%2FMiKMDbC2rVvHwC4OXK6j5A0DWEDKGzSgUaJnmWKd7Pxr8%2BcuAbEvKgEA2br%2Bq8GGSeZbg3rp1PgGIZEWtXhP%2FbWOMClIofXSonfg%2F9oveb2zUS9uDUcro5VLkkE0SKZlloxFhU7X37zO%2FsOBieqeOGzPH0YIfr4BGbRWu1%2BdHmojor2Tj0BeOvry%2BNLo5C8cU1Y6FcboTLRKlgpg0KmrqYT6yF6RQPVfPPiMQ1kHWtuPgPg7NPsVHzVLch91TsSuL%2BKNZNYVCrPlO8OkRdrWMv9HuWgXe4hzb499fy%2BrXsfTEC90Sr2BpG54Mscebh2DRiFqw86F7RGC5tztxWkvSYsH1f77VoCU1SG5JSGU8XOty9bLX39VVPSp0mXXmsGD9oDlHr%2Bdg6rKJZhtC0jCvGlTg%2BhIAEIz98MLVfIow85mKzgY6owHrfjsJbFAob%2FckiXLse6k8oiqLkconZpV6mSQihzeIj6zzo3L0AfwzfnOT9vDMwkj9FuAeujMXHH5BRaZFtRBTWgyZoHzhRZ5SGt%2BCzPen5VmOaUoR9fV4M3qXbhxq9N8ZmM61hGdB9TCoZutYBI6C6KfmkY97%2BIVSpnRGDSAmXZbPpxuqpoU6BzoEOqH%2BzpEg5w3YtKJU%2FNfI5bGWMiDIBzuD&amp;X-Amz-Signature=7138b349be100289dd122670048ddb0c988ced75440476eeae72540b22dffe25&amp;X-Amz-SignedHeaders=host&amp;x-amz-checksum-mode=ENABLED&amp;x-id=GetObject" target="_blank" rel="noreferrer">Open image</a>
+          <a class="image-link" href="https://pipl.clappia.com/app/MLA206324/submission/PWU74061577/PIP121027-MLA206324-3f6hkdbn8j980000000/IMG-20260310_2056em6op.jpeg" target="_blank" rel="noreferrer">Open original Clappia link</a>
+          <img class="photo" src="https://eq-app-data-uploads-2017.s3.ap-south-1.amazonaws.com/PIP121027-MLA206324-3f6hkdbn8j980000000/IMG-20260310_2056em6op.jpeg?X-Amz-Algorithm=AWS4-HMAC-SHA256&amp;X-Amz-Content-Sha256=UNSIGNED-PAYLOAD&amp;X-Amz-Credential=ASIAR6XFRJFUG2XIG57K%2F20260324%2Fap-south-1%2Fs3%2Faws4_request&amp;X-Amz-Date=20260324T144300Z&amp;X-Amz-Expires=300&amp;X-Amz-Security-Token=IQoJb3JpZ2luX2VjEM3%2F%2F%2F%2F%2F%2F%2F%2F%2F%2FwEaCmFwLXNvdXRoLTEiRzBFAiBl6pySJ7ww6vcQs6ZTgjRT6A2XslvaHdB8aS2f1xzYWQIhAJpjLg8b8lggzWuESDNTSLRAGdzJtMwWqm5ShYFFmoyVKtoECJb%2F%2F%2F%2F%2F%2F%2F%2F%2F%2FwEQAxoMMTM0Njk5MTA4NzEyIgzlqak3iF%2Bko%2Fw33ysqrgQ%2FXixUQA5za9eQOGJRDDlKzLYfQkLEPCdy50Xazz0ov5nLoVnlGmwPzwdw39sHnOfA8KU7YPRBa3Jev1QwoDtmTbXMiaZrwXHiSncw4f4d8sHlkPGjTyWcWLSZiYeibDJuXpbFTFFsOU9TfrG4ZNUB%2F4z7aTMMRddHP1nkZqJZtbyR1Ak2SgfF8xevt0ACT32%2B%2F644svMozLxJshzGBUqfAJnvOPX1%2FJ1x22N%2BCLzDPhzp5khBOp9s0Bz3vs%2FQWrRgxjunSoJN12NfctvJv%2FtWwOMJumuQrrwpDOBuZ1Oqr3NCCxwDJTBdjqrkbj4gOj%2FMiKMDbC2rVvHwC4OXK6j5A0DWEDKGzSgUaJnmWKd7Pxr8%2BcuAbEvKgEA2br%2Bq8GGSeZbg3rp1PgGIZEWtXhP%2FbWOMClIofXSonfg%2F9oveb2zUS9uDUcro5VLkkE0SKZlloxFhU7X37zO%2FsOBieqeOGzPH0YIfr4BGbRWu1%2BdHmojor2Tj0BeOvry%2BNLo5C8cU1Y6FcboTLRKlgpg0KmrqYT6yF6RQPVfPPiMQ1kHWtuPgPg7NPsVHzVLch91TsSuL%2BKNZNYVCrPlO8OkRdrWMv9HuWgXe4hzb499fy%2BrXsfTEC90Sr2BpG54Mscebh2DRiFqw86F7RGC5tztxWkvSYsH1f77VoCU1SG5JSGU8XOty9bLX39VVPSp0mXXmsGD9oDlHr%2Bdg6rKJZhtC0jCvGlTg%2BhIAEIz98MLVfIow85mKzgY6owHrfjsJbFAob%2FckiXLse6k8oiqLkconZpV6mSQihzeIj6zzo3L0AfwzfnOT9vDMwkj9FuAeujMXHH5BRaZFtRBTWgyZoHzhRZ5SGt%2BCzPen5VmOaUoR9fV4M3qXbhxq9N8ZmM61hGdB9TCoZutYBI6C6KfmkY97%2BIVSpnRGDSAmXZbPpxuqpoU6BzoEOqH%2BzpEg5w3YtKJU%2FNfI5bGWMiDIBzuD&amp;X-Amz-Signature=7138b349be100289dd122670048ddb0c988ced75440476eeae72540b22dffe25&amp;X-Amz-SignedHeaders=host&amp;x-amz-checksum-mode=ENABLED&amp;x-id=GetObject" alt="Centre wall thickness Sample 3" loading="lazy" referrerpolicy="no-referrer" />
+          <dl class="metrics">
+            <div><dt>Expected</dt><dd>0.600</dd></div>
+            <div><dt>System Output</dt><dd>0.600</dd></div>
+            <div><dt>Status</dt><dd>ok</dd></div>
+            <div><dt>Confidence</dt><dd>0.62</dd></div>
+            <div><dt>Reason</dt><dd>The value 0.600 is clearly visible on the LCD display in the primary crop. Structured verifier confirmed the same reading. Final read remained partially ambiguous after verification; returning the best-supported value.</dd></div>
+          </dl>
+        </article>
+        
+      </div>
+    </details>
+    <details open>
+      <summary>Did Not Work / Needs Review (13)</summary>
+      <div class="cards">
+        
+        <article class="card">
+          <div class="card-head">
+            <span class="pill bad">Mismatch</span>
+            <div class="meta">
+              <h3>Side wall thickness Sample 1</h3>
+              <p>Line 1 - Thickness Test</p>
+              <p>Submission: <code>WQK06619717</code></p>
+              <p>Created At: 10-03-2026 11:01 PM</p>
+              <p>Time Slot: 9 PM - 11 PM</p>
+            </div>
+          </div>
+          <a class="image-link" href="https://eq-app-data-uploads-2017.s3.ap-south-1.amazonaws.com/PIP121027-MLA206324-61a6gb9k9la800000000/IMG-20260310_225064c9k.jpeg?X-Amz-Algorithm=AWS4-HMAC-SHA256&amp;X-Amz-Content-Sha256=UNSIGNED-PAYLOAD&amp;X-Amz-Credential=ASIAR6XFRJFUG2XIG57K%2F20260324%2Fap-south-1%2Fs3%2Faws4_request&amp;X-Amz-Date=20260324T144149Z&amp;X-Amz-Expires=300&amp;X-Amz-Security-Token=IQoJb3JpZ2luX2VjEM3%2F%2F%2F%2F%2F%2F%2F%2F%2F%2FwEaCmFwLXNvdXRoLTEiRzBFAiBl6pySJ7ww6vcQs6ZTgjRT6A2XslvaHdB8aS2f1xzYWQIhAJpjLg8b8lggzWuESDNTSLRAGdzJtMwWqm5ShYFFmoyVKtoECJb%2F%2F%2F%2F%2F%2F%2F%2F%2F%2FwEQAxoMMTM0Njk5MTA4NzEyIgzlqak3iF%2Bko%2Fw33ysqrgQ%2FXixUQA5za9eQOGJRDDlKzLYfQkLEPCdy50Xazz0ov5nLoVnlGmwPzwdw39sHnOfA8KU7YPRBa3Jev1QwoDtmTbXMiaZrwXHiSncw4f4d8sHlkPGjTyWcWLSZiYeibDJuXpbFTFFsOU9TfrG4ZNUB%2F4z7aTMMRddHP1nkZqJZtbyR1Ak2SgfF8xevt0ACT32%2B%2F644svMozLxJshzGBUqfAJnvOPX1%2FJ1x22N%2BCLzDPhzp5khBOp9s0Bz3vs%2FQWrRgxjunSoJN12NfctvJv%2FtWwOMJumuQrrwpDOBuZ1Oqr3NCCxwDJTBdjqrkbj4gOj%2FMiKMDbC2rVvHwC4OXK6j5A0DWEDKGzSgUaJnmWKd7Pxr8%2BcuAbEvKgEA2br%2Bq8GGSeZbg3rp1PgGIZEWtXhP%2FbWOMClIofXSonfg%2F9oveb2zUS9uDUcro5VLkkE0SKZlloxFhU7X37zO%2FsOBieqeOGzPH0YIfr4BGbRWu1%2BdHmojor2Tj0BeOvry%2BNLo5C8cU1Y6FcboTLRKlgpg0KmrqYT6yF6RQPVfPPiMQ1kHWtuPgPg7NPsVHzVLch91TsSuL%2BKNZNYVCrPlO8OkRdrWMv9HuWgXe4hzb499fy%2BrXsfTEC90Sr2BpG54Mscebh2DRiFqw86F7RGC5tztxWkvSYsH1f77VoCU1SG5JSGU8XOty9bLX39VVPSp0mXXmsGD9oDlHr%2Bdg6rKJZhtC0jCvGlTg%2BhIAEIz98MLVfIow85mKzgY6owHrfjsJbFAob%2FckiXLse6k8oiqLkconZpV6mSQihzeIj6zzo3L0AfwzfnOT9vDMwkj9FuAeujMXHH5BRaZFtRBTWgyZoHzhRZ5SGt%2BCzPen5VmOaUoR9fV4M3qXbhxq9N8ZmM61hGdB9TCoZutYBI6C6KfmkY97%2BIVSpnRGDSAmXZbPpxuqpoU6BzoEOqH%2BzpEg5w3YtKJU%2FNfI5bGWMiDIBzuD&amp;X-Amz-Signature=2c8548a20899ce1edb304b1fa5d8cd98a0993a0584665a6b85c11888a8711a0c&amp;X-Amz-SignedHeaders=host&amp;x-amz-checksum-mode=ENABLED&amp;x-id=GetObject" target="_blank" rel="noreferrer">Open image</a>
+          <a class="image-link" href="https://pipl.clappia.com/app/MLA206324/submission/WQK06619717/PIP121027-MLA206324-61a6gb9k9la800000000/IMG-20260310_225064c9k.jpeg" target="_blank" rel="noreferrer">Open original Clappia link</a>
+          <img class="photo" src="https://eq-app-data-uploads-2017.s3.ap-south-1.amazonaws.com/PIP121027-MLA206324-61a6gb9k9la800000000/IMG-20260310_225064c9k.jpeg?X-Amz-Algorithm=AWS4-HMAC-SHA256&amp;X-Amz-Content-Sha256=UNSIGNED-PAYLOAD&amp;X-Amz-Credential=ASIAR6XFRJFUG2XIG57K%2F20260324%2Fap-south-1%2Fs3%2Faws4_request&amp;X-Amz-Date=20260324T144149Z&amp;X-Amz-Expires=300&amp;X-Amz-Security-Token=IQoJb3JpZ2luX2VjEM3%2F%2F%2F%2F%2F%2F%2F%2F%2F%2FwEaCmFwLXNvdXRoLTEiRzBFAiBl6pySJ7ww6vcQs6ZTgjRT6A2XslvaHdB8aS2f1xzYWQIhAJpjLg8b8lggzWuESDNTSLRAGdzJtMwWqm5ShYFFmoyVKtoECJb%2F%2F%2F%2F%2F%2F%2F%2F%2F%2FwEQAxoMMTM0Njk5MTA4NzEyIgzlqak3iF%2Bko%2Fw33ysqrgQ%2FXixUQA5za9eQOGJRDDlKzLYfQkLEPCdy50Xazz0ov5nLoVnlGmwPzwdw39sHnOfA8KU7YPRBa3Jev1QwoDtmTbXMiaZrwXHiSncw4f4d8sHlkPGjTyWcWLSZiYeibDJuXpbFTFFsOU9TfrG4ZNUB%2F4z7aTMMRddHP1nkZqJZtbyR1Ak2SgfF8xevt0ACT32%2B%2F644svMozLxJshzGBUqfAJnvOPX1%2FJ1x22N%2BCLzDPhzp5khBOp9s0Bz3vs%2FQWrRgxjunSoJN12NfctvJv%2FtWwOMJumuQrrwpDOBuZ1Oqr3NCCxwDJTBdjqrkbj4gOj%2FMiKMDbC2rVvHwC4OXK6j5A0DWEDKGzSgUaJnmWKd7Pxr8%2BcuAbEvKgEA2br%2Bq8GGSeZbg3rp1PgGIZEWtXhP%2FbWOMClIofXSonfg%2F9oveb2zUS9uDUcro5VLkkE0SKZlloxFhU7X37zO%2FsOBieqeOGzPH0YIfr4BGbRWu1%2BdHmojor2Tj0BeOvry%2BNLo5C8cU1Y6FcboTLRKlgpg0KmrqYT6yF6RQPVfPPiMQ1kHWtuPgPg7NPsVHzVLch91TsSuL%2BKNZNYVCrPlO8OkRdrWMv9HuWgXe4hzb499fy%2BrXsfTEC90Sr2BpG54Mscebh2DRiFqw86F7RGC5tztxWkvSYsH1f77VoCU1SG5JSGU8XOty9bLX39VVPSp0mXXmsGD9oDlHr%2Bdg6rKJZhtC0jCvGlTg%2BhIAEIz98MLVfIow85mKzgY6owHrfjsJbFAob%2FckiXLse6k8oiqLkconZpV6mSQihzeIj6zzo3L0AfwzfnOT9vDMwkj9FuAeujMXHH5BRaZFtRBTWgyZoHzhRZ5SGt%2BCzPen5VmOaUoR9fV4M3qXbhxq9N8ZmM61hGdB9TCoZutYBI6C6KfmkY97%2BIVSpnRGDSAmXZbPpxuqpoU6BzoEOqH%2BzpEg5w3YtKJU%2FNfI5bGWMiDIBzuD&amp;X-Amz-Signature=2c8548a20899ce1edb304b1fa5d8cd98a0993a0584665a6b85c11888a8711a0c&amp;X-Amz-SignedHeaders=host&amp;x-amz-checksum-mode=ENABLED&amp;x-id=GetObject" alt="Side wall thickness Sample 1" loading="lazy" referrerpolicy="no-referrer" />
+          <dl class="metrics">
+            <div><dt>Expected</dt><dd>0.650</dd></div>
+            <div><dt>System Output</dt><dd>0.658</dd></div>
+            <div><dt>Status</dt><dd>ok</dd></div>
+            <div><dt>Confidence</dt><dd>0.99</dd></div>
+            <div><dt>Reason</dt><dd>The value &#x27;0.658&#x27; was clearly read from the LCD display in the primary localized crop. Structured verifier confirmed the same reading.</dd></div>
+          </dl>
+        </article>
+        
+        <article class="card">
+          <div class="card-head">
+            <span class="pill bad">Mismatch</span>
+            <div class="meta">
+              <h3>Centre wall thickness Sample 1</h3>
+              <p>Line 1 - Thickness Test</p>
+              <p>Submission: <code>WQK06619717</code></p>
+              <p>Created At: 10-03-2026 11:01 PM</p>
+              <p>Time Slot: 9 PM - 11 PM</p>
+            </div>
+          </div>
+          <a class="image-link" href="https://eq-app-data-uploads-2017.s3.ap-south-1.amazonaws.com/PIP121027-MLA206324-4i0b592gpe9i0000000/IMG-20260310_225197a43.jpeg?X-Amz-Algorithm=AWS4-HMAC-SHA256&amp;X-Amz-Content-Sha256=UNSIGNED-PAYLOAD&amp;X-Amz-Credential=ASIAR6XFRJFUG2XIG57K%2F20260324%2Fap-south-1%2Fs3%2Faws4_request&amp;X-Amz-Date=20260324T144149Z&amp;X-Amz-Expires=300&amp;X-Amz-Security-Token=IQoJb3JpZ2luX2VjEM3%2F%2F%2F%2F%2F%2F%2F%2F%2F%2FwEaCmFwLXNvdXRoLTEiRzBFAiBl6pySJ7ww6vcQs6ZTgjRT6A2XslvaHdB8aS2f1xzYWQIhAJpjLg8b8lggzWuESDNTSLRAGdzJtMwWqm5ShYFFmoyVKtoECJb%2F%2F%2F%2F%2F%2F%2F%2F%2F%2FwEQAxoMMTM0Njk5MTA4NzEyIgzlqak3iF%2Bko%2Fw33ysqrgQ%2FXixUQA5za9eQOGJRDDlKzLYfQkLEPCdy50Xazz0ov5nLoVnlGmwPzwdw39sHnOfA8KU7YPRBa3Jev1QwoDtmTbXMiaZrwXHiSncw4f4d8sHlkPGjTyWcWLSZiYeibDJuXpbFTFFsOU9TfrG4ZNUB%2F4z7aTMMRddHP1nkZqJZtbyR1Ak2SgfF8xevt0ACT32%2B%2F644svMozLxJshzGBUqfAJnvOPX1%2FJ1x22N%2BCLzDPhzp5khBOp9s0Bz3vs%2FQWrRgxjunSoJN12NfctvJv%2FtWwOMJumuQrrwpDOBuZ1Oqr3NCCxwDJTBdjqrkbj4gOj%2FMiKMDbC2rVvHwC4OXK6j5A0DWEDKGzSgUaJnmWKd7Pxr8%2BcuAbEvKgEA2br%2Bq8GGSeZbg3rp1PgGIZEWtXhP%2FbWOMClIofXSonfg%2F9oveb2zUS9uDUcro5VLkkE0SKZlloxFhU7X37zO%2FsOBieqeOGzPH0YIfr4BGbRWu1%2BdHmojor2Tj0BeOvry%2BNLo5C8cU1Y6FcboTLRKlgpg0KmrqYT6yF6RQPVfPPiMQ1kHWtuPgPg7NPsVHzVLch91TsSuL%2BKNZNYVCrPlO8OkRdrWMv9HuWgXe4hzb499fy%2BrXsfTEC90Sr2BpG54Mscebh2DRiFqw86F7RGC5tztxWkvSYsH1f77VoCU1SG5JSGU8XOty9bLX39VVPSp0mXXmsGD9oDlHr%2Bdg6rKJZhtC0jCvGlTg%2BhIAEIz98MLVfIow85mKzgY6owHrfjsJbFAob%2FckiXLse6k8oiqLkconZpV6mSQihzeIj6zzo3L0AfwzfnOT9vDMwkj9FuAeujMXHH5BRaZFtRBTWgyZoHzhRZ5SGt%2BCzPen5VmOaUoR9fV4M3qXbhxq9N8ZmM61hGdB9TCoZutYBI6C6KfmkY97%2BIVSpnRGDSAmXZbPpxuqpoU6BzoEOqH%2BzpEg5w3YtKJU%2FNfI5bGWMiDIBzuD&amp;X-Amz-Signature=c97ddd65a07b449fe8268a958285d6dca34b9d51b4cfe4189de408292599a9e3&amp;X-Amz-SignedHeaders=host&amp;x-amz-checksum-mode=ENABLED&amp;x-id=GetObject" target="_blank" rel="noreferrer">Open image</a>
+          <a class="image-link" href="https://pipl.clappia.com/app/MLA206324/submission/WQK06619717/PIP121027-MLA206324-4i0b592gpe9i0000000/IMG-20260310_225197a43.jpeg" target="_blank" rel="noreferrer">Open original Clappia link</a>
+          <img class="photo" src="https://eq-app-data-uploads-2017.s3.ap-south-1.amazonaws.com/PIP121027-MLA206324-4i0b592gpe9i0000000/IMG-20260310_225197a43.jpeg?X-Amz-Algorithm=AWS4-HMAC-SHA256&amp;X-Amz-Content-Sha256=UNSIGNED-PAYLOAD&amp;X-Amz-Credential=ASIAR6XFRJFUG2XIG57K%2F20260324%2Fap-south-1%2Fs3%2Faws4_request&amp;X-Amz-Date=20260324T144149Z&amp;X-Amz-Expires=300&amp;X-Amz-Security-Token=IQoJb3JpZ2luX2VjEM3%2F%2F%2F%2F%2F%2F%2F%2F%2F%2FwEaCmFwLXNvdXRoLTEiRzBFAiBl6pySJ7ww6vcQs6ZTgjRT6A2XslvaHdB8aS2f1xzYWQIhAJpjLg8b8lggzWuESDNTSLRAGdzJtMwWqm5ShYFFmoyVKtoECJb%2F%2F%2F%2F%2F%2F%2F%2F%2F%2FwEQAxoMMTM0Njk5MTA4NzEyIgzlqak3iF%2Bko%2Fw33ysqrgQ%2FXixUQA5za9eQOGJRDDlKzLYfQkLEPCdy50Xazz0ov5nLoVnlGmwPzwdw39sHnOfA8KU7YPRBa3Jev1QwoDtmTbXMiaZrwXHiSncw4f4d8sHlkPGjTyWcWLSZiYeibDJuXpbFTFFsOU9TfrG4ZNUB%2F4z7aTMMRddHP1nkZqJZtbyR1Ak2SgfF8xevt0ACT32%2B%2F644svMozLxJshzGBUqfAJnvOPX1%2FJ1x22N%2BCLzDPhzp5khBOp9s0Bz3vs%2FQWrRgxjunSoJN12NfctvJv%2FtWwOMJumuQrrwpDOBuZ1Oqr3NCCxwDJTBdjqrkbj4gOj%2FMiKMDbC2rVvHwC4OXK6j5A0DWEDKGzSgUaJnmWKd7Pxr8%2BcuAbEvKgEA2br%2Bq8GGSeZbg3rp1PgGIZEWtXhP%2FbWOMClIofXSonfg%2F9oveb2zUS9uDUcro5VLkkE0SKZlloxFhU7X37zO%2FsOBieqeOGzPH0YIfr4BGbRWu1%2BdHmojor2Tj0BeOvry%2BNLo5C8cU1Y6FcboTLRKlgpg0KmrqYT6yF6RQPVfPPiMQ1kHWtuPgPg7NPsVHzVLch91TsSuL%2BKNZNYVCrPlO8OkRdrWMv9HuWgXe4hzb499fy%2BrXsfTEC90Sr2BpG54Mscebh2DRiFqw86F7RGC5tztxWkvSYsH1f77VoCU1SG5JSGU8XOty9bLX39VVPSp0mXXmsGD9oDlHr%2Bdg6rKJZhtC0jCvGlTg%2BhIAEIz98MLVfIow85mKzgY6owHrfjsJbFAob%2FckiXLse6k8oiqLkconZpV6mSQihzeIj6zzo3L0AfwzfnOT9vDMwkj9FuAeujMXHH5BRaZFtRBTWgyZoHzhRZ5SGt%2BCzPen5VmOaUoR9fV4M3qXbhxq9N8ZmM61hGdB9TCoZutYBI6C6KfmkY97%2BIVSpnRGDSAmXZbPpxuqpoU6BzoEOqH%2BzpEg5w3YtKJU%2FNfI5bGWMiDIBzuD&amp;X-Amz-Signature=c97ddd65a07b449fe8268a958285d6dca34b9d51b4cfe4189de408292599a9e3&amp;X-Amz-SignedHeaders=host&amp;x-amz-checksum-mode=ENABLED&amp;x-id=GetObject" alt="Centre wall thickness Sample 1" loading="lazy" referrerpolicy="no-referrer" />
+          <dl class="metrics">
+            <div><dt>Expected</dt><dd>0.790</dd></div>
+            <div><dt>System Output</dt><dd>0.797</dd></div>
+            <div><dt>Status</dt><dd>ok</dd></div>
+            <div><dt>Confidence</dt><dd>0.99</dd></div>
+            <div><dt>Reason</dt><dd>Read directly from the clear LCD display in the primary localized crop. The value is 0.797. Structured verifier confirmed the same reading.</dd></div>
+          </dl>
+        </article>
+        
+        <article class="card">
+          <div class="card-head">
+            <span class="pill bad">Mismatch</span>
+            <div class="meta">
+              <h3>Side wall thickness Sample 2</h3>
+              <p>Line 1 - Thickness Test</p>
+              <p>Submission: <code>WQK06619717</code></p>
+              <p>Created At: 10-03-2026 11:01 PM</p>
+              <p>Time Slot: 9 PM - 11 PM</p>
+            </div>
+          </div>
+          <a class="image-link" href="https://eq-app-data-uploads-2017.s3.ap-south-1.amazonaws.com/PIP121027-MLA206324-1ee2nlp4lifcc0000000/IMG-20260310_22511h4oh.jpeg?X-Amz-Algorithm=AWS4-HMAC-SHA256&amp;X-Amz-Content-Sha256=UNSIGNED-PAYLOAD&amp;X-Amz-Credential=ASIAR6XFRJFUG2XIG57K%2F20260324%2Fap-south-1%2Fs3%2Faws4_request&amp;X-Amz-Date=20260324T144149Z&amp;X-Amz-Expires=300&amp;X-Amz-Security-Token=IQoJb3JpZ2luX2VjEM3%2F%2F%2F%2F%2F%2F%2F%2F%2F%2FwEaCmFwLXNvdXRoLTEiRzBFAiBl6pySJ7ww6vcQs6ZTgjRT6A2XslvaHdB8aS2f1xzYWQIhAJpjLg8b8lggzWuESDNTSLRAGdzJtMwWqm5ShYFFmoyVKtoECJb%2F%2F%2F%2F%2F%2F%2F%2F%2F%2FwEQAxoMMTM0Njk5MTA4NzEyIgzlqak3iF%2Bko%2Fw33ysqrgQ%2FXixUQA5za9eQOGJRDDlKzLYfQkLEPCdy50Xazz0ov5nLoVnlGmwPzwdw39sHnOfA8KU7YPRBa3Jev1QwoDtmTbXMiaZrwXHiSncw4f4d8sHlkPGjTyWcWLSZiYeibDJuXpbFTFFsOU9TfrG4ZNUB%2F4z7aTMMRddHP1nkZqJZtbyR1Ak2SgfF8xevt0ACT32%2B%2F644svMozLxJshzGBUqfAJnvOPX1%2FJ1x22N%2BCLzDPhzp5khBOp9s0Bz3vs%2FQWrRgxjunSoJN12NfctvJv%2FtWwOMJumuQrrwpDOBuZ1Oqr3NCCxwDJTBdjqrkbj4gOj%2FMiKMDbC2rVvHwC4OXK6j5A0DWEDKGzSgUaJnmWKd7Pxr8%2BcuAbEvKgEA2br%2Bq8GGSeZbg3rp1PgGIZEWtXhP%2FbWOMClIofXSonfg%2F9oveb2zUS9uDUcro5VLkkE0SKZlloxFhU7X37zO%2FsOBieqeOGzPH0YIfr4BGbRWu1%2BdHmojor2Tj0BeOvry%2BNLo5C8cU1Y6FcboTLRKlgpg0KmrqYT6yF6RQPVfPPiMQ1kHWtuPgPg7NPsVHzVLch91TsSuL%2BKNZNYVCrPlO8OkRdrWMv9HuWgXe4hzb499fy%2BrXsfTEC90Sr2BpG54Mscebh2DRiFqw86F7RGC5tztxWkvSYsH1f77VoCU1SG5JSGU8XOty9bLX39VVPSp0mXXmsGD9oDlHr%2Bdg6rKJZhtC0jCvGlTg%2BhIAEIz98MLVfIow85mKzgY6owHrfjsJbFAob%2FckiXLse6k8oiqLkconZpV6mSQihzeIj6zzo3L0AfwzfnOT9vDMwkj9FuAeujMXHH5BRaZFtRBTWgyZoHzhRZ5SGt%2BCzPen5VmOaUoR9fV4M3qXbhxq9N8ZmM61hGdB9TCoZutYBI6C6KfmkY97%2BIVSpnRGDSAmXZbPpxuqpoU6BzoEOqH%2BzpEg5w3YtKJU%2FNfI5bGWMiDIBzuD&amp;X-Amz-Signature=ecd6059898e3b62a70356714b202c5db6b7e63f93fbc884e6851a5b88409cc5f&amp;X-Amz-SignedHeaders=host&amp;x-amz-checksum-mode=ENABLED&amp;x-id=GetObject" target="_blank" rel="noreferrer">Open image</a>
+          <a class="image-link" href="https://pipl.clappia.com/app/MLA206324/submission/WQK06619717/PIP121027-MLA206324-1ee2nlp4lifcc0000000/IMG-20260310_22511h4oh.jpeg" target="_blank" rel="noreferrer">Open original Clappia link</a>
+          <img class="photo" src="https://eq-app-data-uploads-2017.s3.ap-south-1.amazonaws.com/PIP121027-MLA206324-1ee2nlp4lifcc0000000/IMG-20260310_22511h4oh.jpeg?X-Amz-Algorithm=AWS4-HMAC-SHA256&amp;X-Amz-Content-Sha256=UNSIGNED-PAYLOAD&amp;X-Amz-Credential=ASIAR6XFRJFUG2XIG57K%2F20260324%2Fap-south-1%2Fs3%2Faws4_request&amp;X-Amz-Date=20260324T144149Z&amp;X-Amz-Expires=300&amp;X-Amz-Security-Token=IQoJb3JpZ2luX2VjEM3%2F%2F%2F%2F%2F%2F%2F%2F%2F%2FwEaCmFwLXNvdXRoLTEiRzBFAiBl6pySJ7ww6vcQs6ZTgjRT6A2XslvaHdB8aS2f1xzYWQIhAJpjLg8b8lggzWuESDNTSLRAGdzJtMwWqm5ShYFFmoyVKtoECJb%2F%2F%2F%2F%2F%2F%2F%2F%2F%2FwEQAxoMMTM0Njk5MTA4NzEyIgzlqak3iF%2Bko%2Fw33ysqrgQ%2FXixUQA5za9eQOGJRDDlKzLYfQkLEPCdy50Xazz0ov5nLoVnlGmwPzwdw39sHnOfA8KU7YPRBa3Jev1QwoDtmTbXMiaZrwXHiSncw4f4d8sHlkPGjTyWcWLSZiYeibDJuXpbFTFFsOU9TfrG4ZNUB%2F4z7aTMMRddHP1nkZqJZtbyR1Ak2SgfF8xevt0ACT32%2B%2F644svMozLxJshzGBUqfAJnvOPX1%2FJ1x22N%2BCLzDPhzp5khBOp9s0Bz3vs%2FQWrRgxjunSoJN12NfctvJv%2FtWwOMJumuQrrwpDOBuZ1Oqr3NCCxwDJTBdjqrkbj4gOj%2FMiKMDbC2rVvHwC4OXK6j5A0DWEDKGzSgUaJnmWKd7Pxr8%2BcuAbEvKgEA2br%2Bq8GGSeZbg3rp1PgGIZEWtXhP%2FbWOMClIofXSonfg%2F9oveb2zUS9uDUcro5VLkkE0SKZlloxFhU7X37zO%2FsOBieqeOGzPH0YIfr4BGbRWu1%2BdHmojor2Tj0BeOvry%2BNLo5C8cU1Y6FcboTLRKlgpg0KmrqYT6yF6RQPVfPPiMQ1kHWtuPgPg7NPsVHzVLch91TsSuL%2BKNZNYVCrPlO8OkRdrWMv9HuWgXe4hzb499fy%2BrXsfTEC90Sr2BpG54Mscebh2DRiFqw86F7RGC5tztxWkvSYsH1f77VoCU1SG5JSGU8XOty9bLX39VVPSp0mXXmsGD9oDlHr%2Bdg6rKJZhtC0jCvGlTg%2BhIAEIz98MLVfIow85mKzgY6owHrfjsJbFAob%2FckiXLse6k8oiqLkconZpV6mSQihzeIj6zzo3L0AfwzfnOT9vDMwkj9FuAeujMXHH5BRaZFtRBTWgyZoHzhRZ5SGt%2BCzPen5VmOaUoR9fV4M3qXbhxq9N8ZmM61hGdB9TCoZutYBI6C6KfmkY97%2BIVSpnRGDSAmXZbPpxuqpoU6BzoEOqH%2BzpEg5w3YtKJU%2FNfI5bGWMiDIBzuD&amp;X-Amz-Signature=ecd6059898e3b62a70356714b202c5db6b7e63f93fbc884e6851a5b88409cc5f&amp;X-Amz-SignedHeaders=host&amp;x-amz-checksum-mode=ENABLED&amp;x-id=GetObject" alt="Side wall thickness Sample 2" loading="lazy" referrerpolicy="no-referrer" />
+          <dl class="metrics">
+            <div><dt>Expected</dt><dd>0.800</dd></div>
+            <div><dt>System Output</dt><dd>0.809</dd></div>
+            <div><dt>Status</dt><dd>ok</dd></div>
+            <div><dt>Confidence</dt><dd>0.99</dd></div>
+            <div><dt>Reason</dt><dd>Clear LCD display reading from primary crop. Structured verifier confirmed the same reading.</dd></div>
+          </dl>
+        </article>
+        
+        <article class="card">
+          <div class="card-head">
+            <span class="pill bad">Mismatch</span>
+            <div class="meta">
+              <h3>Centre wall thickness Sample 2</h3>
+              <p>Line 1 - Thickness Test</p>
+              <p>Submission: <code>WQK06619717</code></p>
+              <p>Created At: 10-03-2026 11:01 PM</p>
+              <p>Time Slot: 9 PM - 11 PM</p>
+            </div>
+          </div>
+          <a class="image-link" href="https://eq-app-data-uploads-2017.s3.ap-south-1.amazonaws.com/PIP121027-MLA206324-560c0dmf19i800000000/IMG-20260310_225288m1l.jpeg?X-Amz-Algorithm=AWS4-HMAC-SHA256&amp;X-Amz-Content-Sha256=UNSIGNED-PAYLOAD&amp;X-Amz-Credential=ASIAR6XFRJFUM3XVKCNC%2F20260324%2Fap-south-1%2Fs3%2Faws4_request&amp;X-Amz-Date=20260324T144149Z&amp;X-Amz-Expires=300&amp;X-Amz-Security-Token=IQoJb3JpZ2luX2VjEM3%2F%2F%2F%2F%2F%2F%2F%2F%2F%2FwEaCmFwLXNvdXRoLTEiRzBFAiEA6ZkdtLD0wq0AsTPLvA9R6%2F%2BOfs1z0HVF%2BSAajBp9tYkCIFgtbdrMjBmyrZBA1HY6F%2FBmlmNpS3GfzXhrtnsPGzuoKtoECJb%2F%2F%2F%2F%2F%2F%2F%2F%2F%2FwEQAxoMMTM0Njk5MTA4NzEyIgz2eYeCC8MuTGfWu6MqrgR%2FyJShgGkLN3PAP642BBP0J5oU8LQHvXsYq5jC8IbIaV0bt3e2EpKxPO6Q8BsTLOc0CDWKLVuCue4ML%2FJZ9yu3pZXu9zN6squWWeigIewms4if7UtInnsdAcLCtpLRqzs41Lz5Rqd7kb%2FQ6L6W%2F12yDq%2BIiK2IQyPakXN68gy7%2B2DcRPO%2Fn%2BYacUtvft%2B%2Bz%2BnA0%2BLJghcCa4oroJV5nRacoMZ9jTZ2EadbKxdAz5LGZH4P8qnOfwD2OvoL3eLZRgi6It4jpZpAdmM8S3KjvkLYCkxHhU5q7s4RbKJO5PJFZKAO3Xbd2r1sN86BovZQH7%2FqH39RjtWnHjrWog98r9zA2uLo7wHBE4Jiy%2B7Wk0rq8CsFeZj4ahXWxOuSGhJmJZ8rCuQyO8U5eo7K4A9W%2FHm2imeNhFcVTTDj76uU8lu2nSlqDlBqCWKCpNYRkogtFk%2F0i4nKCacel4PYZSByMIVP0Dq6eIO8kCwovyKXq7mHbrNbhnYNq%2FH%2Flol0P0cCdZPOlXL6XRzbWlxVYXejI%2FBG0gE%2BQpPzR5WN9t4sNaqA4ek4zj4bdspe%2FdEmnWtzn9fMx%2F77I0waEu%2BPSLRM5vDsBQQGTO2c%2FE9Kd9hf6bzWK6RbgUd8x%2Bm8m6JX%2F7%2BoKqL7cgxCxqkaHv8S5Lj5P1JalOCMmDWt2FS%2Fskfo8bS9yh8hk1s6%2B9NJ1I0TOt8FncWyUk5zW7uEw%2FCCw7AQ4yvK0O4gm47qGeoaIJdzEhMw4pKKzgY6owFb%2FibGp0Ye8ZBtL6YgFm9lzvM4OYkLa%2F7L6C8XLyFT7UZ6lUlgrP7q9x0vVO1x1PbpiCRr3nh2v%2BzKVyE4Ns7%2FdEllPxwtpCOYlneBEkCz6NrEv4sGrKq%2B8X5UOYD5yiGBjxaM48GXaO4UUV9AhCwBEUrKOfjwLX1kUV5yxbTfZG8OnLWHOrY8iMGAZG1O9Aw10m488nq6WMBzaAspWVkZpqm1&amp;X-Amz-Signature=820886911ad1fe91c37c3a90a25d1d71173f503be894c5fdf9e04d2a67d88545&amp;X-Amz-SignedHeaders=host&amp;x-amz-checksum-mode=ENABLED&amp;x-id=GetObject" target="_blank" rel="noreferrer">Open image</a>
+          <a class="image-link" href="https://pipl.clappia.com/app/MLA206324/submission/WQK06619717/PIP121027-MLA206324-560c0dmf19i800000000/IMG-20260310_225288m1l.jpeg" target="_blank" rel="noreferrer">Open original Clappia link</a>
+          <img class="photo" src="https://eq-app-data-uploads-2017.s3.ap-south-1.amazonaws.com/PIP121027-MLA206324-560c0dmf19i800000000/IMG-20260310_225288m1l.jpeg?X-Amz-Algorithm=AWS4-HMAC-SHA256&amp;X-Amz-Content-Sha256=UNSIGNED-PAYLOAD&amp;X-Amz-Credential=ASIAR6XFRJFUM3XVKCNC%2F20260324%2Fap-south-1%2Fs3%2Faws4_request&amp;X-Amz-Date=20260324T144149Z&amp;X-Amz-Expires=300&amp;X-Amz-Security-Token=IQoJb3JpZ2luX2VjEM3%2F%2F%2F%2F%2F%2F%2F%2F%2F%2FwEaCmFwLXNvdXRoLTEiRzBFAiEA6ZkdtLD0wq0AsTPLvA9R6%2F%2BOfs1z0HVF%2BSAajBp9tYkCIFgtbdrMjBmyrZBA1HY6F%2FBmlmNpS3GfzXhrtnsPGzuoKtoECJb%2F%2F%2F%2F%2F%2F%2F%2F%2F%2FwEQAxoMMTM0Njk5MTA4NzEyIgz2eYeCC8MuTGfWu6MqrgR%2FyJShgGkLN3PAP642BBP0J5oU8LQHvXsYq5jC8IbIaV0bt3e2EpKxPO6Q8BsTLOc0CDWKLVuCue4ML%2FJZ9yu3pZXu9zN6squWWeigIewms4if7UtInnsdAcLCtpLRqzs41Lz5Rqd7kb%2FQ6L6W%2F12yDq%2BIiK2IQyPakXN68gy7%2B2DcRPO%2Fn%2BYacUtvft%2B%2Bz%2BnA0%2BLJghcCa4oroJV5nRacoMZ9jTZ2EadbKxdAz5LGZH4P8qnOfwD2OvoL3eLZRgi6It4jpZpAdmM8S3KjvkLYCkxHhU5q7s4RbKJO5PJFZKAO3Xbd2r1sN86BovZQH7%2FqH39RjtWnHjrWog98r9zA2uLo7wHBE4Jiy%2B7Wk0rq8CsFeZj4ahXWxOuSGhJmJZ8rCuQyO8U5eo7K4A9W%2FHm2imeNhFcVTTDj76uU8lu2nSlqDlBqCWKCpNYRkogtFk%2F0i4nKCacel4PYZSByMIVP0Dq6eIO8kCwovyKXq7mHbrNbhnYNq%2FH%2Flol0P0cCdZPOlXL6XRzbWlxVYXejI%2FBG0gE%2BQpPzR5WN9t4sNaqA4ek4zj4bdspe%2FdEmnWtzn9fMx%2F77I0waEu%2BPSLRM5vDsBQQGTO2c%2FE9Kd9hf6bzWK6RbgUd8x%2Bm8m6JX%2F7%2BoKqL7cgxCxqkaHv8S5Lj5P1JalOCMmDWt2FS%2Fskfo8bS9yh8hk1s6%2B9NJ1I0TOt8FncWyUk5zW7uEw%2FCCw7AQ4yvK0O4gm47qGeoaIJdzEhMw4pKKzgY6owFb%2FibGp0Ye8ZBtL6YgFm9lzvM4OYkLa%2F7L6C8XLyFT7UZ6lUlgrP7q9x0vVO1x1PbpiCRr3nh2v%2BzKVyE4Ns7%2FdEllPxwtpCOYlneBEkCz6NrEv4sGrKq%2B8X5UOYD5yiGBjxaM48GXaO4UUV9AhCwBEUrKOfjwLX1kUV5yxbTfZG8OnLWHOrY8iMGAZG1O9Aw10m488nq6WMBzaAspWVkZpqm1&amp;X-Amz-Signature=820886911ad1fe91c37c3a90a25d1d71173f503be894c5fdf9e04d2a67d88545&amp;X-Amz-SignedHeaders=host&amp;x-amz-checksum-mode=ENABLED&amp;x-id=GetObject" alt="Centre wall thickness Sample 2" loading="lazy" referrerpolicy="no-referrer" />
+          <dl class="metrics">
+            <div><dt>Expected</dt><dd>0.800</dd></div>
+            <div><dt>System Output</dt><dd>0.803</dd></div>
+            <div><dt>Status</dt><dd>ok</dd></div>
+            <div><dt>Confidence</dt><dd>0.62</dd></div>
+            <div><dt>Reason</dt><dd>Value clearly visible on the LCD display in the primary crop. Structured verifier confirmed the same reading. Final read remained partially ambiguous after verification; returning the best-supported value.</dd></div>
+          </dl>
+        </article>
+        
+        <article class="card">
+          <div class="card-head">
+            <span class="pill bad">Mismatch</span>
+            <div class="meta">
+              <h3>Side wall thickness Sample 3</h3>
+              <p>Line 1 - Thickness Test</p>
+              <p>Submission: <code>WQK06619717</code></p>
+              <p>Created At: 10-03-2026 11:01 PM</p>
+              <p>Time Slot: 9 PM - 11 PM</p>
+            </div>
+          </div>
+          <a class="image-link" href="https://eq-app-data-uploads-2017.s3.ap-south-1.amazonaws.com/PIP121027-MLA206324-2hj8da54j93o00000000/IMG-20260310_2252ddmm3.jpeg?X-Amz-Algorithm=AWS4-HMAC-SHA256&amp;X-Amz-Content-Sha256=UNSIGNED-PAYLOAD&amp;X-Amz-Credential=ASIAR6XFRJFUG2XIG57K%2F20260324%2Fap-south-1%2Fs3%2Faws4_request&amp;X-Amz-Date=20260324T144208Z&amp;X-Amz-Expires=300&amp;X-Amz-Security-Token=IQoJb3JpZ2luX2VjEM3%2F%2F%2F%2F%2F%2F%2F%2F%2F%2FwEaCmFwLXNvdXRoLTEiRzBFAiBl6pySJ7ww6vcQs6ZTgjRT6A2XslvaHdB8aS2f1xzYWQIhAJpjLg8b8lggzWuESDNTSLRAGdzJtMwWqm5ShYFFmoyVKtoECJb%2F%2F%2F%2F%2F%2F%2F%2F%2F%2FwEQAxoMMTM0Njk5MTA4NzEyIgzlqak3iF%2Bko%2Fw33ysqrgQ%2FXixUQA5za9eQOGJRDDlKzLYfQkLEPCdy50Xazz0ov5nLoVnlGmwPzwdw39sHnOfA8KU7YPRBa3Jev1QwoDtmTbXMiaZrwXHiSncw4f4d8sHlkPGjTyWcWLSZiYeibDJuXpbFTFFsOU9TfrG4ZNUB%2F4z7aTMMRddHP1nkZqJZtbyR1Ak2SgfF8xevt0ACT32%2B%2F644svMozLxJshzGBUqfAJnvOPX1%2FJ1x22N%2BCLzDPhzp5khBOp9s0Bz3vs%2FQWrRgxjunSoJN12NfctvJv%2FtWwOMJumuQrrwpDOBuZ1Oqr3NCCxwDJTBdjqrkbj4gOj%2FMiKMDbC2rVvHwC4OXK6j5A0DWEDKGzSgUaJnmWKd7Pxr8%2BcuAbEvKgEA2br%2Bq8GGSeZbg3rp1PgGIZEWtXhP%2FbWOMClIofXSonfg%2F9oveb2zUS9uDUcro5VLkkE0SKZlloxFhU7X37zO%2FsOBieqeOGzPH0YIfr4BGbRWu1%2BdHmojor2Tj0BeOvry%2BNLo5C8cU1Y6FcboTLRKlgpg0KmrqYT6yF6RQPVfPPiMQ1kHWtuPgPg7NPsVHzVLch91TsSuL%2BKNZNYVCrPlO8OkRdrWMv9HuWgXe4hzb499fy%2BrXsfTEC90Sr2BpG54Mscebh2DRiFqw86F7RGC5tztxWkvSYsH1f77VoCU1SG5JSGU8XOty9bLX39VVPSp0mXXmsGD9oDlHr%2Bdg6rKJZhtC0jCvGlTg%2BhIAEIz98MLVfIow85mKzgY6owHrfjsJbFAob%2FckiXLse6k8oiqLkconZpV6mSQihzeIj6zzo3L0AfwzfnOT9vDMwkj9FuAeujMXHH5BRaZFtRBTWgyZoHzhRZ5SGt%2BCzPen5VmOaUoR9fV4M3qXbhxq9N8ZmM61hGdB9TCoZutYBI6C6KfmkY97%2BIVSpnRGDSAmXZbPpxuqpoU6BzoEOqH%2BzpEg5w3YtKJU%2FNfI5bGWMiDIBzuD&amp;X-Amz-Signature=eac3c3701247647cfd0140e00921d8b62f92c5c89e0ca3275ce2b9ce4a59a6c8&amp;X-Amz-SignedHeaders=host&amp;x-amz-checksum-mode=ENABLED&amp;x-id=GetObject" target="_blank" rel="noreferrer">Open image</a>
+          <a class="image-link" href="https://pipl.clappia.com/app/MLA206324/submission/WQK06619717/PIP121027-MLA206324-2hj8da54j93o00000000/IMG-20260310_2252ddmm3.jpeg" target="_blank" rel="noreferrer">Open original Clappia link</a>
+          <img class="photo" src="https://eq-app-data-uploads-2017.s3.ap-south-1.amazonaws.com/PIP121027-MLA206324-2hj8da54j93o00000000/IMG-20260310_2252ddmm3.jpeg?X-Amz-Algorithm=AWS4-HMAC-SHA256&amp;X-Amz-Content-Sha256=UNSIGNED-PAYLOAD&amp;X-Amz-Credential=ASIAR6XFRJFUG2XIG57K%2F20260324%2Fap-south-1%2Fs3%2Faws4_request&amp;X-Amz-Date=20260324T144208Z&amp;X-Amz-Expires=300&amp;X-Amz-Security-Token=IQoJb3JpZ2luX2VjEM3%2F%2F%2F%2F%2F%2F%2F%2F%2F%2FwEaCmFwLXNvdXRoLTEiRzBFAiBl6pySJ7ww6vcQs6ZTgjRT6A2XslvaHdB8aS2f1xzYWQIhAJpjLg8b8lggzWuESDNTSLRAGdzJtMwWqm5ShYFFmoyVKtoECJb%2F%2F%2F%2F%2F%2F%2F%2F%2F%2FwEQAxoMMTM0Njk5MTA4NzEyIgzlqak3iF%2Bko%2Fw33ysqrgQ%2FXixUQA5za9eQOGJRDDlKzLYfQkLEPCdy50Xazz0ov5nLoVnlGmwPzwdw39sHnOfA8KU7YPRBa3Jev1QwoDtmTbXMiaZrwXHiSncw4f4d8sHlkPGjTyWcWLSZiYeibDJuXpbFTFFsOU9TfrG4ZNUB%2F4z7aTMMRddHP1nkZqJZtbyR1Ak2SgfF8xevt0ACT32%2B%2F644svMozLxJshzGBUqfAJnvOPX1%2FJ1x22N%2BCLzDPhzp5khBOp9s0Bz3vs%2FQWrRgxjunSoJN12NfctvJv%2FtWwOMJumuQrrwpDOBuZ1Oqr3NCCxwDJTBdjqrkbj4gOj%2FMiKMDbC2rVvHwC4OXK6j5A0DWEDKGzSgUaJnmWKd7Pxr8%2BcuAbEvKgEA2br%2Bq8GGSeZbg3rp1PgGIZEWtXhP%2FbWOMClIofXSonfg%2F9oveb2zUS9uDUcro5VLkkE0SKZlloxFhU7X37zO%2FsOBieqeOGzPH0YIfr4BGbRWu1%2BdHmojor2Tj0BeOvry%2BNLo5C8cU1Y6FcboTLRKlgpg0KmrqYT6yF6RQPVfPPiMQ1kHWtuPgPg7NPsVHzVLch91TsSuL%2BKNZNYVCrPlO8OkRdrWMv9HuWgXe4hzb499fy%2BrXsfTEC90Sr2BpG54Mscebh2DRiFqw86F7RGC5tztxWkvSYsH1f77VoCU1SG5JSGU8XOty9bLX39VVPSp0mXXmsGD9oDlHr%2Bdg6rKJZhtC0jCvGlTg%2BhIAEIz98MLVfIow85mKzgY6owHrfjsJbFAob%2FckiXLse6k8oiqLkconZpV6mSQihzeIj6zzo3L0AfwzfnOT9vDMwkj9FuAeujMXHH5BRaZFtRBTWgyZoHzhRZ5SGt%2BCzPen5VmOaUoR9fV4M3qXbhxq9N8ZmM61hGdB9TCoZutYBI6C6KfmkY97%2BIVSpnRGDSAmXZbPpxuqpoU6BzoEOqH%2BzpEg5w3YtKJU%2FNfI5bGWMiDIBzuD&amp;X-Amz-Signature=eac3c3701247647cfd0140e00921d8b62f92c5c89e0ca3275ce2b9ce4a59a6c8&amp;X-Amz-SignedHeaders=host&amp;x-amz-checksum-mode=ENABLED&amp;x-id=GetObject" alt="Side wall thickness Sample 3" loading="lazy" referrerpolicy="no-referrer" />
+          <dl class="metrics">
+            <div><dt>Expected</dt><dd>0.750</dd></div>
+            <div><dt>System Output</dt><dd>0.759</dd></div>
+            <div><dt>Status</dt><dd>ok</dd></div>
+            <div><dt>Confidence</dt><dd>0.62</dd></div>
+            <div><dt>Reason</dt><dd>Clear LCD display reading from primary crop. Structured verifier confirmed the same reading. Final read remained partially ambiguous after verification; returning the best-supported value.</dd></div>
+          </dl>
+        </article>
+        
+        <article class="card">
+          <div class="card-head">
+            <span class="pill bad">Mismatch</span>
+            <div class="meta">
+              <h3>Side wall thickness Sample 4</h3>
+              <p>Line 1 - Thickness Test</p>
+              <p>Submission: <code>WQK06619717</code></p>
+              <p>Created At: 10-03-2026 11:01 PM</p>
+              <p>Time Slot: 9 PM - 11 PM</p>
+            </div>
+          </div>
+          <a class="image-link" href="https://eq-app-data-uploads-2017.s3.ap-south-1.amazonaws.com/PIP121027-MLA206324-4p7jlp9o1lio00000000/IMG-20260310_22535a2p7.jpeg?X-Amz-Algorithm=AWS4-HMAC-SHA256&amp;X-Amz-Content-Sha256=UNSIGNED-PAYLOAD&amp;X-Amz-Credential=ASIAR6XFRJFUG2XIG57K%2F20260324%2Fap-south-1%2Fs3%2Faws4_request&amp;X-Amz-Date=20260324T144214Z&amp;X-Amz-Expires=300&amp;X-Amz-Security-Token=IQoJb3JpZ2luX2VjEM3%2F%2F%2F%2F%2F%2F%2F%2F%2F%2FwEaCmFwLXNvdXRoLTEiRzBFAiBl6pySJ7ww6vcQs6ZTgjRT6A2XslvaHdB8aS2f1xzYWQIhAJpjLg8b8lggzWuESDNTSLRAGdzJtMwWqm5ShYFFmoyVKtoECJb%2F%2F%2F%2F%2F%2F%2F%2F%2F%2FwEQAxoMMTM0Njk5MTA4NzEyIgzlqak3iF%2Bko%2Fw33ysqrgQ%2FXixUQA5za9eQOGJRDDlKzLYfQkLEPCdy50Xazz0ov5nLoVnlGmwPzwdw39sHnOfA8KU7YPRBa3Jev1QwoDtmTbXMiaZrwXHiSncw4f4d8sHlkPGjTyWcWLSZiYeibDJuXpbFTFFsOU9TfrG4ZNUB%2F4z7aTMMRddHP1nkZqJZtbyR1Ak2SgfF8xevt0ACT32%2B%2F644svMozLxJshzGBUqfAJnvOPX1%2FJ1x22N%2BCLzDPhzp5khBOp9s0Bz3vs%2FQWrRgxjunSoJN12NfctvJv%2FtWwOMJumuQrrwpDOBuZ1Oqr3NCCxwDJTBdjqrkbj4gOj%2FMiKMDbC2rVvHwC4OXK6j5A0DWEDKGzSgUaJnmWKd7Pxr8%2BcuAbEvKgEA2br%2Bq8GGSeZbg3rp1PgGIZEWtXhP%2FbWOMClIofXSonfg%2F9oveb2zUS9uDUcro5VLkkE0SKZlloxFhU7X37zO%2FsOBieqeOGzPH0YIfr4BGbRWu1%2BdHmojor2Tj0BeOvry%2BNLo5C8cU1Y6FcboTLRKlgpg0KmrqYT6yF6RQPVfPPiMQ1kHWtuPgPg7NPsVHzVLch91TsSuL%2BKNZNYVCrPlO8OkRdrWMv9HuWgXe4hzb499fy%2BrXsfTEC90Sr2BpG54Mscebh2DRiFqw86F7RGC5tztxWkvSYsH1f77VoCU1SG5JSGU8XOty9bLX39VVPSp0mXXmsGD9oDlHr%2Bdg6rKJZhtC0jCvGlTg%2BhIAEIz98MLVfIow85mKzgY6owHrfjsJbFAob%2FckiXLse6k8oiqLkconZpV6mSQihzeIj6zzo3L0AfwzfnOT9vDMwkj9FuAeujMXHH5BRaZFtRBTWgyZoHzhRZ5SGt%2BCzPen5VmOaUoR9fV4M3qXbhxq9N8ZmM61hGdB9TCoZutYBI6C6KfmkY97%2BIVSpnRGDSAmXZbPpxuqpoU6BzoEOqH%2BzpEg5w3YtKJU%2FNfI5bGWMiDIBzuD&amp;X-Amz-Signature=86ca1098b0c877da993cd02c69b67d89488b481ebf5000228a83045f1d8c99ad&amp;X-Amz-SignedHeaders=host&amp;x-amz-checksum-mode=ENABLED&amp;x-id=GetObject" target="_blank" rel="noreferrer">Open image</a>
+          <a class="image-link" href="https://pipl.clappia.com/app/MLA206324/submission/WQK06619717/PIP121027-MLA206324-4p7jlp9o1lio00000000/IMG-20260310_22535a2p7.jpeg" target="_blank" rel="noreferrer">Open original Clappia link</a>
+          <img class="photo" src="https://eq-app-data-uploads-2017.s3.ap-south-1.amazonaws.com/PIP121027-MLA206324-4p7jlp9o1lio00000000/IMG-20260310_22535a2p7.jpeg?X-Amz-Algorithm=AWS4-HMAC-SHA256&amp;X-Amz-Content-Sha256=UNSIGNED-PAYLOAD&amp;X-Amz-Credential=ASIAR6XFRJFUG2XIG57K%2F20260324%2Fap-south-1%2Fs3%2Faws4_request&amp;X-Amz-Date=20260324T144214Z&amp;X-Amz-Expires=300&amp;X-Amz-Security-Token=IQoJb3JpZ2luX2VjEM3%2F%2F%2F%2F%2F%2F%2F%2F%2F%2FwEaCmFwLXNvdXRoLTEiRzBFAiBl6pySJ7ww6vcQs6ZTgjRT6A2XslvaHdB8aS2f1xzYWQIhAJpjLg8b8lggzWuESDNTSLRAGdzJtMwWqm5ShYFFmoyVKtoECJb%2F%2F%2F%2F%2F%2F%2F%2F%2F%2FwEQAxoMMTM0Njk5MTA4NzEyIgzlqak3iF%2Bko%2Fw33ysqrgQ%2FXixUQA5za9eQOGJRDDlKzLYfQkLEPCdy50Xazz0ov5nLoVnlGmwPzwdw39sHnOfA8KU7YPRBa3Jev1QwoDtmTbXMiaZrwXHiSncw4f4d8sHlkPGjTyWcWLSZiYeibDJuXpbFTFFsOU9TfrG4ZNUB%2F4z7aTMMRddHP1nkZqJZtbyR1Ak2SgfF8xevt0ACT32%2B%2F644svMozLxJshzGBUqfAJnvOPX1%2FJ1x22N%2BCLzDPhzp5khBOp9s0Bz3vs%2FQWrRgxjunSoJN12NfctvJv%2FtWwOMJumuQrrwpDOBuZ1Oqr3NCCxwDJTBdjqrkbj4gOj%2FMiKMDbC2rVvHwC4OXK6j5A0DWEDKGzSgUaJnmWKd7Pxr8%2BcuAbEvKgEA2br%2Bq8GGSeZbg3rp1PgGIZEWtXhP%2FbWOMClIofXSonfg%2F9oveb2zUS9uDUcro5VLkkE0SKZlloxFhU7X37zO%2FsOBieqeOGzPH0YIfr4BGbRWu1%2BdHmojor2Tj0BeOvry%2BNLo5C8cU1Y6FcboTLRKlgpg0KmrqYT6yF6RQPVfPPiMQ1kHWtuPgPg7NPsVHzVLch91TsSuL%2BKNZNYVCrPlO8OkRdrWMv9HuWgXe4hzb499fy%2BrXsfTEC90Sr2BpG54Mscebh2DRiFqw86F7RGC5tztxWkvSYsH1f77VoCU1SG5JSGU8XOty9bLX39VVPSp0mXXmsGD9oDlHr%2Bdg6rKJZhtC0jCvGlTg%2BhIAEIz98MLVfIow85mKzgY6owHrfjsJbFAob%2FckiXLse6k8oiqLkconZpV6mSQihzeIj6zzo3L0AfwzfnOT9vDMwkj9FuAeujMXHH5BRaZFtRBTWgyZoHzhRZ5SGt%2BCzPen5VmOaUoR9fV4M3qXbhxq9N8ZmM61hGdB9TCoZutYBI6C6KfmkY97%2BIVSpnRGDSAmXZbPpxuqpoU6BzoEOqH%2BzpEg5w3YtKJU%2FNfI5bGWMiDIBzuD&amp;X-Amz-Signature=86ca1098b0c877da993cd02c69b67d89488b481ebf5000228a83045f1d8c99ad&amp;X-Amz-SignedHeaders=host&amp;x-amz-checksum-mode=ENABLED&amp;x-id=GetObject" alt="Side wall thickness Sample 4" loading="lazy" referrerpolicy="no-referrer" />
+          <dl class="metrics">
+            <div><dt>Expected</dt><dd>0.600</dd></div>
+            <div><dt>System Output</dt><dd>0.601</dd></div>
+            <div><dt>Status</dt><dd>ok</dd></div>
+            <div><dt>Confidence</dt><dd>0.99</dd></div>
+            <div><dt>Reason</dt><dd>The value &#x27;0.601&#x27; was clearly read from the LCD display in the primary crop. The &#x27;mm&#x27; unit was ignored. Structured verifier confirmed the same reading.</dd></div>
+          </dl>
+        </article>
+        
+        <article class="card">
+          <div class="card-head">
+            <span class="pill bad">Mismatch</span>
+            <div class="meta">
+              <h3>Side wall thickness Sample 1</h3>
+              <p>Line 1 - Thickness Test</p>
+              <p>Submission: <code>PWU74061577</code></p>
+              <p>Created At: 10-03-2026 08:58 PM</p>
+              <p>Time Slot: 7 PM - 9 PM</p>
+            </div>
+          </div>
+          <a class="image-link" href="https://eq-app-data-uploads-2017.s3.ap-south-1.amazonaws.com/PIP121027-MLA206324-5ph0gpmcf99e00000000/IMG-20260310_20555571l.jpeg?X-Amz-Algorithm=AWS4-HMAC-SHA256&amp;X-Amz-Content-Sha256=UNSIGNED-PAYLOAD&amp;X-Amz-Credential=ASIAR6XFRJFUJXIF2TPT%2F20260324%2Fap-south-1%2Fs3%2Faws4_request&amp;X-Amz-Date=20260324T144235Z&amp;X-Amz-Expires=300&amp;X-Amz-Security-Token=IQoJb3JpZ2luX2VjEM3%2F%2F%2F%2F%2F%2F%2F%2F%2F%2FwEaCmFwLXNvdXRoLTEiSDBGAiEA0ufSuu%2Fbeb%2B7On0C25z6rffeS5CtwKmlLPRDJLm7z7sCIQD8HBY6n1QmtwK5CeJ%2F9v6Mw7YwiwVPZt22gUEIS2Zy8iraBAiX%2F%2F%2F%2F%2F%2F%2F%2F%2F%2F8BEAMaDDEzNDY5OTEwODcxMiIMKOMSd3xnph3LKjV6Kq4EuS4BcfqzpqUPmi46oXe%2F%2FNpyYOA8K%2Bb8IwsnWhJ6PqnKoTSUKdBdSr38JZGRMIDEHskH3vO4T0Z1bGaOwmXUT7CdHN1S%2F74VJuCLG%2BWRzml4K1D1PPL75VGCNVUvQez5tg0m9%2B5DX5D5g%2FEHSrHDzQZWpO5PAybRXuywrA21EQoHuqfHzRHzQWsHrFUhNWEd%2BiAvfHbY7gN%2F9ZbiJRRIXCwQL0JT08ojrBAvmmFikHJW6shXG5G0n9V680CCAb0v8psYHG5Cg8dSoepD1luFkUHjklxCJT7X%2BTjDOB5SIBDgXUVQ6OaNsQZuJMZUc4lS2byL7xzXjft6Zryq3QiAgw8EDhn3xlw%2FRLj18ElnU30Y6hCFkJAbPqBFfN2jqAYNwjehu%2BBFh7hD7laO6khUAQFEGFjs6idBBgQ1KRT96RpipJr8IOI0b%2F%2FWWlln%2FGYJ25dtBlUeeFVcpE8268PA8GmiiVtyTx6SZhspWRWmlZNqz0qdP0kaRsyfmBtLbyxR%2FOvM1yttde4xMeRBRQvUonRvbckfHYaXGKB2pZOww1MeTjhvnmd9tm5lsjQeG4EllY7dtavxeQFVBA0lNq92vAnFWCobvWtgzHhF4wX9rz2PxExlB3g1yJKjpVTrYw2VpdzhPY488c9TqhPkLMMpscuU4vTnWB8Q4s39rxSKX8hOknxmL8eEBB%2Fn2BPb6TVbYBUdeOUxDl5tK2eamiqLWC5pdGIU9FmKlrSDJPUGMMqhis4GOqIBJqG1WnoAaGyYm3B5KUr%2Fzh1YiWLw2Vrug7nfimR4WqQcDajkHwZnjrSZ0%2FJ20v9FrjIqt21tdlcwAiHqqyzA2SNZV2%2Bn7Tz%2FC%2Bupx1V5uXRXbZSPXzb%2FrgLhHg1nRRw8uhuD4OwnXImYR5XuOw%2F19mZeVTVEWX%2F48b%2Ff1zd1DrXi3%2FbHtvffTCLoNWh1zxxG5l%2BHpQE2TEhklheKDMg%2FEFNU&amp;X-Amz-Signature=b17b0475b8e22416c24f42ca4f354e0d06ebeee55873d1692bb585077e543a0b&amp;X-Amz-SignedHeaders=host&amp;x-amz-checksum-mode=ENABLED&amp;x-id=GetObject" target="_blank" rel="noreferrer">Open image</a>
+          <a class="image-link" href="https://pipl.clappia.com/app/MLA206324/submission/PWU74061577/PIP121027-MLA206324-5ph0gpmcf99e00000000/IMG-20260310_20555571l.jpeg" target="_blank" rel="noreferrer">Open original Clappia link</a>
+          <img class="photo" src="https://eq-app-data-uploads-2017.s3.ap-south-1.amazonaws.com/PIP121027-MLA206324-5ph0gpmcf99e00000000/IMG-20260310_20555571l.jpeg?X-Amz-Algorithm=AWS4-HMAC-SHA256&amp;X-Amz-Content-Sha256=UNSIGNED-PAYLOAD&amp;X-Amz-Credential=ASIAR6XFRJFUJXIF2TPT%2F20260324%2Fap-south-1%2Fs3%2Faws4_request&amp;X-Amz-Date=20260324T144235Z&amp;X-Amz-Expires=300&amp;X-Amz-Security-Token=IQoJb3JpZ2luX2VjEM3%2F%2F%2F%2F%2F%2F%2F%2F%2F%2FwEaCmFwLXNvdXRoLTEiSDBGAiEA0ufSuu%2Fbeb%2B7On0C25z6rffeS5CtwKmlLPRDJLm7z7sCIQD8HBY6n1QmtwK5CeJ%2F9v6Mw7YwiwVPZt22gUEIS2Zy8iraBAiX%2F%2F%2F%2F%2F%2F%2F%2F%2F%2F8BEAMaDDEzNDY5OTEwODcxMiIMKOMSd3xnph3LKjV6Kq4EuS4BcfqzpqUPmi46oXe%2F%2FNpyYOA8K%2Bb8IwsnWhJ6PqnKoTSUKdBdSr38JZGRMIDEHskH3vO4T0Z1bGaOwmXUT7CdHN1S%2F74VJuCLG%2BWRzml4K1D1PPL75VGCNVUvQez5tg0m9%2B5DX5D5g%2FEHSrHDzQZWpO5PAybRXuywrA21EQoHuqfHzRHzQWsHrFUhNWEd%2BiAvfHbY7gN%2F9ZbiJRRIXCwQL0JT08ojrBAvmmFikHJW6shXG5G0n9V680CCAb0v8psYHG5Cg8dSoepD1luFkUHjklxCJT7X%2BTjDOB5SIBDgXUVQ6OaNsQZuJMZUc4lS2byL7xzXjft6Zryq3QiAgw8EDhn3xlw%2FRLj18ElnU30Y6hCFkJAbPqBFfN2jqAYNwjehu%2BBFh7hD7laO6khUAQFEGFjs6idBBgQ1KRT96RpipJr8IOI0b%2F%2FWWlln%2FGYJ25dtBlUeeFVcpE8268PA8GmiiVtyTx6SZhspWRWmlZNqz0qdP0kaRsyfmBtLbyxR%2FOvM1yttde4xMeRBRQvUonRvbckfHYaXGKB2pZOww1MeTjhvnmd9tm5lsjQeG4EllY7dtavxeQFVBA0lNq92vAnFWCobvWtgzHhF4wX9rz2PxExlB3g1yJKjpVTrYw2VpdzhPY488c9TqhPkLMMpscuU4vTnWB8Q4s39rxSKX8hOknxmL8eEBB%2Fn2BPb6TVbYBUdeOUxDl5tK2eamiqLWC5pdGIU9FmKlrSDJPUGMMqhis4GOqIBJqG1WnoAaGyYm3B5KUr%2Fzh1YiWLw2Vrug7nfimR4WqQcDajkHwZnjrSZ0%2FJ20v9FrjIqt21tdlcwAiHqqyzA2SNZV2%2Bn7Tz%2FC%2Bupx1V5uXRXbZSPXzb%2FrgLhHg1nRRw8uhuD4OwnXImYR5XuOw%2F19mZeVTVEWX%2F48b%2Ff1zd1DrXi3%2FbHtvffTCLoNWh1zxxG5l%2BHpQE2TEhklheKDMg%2FEFNU&amp;X-Amz-Signature=b17b0475b8e22416c24f42ca4f354e0d06ebeee55873d1692bb585077e543a0b&amp;X-Amz-SignedHeaders=host&amp;x-amz-checksum-mode=ENABLED&amp;x-id=GetObject" alt="Side wall thickness Sample 1" loading="lazy" referrerpolicy="no-referrer" />
+          <dl class="metrics">
+            <div><dt>Expected</dt><dd>0.600</dd></div>
+            <div><dt>System Output</dt><dd>0.608</dd></div>
+            <div><dt>Status</dt><dd>ok</dd></div>
+            <div><dt>Confidence</dt><dd>0.97</dd></div>
+            <div><dt>Reason</dt><dd>The primary crop was partial and showed a default/zeroed state. The context image clearly shows the actual measurement &#x27;0.608&#x27; on the LCD display. Full-image support read matched the same reading.</dd></div>
+          </dl>
+        </article>
+        
+        <article class="card">
+          <div class="card-head">
+            <span class="pill bad">Mismatch</span>
+            <div class="meta">
+              <h3>Centre wall thickness Sample 1</h3>
+              <p>Line 1 - Thickness Test</p>
+              <p>Submission: <code>PWU74061577</code></p>
+              <p>Created At: 10-03-2026 08:58 PM</p>
+              <p>Time Slot: 7 PM - 9 PM</p>
+            </div>
+          </div>
+          <a class="image-link" href="https://eq-app-data-uploads-2017.s3.ap-south-1.amazonaws.com/PIP121027-MLA206324-5difkdfg1ij200000000/IMG-20260310_20558lo3h.jpeg?X-Amz-Algorithm=AWS4-HMAC-SHA256&amp;X-Amz-Content-Sha256=UNSIGNED-PAYLOAD&amp;X-Amz-Credential=ASIAR6XFRJFUG2XIG57K%2F20260324%2Fap-south-1%2Fs3%2Faws4_request&amp;X-Amz-Date=20260324T144236Z&amp;X-Amz-Expires=300&amp;X-Amz-Security-Token=IQoJb3JpZ2luX2VjEM3%2F%2F%2F%2F%2F%2F%2F%2F%2F%2FwEaCmFwLXNvdXRoLTEiRzBFAiBl6pySJ7ww6vcQs6ZTgjRT6A2XslvaHdB8aS2f1xzYWQIhAJpjLg8b8lggzWuESDNTSLRAGdzJtMwWqm5ShYFFmoyVKtoECJb%2F%2F%2F%2F%2F%2F%2F%2F%2F%2FwEQAxoMMTM0Njk5MTA4NzEyIgzlqak3iF%2Bko%2Fw33ysqrgQ%2FXixUQA5za9eQOGJRDDlKzLYfQkLEPCdy50Xazz0ov5nLoVnlGmwPzwdw39sHnOfA8KU7YPRBa3Jev1QwoDtmTbXMiaZrwXHiSncw4f4d8sHlkPGjTyWcWLSZiYeibDJuXpbFTFFsOU9TfrG4ZNUB%2F4z7aTMMRddHP1nkZqJZtbyR1Ak2SgfF8xevt0ACT32%2B%2F644svMozLxJshzGBUqfAJnvOPX1%2FJ1x22N%2BCLzDPhzp5khBOp9s0Bz3vs%2FQWrRgxjunSoJN12NfctvJv%2FtWwOMJumuQrrwpDOBuZ1Oqr3NCCxwDJTBdjqrkbj4gOj%2FMiKMDbC2rVvHwC4OXK6j5A0DWEDKGzSgUaJnmWKd7Pxr8%2BcuAbEvKgEA2br%2Bq8GGSeZbg3rp1PgGIZEWtXhP%2FbWOMClIofXSonfg%2F9oveb2zUS9uDUcro5VLkkE0SKZlloxFhU7X37zO%2FsOBieqeOGzPH0YIfr4BGbRWu1%2BdHmojor2Tj0BeOvry%2BNLo5C8cU1Y6FcboTLRKlgpg0KmrqYT6yF6RQPVfPPiMQ1kHWtuPgPg7NPsVHzVLch91TsSuL%2BKNZNYVCrPlO8OkRdrWMv9HuWgXe4hzb499fy%2BrXsfTEC90Sr2BpG54Mscebh2DRiFqw86F7RGC5tztxWkvSYsH1f77VoCU1SG5JSGU8XOty9bLX39VVPSp0mXXmsGD9oDlHr%2Bdg6rKJZhtC0jCvGlTg%2BhIAEIz98MLVfIow85mKzgY6owHrfjsJbFAob%2FckiXLse6k8oiqLkconZpV6mSQihzeIj6zzo3L0AfwzfnOT9vDMwkj9FuAeujMXHH5BRaZFtRBTWgyZoHzhRZ5SGt%2BCzPen5VmOaUoR9fV4M3qXbhxq9N8ZmM61hGdB9TCoZutYBI6C6KfmkY97%2BIVSpnRGDSAmXZbPpxuqpoU6BzoEOqH%2BzpEg5w3YtKJU%2FNfI5bGWMiDIBzuD&amp;X-Amz-Signature=c71650fd1e92f453ec4ce74bdd6391b1292677f713073c261a9ba325c02d239e&amp;X-Amz-SignedHeaders=host&amp;x-amz-checksum-mode=ENABLED&amp;x-id=GetObject" target="_blank" rel="noreferrer">Open image</a>
+          <a class="image-link" href="https://pipl.clappia.com/app/MLA206324/submission/PWU74061577/PIP121027-MLA206324-5difkdfg1ij200000000/IMG-20260310_20558lo3h.jpeg" target="_blank" rel="noreferrer">Open original Clappia link</a>
+          <img class="photo" src="https://eq-app-data-uploads-2017.s3.ap-south-1.amazonaws.com/PIP121027-MLA206324-5difkdfg1ij200000000/IMG-20260310_20558lo3h.jpeg?X-Amz-Algorithm=AWS4-HMAC-SHA256&amp;X-Amz-Content-Sha256=UNSIGNED-PAYLOAD&amp;X-Amz-Credential=ASIAR6XFRJFUG2XIG57K%2F20260324%2Fap-south-1%2Fs3%2Faws4_request&amp;X-Amz-Date=20260324T144236Z&amp;X-Amz-Expires=300&amp;X-Amz-Security-Token=IQoJb3JpZ2luX2VjEM3%2F%2F%2F%2F%2F%2F%2F%2F%2F%2FwEaCmFwLXNvdXRoLTEiRzBFAiBl6pySJ7ww6vcQs6ZTgjRT6A2XslvaHdB8aS2f1xzYWQIhAJpjLg8b8lggzWuESDNTSLRAGdzJtMwWqm5ShYFFmoyVKtoECJb%2F%2F%2F%2F%2F%2F%2F%2F%2F%2FwEQAxoMMTM0Njk5MTA4NzEyIgzlqak3iF%2Bko%2Fw33ysqrgQ%2FXixUQA5za9eQOGJRDDlKzLYfQkLEPCdy50Xazz0ov5nLoVnlGmwPzwdw39sHnOfA8KU7YPRBa3Jev1QwoDtmTbXMiaZrwXHiSncw4f4d8sHlkPGjTyWcWLSZiYeibDJuXpbFTFFsOU9TfrG4ZNUB%2F4z7aTMMRddHP1nkZqJZtbyR1Ak2SgfF8xevt0ACT32%2B%2F644svMozLxJshzGBUqfAJnvOPX1%2FJ1x22N%2BCLzDPhzp5khBOp9s0Bz3vs%2FQWrRgxjunSoJN12NfctvJv%2FtWwOMJumuQrrwpDOBuZ1Oqr3NCCxwDJTBdjqrkbj4gOj%2FMiKMDbC2rVvHwC4OXK6j5A0DWEDKGzSgUaJnmWKd7Pxr8%2BcuAbEvKgEA2br%2Bq8GGSeZbg3rp1PgGIZEWtXhP%2FbWOMClIofXSonfg%2F9oveb2zUS9uDUcro5VLkkE0SKZlloxFhU7X37zO%2FsOBieqeOGzPH0YIfr4BGbRWu1%2BdHmojor2Tj0BeOvry%2BNLo5C8cU1Y6FcboTLRKlgpg0KmrqYT6yF6RQPVfPPiMQ1kHWtuPgPg7NPsVHzVLch91TsSuL%2BKNZNYVCrPlO8OkRdrWMv9HuWgXe4hzb499fy%2BrXsfTEC90Sr2BpG54Mscebh2DRiFqw86F7RGC5tztxWkvSYsH1f77VoCU1SG5JSGU8XOty9bLX39VVPSp0mXXmsGD9oDlHr%2Bdg6rKJZhtC0jCvGlTg%2BhIAEIz98MLVfIow85mKzgY6owHrfjsJbFAob%2FckiXLse6k8oiqLkconZpV6mSQihzeIj6zzo3L0AfwzfnOT9vDMwkj9FuAeujMXHH5BRaZFtRBTWgyZoHzhRZ5SGt%2BCzPen5VmOaUoR9fV4M3qXbhxq9N8ZmM61hGdB9TCoZutYBI6C6KfmkY97%2BIVSpnRGDSAmXZbPpxuqpoU6BzoEOqH%2BzpEg5w3YtKJU%2FNfI5bGWMiDIBzuD&amp;X-Amz-Signature=c71650fd1e92f453ec4ce74bdd6391b1292677f713073c261a9ba325c02d239e&amp;X-Amz-SignedHeaders=host&amp;x-amz-checksum-mode=ENABLED&amp;x-id=GetObject" alt="Centre wall thickness Sample 1" loading="lazy" referrerpolicy="no-referrer" />
+          <dl class="metrics">
+            <div><dt>Expected</dt><dd>0.660</dd></div>
+            <div><dt>System Output</dt><dd>0.669</dd></div>
+            <div><dt>Status</dt><dd>ok</dd></div>
+            <div><dt>Confidence</dt><dd>0.99</dd></div>
+            <div><dt>Reason</dt><dd>The value 0.669 is clearly visible on the LCD display in the primary localized crop. Structured verifier confirmed the same reading.</dd></div>
+          </dl>
+        </article>
+        
+        <article class="card">
+          <div class="card-head">
+            <span class="pill bad">Mismatch</span>
+            <div class="meta">
+              <h3>Side wall thickness Sample 2</h3>
+              <p>Line 1 - Thickness Test</p>
+              <p>Submission: <code>PWU74061577</code></p>
+              <p>Created At: 10-03-2026 08:58 PM</p>
+              <p>Time Slot: 7 PM - 9 PM</p>
+            </div>
+          </div>
+          <a class="image-link" href="https://eq-app-data-uploads-2017.s3.ap-south-1.amazonaws.com/PIP121027-MLA206324-2pieigc4m9i200000000/IMG-20260310_2056fa8mo.jpeg?X-Amz-Algorithm=AWS4-HMAC-SHA256&amp;X-Amz-Content-Sha256=UNSIGNED-PAYLOAD&amp;X-Amz-Credential=ASIAR6XFRJFUG2XIG57K%2F20260324%2Fap-south-1%2Fs3%2Faws4_request&amp;X-Amz-Date=20260324T144237Z&amp;X-Amz-Expires=300&amp;X-Amz-Security-Token=IQoJb3JpZ2luX2VjEM3%2F%2F%2F%2F%2F%2F%2F%2F%2F%2FwEaCmFwLXNvdXRoLTEiRzBFAiBl6pySJ7ww6vcQs6ZTgjRT6A2XslvaHdB8aS2f1xzYWQIhAJpjLg8b8lggzWuESDNTSLRAGdzJtMwWqm5ShYFFmoyVKtoECJb%2F%2F%2F%2F%2F%2F%2F%2F%2F%2FwEQAxoMMTM0Njk5MTA4NzEyIgzlqak3iF%2Bko%2Fw33ysqrgQ%2FXixUQA5za9eQOGJRDDlKzLYfQkLEPCdy50Xazz0ov5nLoVnlGmwPzwdw39sHnOfA8KU7YPRBa3Jev1QwoDtmTbXMiaZrwXHiSncw4f4d8sHlkPGjTyWcWLSZiYeibDJuXpbFTFFsOU9TfrG4ZNUB%2F4z7aTMMRddHP1nkZqJZtbyR1Ak2SgfF8xevt0ACT32%2B%2F644svMozLxJshzGBUqfAJnvOPX1%2FJ1x22N%2BCLzDPhzp5khBOp9s0Bz3vs%2FQWrRgxjunSoJN12NfctvJv%2FtWwOMJumuQrrwpDOBuZ1Oqr3NCCxwDJTBdjqrkbj4gOj%2FMiKMDbC2rVvHwC4OXK6j5A0DWEDKGzSgUaJnmWKd7Pxr8%2BcuAbEvKgEA2br%2Bq8GGSeZbg3rp1PgGIZEWtXhP%2FbWOMClIofXSonfg%2F9oveb2zUS9uDUcro5VLkkE0SKZlloxFhU7X37zO%2FsOBieqeOGzPH0YIfr4BGbRWu1%2BdHmojor2Tj0BeOvry%2BNLo5C8cU1Y6FcboTLRKlgpg0KmrqYT6yF6RQPVfPPiMQ1kHWtuPgPg7NPsVHzVLch91TsSuL%2BKNZNYVCrPlO8OkRdrWMv9HuWgXe4hzb499fy%2BrXsfTEC90Sr2BpG54Mscebh2DRiFqw86F7RGC5tztxWkvSYsH1f77VoCU1SG5JSGU8XOty9bLX39VVPSp0mXXmsGD9oDlHr%2Bdg6rKJZhtC0jCvGlTg%2BhIAEIz98MLVfIow85mKzgY6owHrfjsJbFAob%2FckiXLse6k8oiqLkconZpV6mSQihzeIj6zzo3L0AfwzfnOT9vDMwkj9FuAeujMXHH5BRaZFtRBTWgyZoHzhRZ5SGt%2BCzPen5VmOaUoR9fV4M3qXbhxq9N8ZmM61hGdB9TCoZutYBI6C6KfmkY97%2BIVSpnRGDSAmXZbPpxuqpoU6BzoEOqH%2BzpEg5w3YtKJU%2FNfI5bGWMiDIBzuD&amp;X-Amz-Signature=8f59e34fce88b717798d47f4cd93311c0b72079829aefc4c1fd33fff708fd544&amp;X-Amz-SignedHeaders=host&amp;x-amz-checksum-mode=ENABLED&amp;x-id=GetObject" target="_blank" rel="noreferrer">Open image</a>
+          <a class="image-link" href="https://pipl.clappia.com/app/MLA206324/submission/PWU74061577/PIP121027-MLA206324-2pieigc4m9i200000000/IMG-20260310_2056fa8mo.jpeg" target="_blank" rel="noreferrer">Open original Clappia link</a>
+          <img class="photo" src="https://eq-app-data-uploads-2017.s3.ap-south-1.amazonaws.com/PIP121027-MLA206324-2pieigc4m9i200000000/IMG-20260310_2056fa8mo.jpeg?X-Amz-Algorithm=AWS4-HMAC-SHA256&amp;X-Amz-Content-Sha256=UNSIGNED-PAYLOAD&amp;X-Amz-Credential=ASIAR6XFRJFUG2XIG57K%2F20260324%2Fap-south-1%2Fs3%2Faws4_request&amp;X-Amz-Date=20260324T144237Z&amp;X-Amz-Expires=300&amp;X-Amz-Security-Token=IQoJb3JpZ2luX2VjEM3%2F%2F%2F%2F%2F%2F%2F%2F%2F%2FwEaCmFwLXNvdXRoLTEiRzBFAiBl6pySJ7ww6vcQs6ZTgjRT6A2XslvaHdB8aS2f1xzYWQIhAJpjLg8b8lggzWuESDNTSLRAGdzJtMwWqm5ShYFFmoyVKtoECJb%2F%2F%2F%2F%2F%2F%2F%2F%2F%2FwEQAxoMMTM0Njk5MTA4NzEyIgzlqak3iF%2Bko%2Fw33ysqrgQ%2FXixUQA5za9eQOGJRDDlKzLYfQkLEPCdy50Xazz0ov5nLoVnlGmwPzwdw39sHnOfA8KU7YPRBa3Jev1QwoDtmTbXMiaZrwXHiSncw4f4d8sHlkPGjTyWcWLSZiYeibDJuXpbFTFFsOU9TfrG4ZNUB%2F4z7aTMMRddHP1nkZqJZtbyR1Ak2SgfF8xevt0ACT32%2B%2F644svMozLxJshzGBUqfAJnvOPX1%2FJ1x22N%2BCLzDPhzp5khBOp9s0Bz3vs%2FQWrRgxjunSoJN12NfctvJv%2FtWwOMJumuQrrwpDOBuZ1Oqr3NCCxwDJTBdjqrkbj4gOj%2FMiKMDbC2rVvHwC4OXK6j5A0DWEDKGzSgUaJnmWKd7Pxr8%2BcuAbEvKgEA2br%2Bq8GGSeZbg3rp1PgGIZEWtXhP%2FbWOMClIofXSonfg%2F9oveb2zUS9uDUcro5VLkkE0SKZlloxFhU7X37zO%2FsOBieqeOGzPH0YIfr4BGbRWu1%2BdHmojor2Tj0BeOvry%2BNLo5C8cU1Y6FcboTLRKlgpg0KmrqYT6yF6RQPVfPPiMQ1kHWtuPgPg7NPsVHzVLch91TsSuL%2BKNZNYVCrPlO8OkRdrWMv9HuWgXe4hzb499fy%2BrXsfTEC90Sr2BpG54Mscebh2DRiFqw86F7RGC5tztxWkvSYsH1f77VoCU1SG5JSGU8XOty9bLX39VVPSp0mXXmsGD9oDlHr%2Bdg6rKJZhtC0jCvGlTg%2BhIAEIz98MLVfIow85mKzgY6owHrfjsJbFAob%2FckiXLse6k8oiqLkconZpV6mSQihzeIj6zzo3L0AfwzfnOT9vDMwkj9FuAeujMXHH5BRaZFtRBTWgyZoHzhRZ5SGt%2BCzPen5VmOaUoR9fV4M3qXbhxq9N8ZmM61hGdB9TCoZutYBI6C6KfmkY97%2BIVSpnRGDSAmXZbPpxuqpoU6BzoEOqH%2BzpEg5w3YtKJU%2FNfI5bGWMiDIBzuD&amp;X-Amz-Signature=8f59e34fce88b717798d47f4cd93311c0b72079829aefc4c1fd33fff708fd544&amp;X-Amz-SignedHeaders=host&amp;x-amz-checksum-mode=ENABLED&amp;x-id=GetObject" alt="Side wall thickness Sample 2" loading="lazy" referrerpolicy="no-referrer" />
+          <dl class="metrics">
+            <div><dt>Expected</dt><dd>0.670</dd></div>
+            <div><dt>System Output</dt><dd>0.677</dd></div>
+            <div><dt>Status</dt><dd>ok</dd></div>
+            <div><dt>Confidence</dt><dd>0.99</dd></div>
+            <div><dt>Reason</dt><dd>The value &quot;0.677&quot; was clearly read from the LCD display in the PRIMARY localized crop. The unit &quot;mm&quot; was ignored. Structured verifier confirmed the same reading.</dd></div>
+          </dl>
+        </article>
+        
+        <article class="card">
+          <div class="card-head">
+            <span class="pill bad">Mismatch</span>
+            <div class="meta">
+              <h3>Centre wall thickness Sample 2</h3>
+              <p>Line 1 - Thickness Test</p>
+              <p>Submission: <code>PWU74061577</code></p>
+              <p>Created At: 10-03-2026 08:58 PM</p>
+              <p>Time Slot: 7 PM - 9 PM</p>
+            </div>
+          </div>
+          <a class="image-link" href="https://eq-app-data-uploads-2017.s3.ap-south-1.amazonaws.com/PIP121027-MLA206324-gojd2b963k6k0000000/IMG-20260310_2056ilf3b.jpeg?X-Amz-Algorithm=AWS4-HMAC-SHA256&amp;X-Amz-Content-Sha256=UNSIGNED-PAYLOAD&amp;X-Amz-Credential=ASIAR6XFRJFUG3HOGLY5%2F20260324%2Fap-south-1%2Fs3%2Faws4_request&amp;X-Amz-Date=20260324T144238Z&amp;X-Amz-Expires=300&amp;X-Amz-Security-Token=IQoJb3JpZ2luX2VjEM%2F%2F%2F%2F%2F%2F%2F%2F%2F%2F%2FwEaCmFwLXNvdXRoLTEiRjBEAiBwxRMpPOoNGDqTs2V5WgAVa53nMp2ZT%2BqnmaGp5C6bzAIgeew9CeXixOPKi%2FOo64%2FlsBMfYVQmEz%2FeLigj%2B3nuRlsq2gQImP%2F%2F%2F%2F%2F%2F%2F%2F%2F%2FARADGgwxMzQ2OTkxMDg3MTIiDFUzqMUo%2FYAMTPG%2FsiquBER3cXdmgsWnSCdKOYh5344x1JlzOG%2FbhtucOIcXA24MPpCQhYQNrWARhW5JtZf6Bv9Lls89jHMR9ydbwsntsv8Ba6h0mBr%2F3mCvD9BNVeT%2FZt8K4eSRg6TgXZfpAPkFN6L4ID8Z7BQpU0%2F%2FrbGhGXUs8GZCqz1%2BFn0i3wptJM%2FMRTFx3zgAEa0HxczOy4tPtmp2EsoNKiEBHhfNLQgpG1M9FdaNlYu2oYT70VAdILtTEAaQTg94bw6qbKIm7V0FvlwFyoKZbJyaetUIjOhp%2BL1sifgOvM6Dm3DcZGoC9%2BiHG7naEmw4h7Kzw0uas%2BupbS7bi1jx46Gu9eZnuF%2Bkp6nHswLFX%2BC4VUUORZm%2Fx0Kby1AP4fEd3XswmsBqm7nAtDiY87FrYDfB5g8Aj6AAfPfvtjGZwws2Nvb50IQ9VZgpK%2BE%2FhZ3W6Rx%2B8r0TPsW2N62t0guFfWM3je%2BirUIl02Gqk7UvnFTz6ihSfSZ6n7fWoIWOsnqKTr2knA4YEnW0wTkBwcH58a7Bv5vzKnyu8v9hBRy2G0bSHMshvsFpu3un5LG5eB5CO%2FKqhuwUZjoadrLeUybMJcfl9dfMHCybgr5t9ImE375Jhz7hONZ9EX2t1nDrpMQMgfnt%2B0%2B2vWu7VQAgaIMNVtoiVNYO2x4nYxRkKKOVCbx%2FjrvZ7SbFzzNZY56C3KAE5Eob8TTcdXq89byz%2BhxRG1jITpGAXJvsZckk0JPHLJkmj1JHbOdkoTC8xIrOBjqkAb%2FVL3ooelq3jvGXc1W0CR9fZlpK2J9wVyOpy5f6h%2B6BHqOxTr7x6IEVDZGGGNXKgabNMUJSjHr8STdevCTO79oFXlujfMIk4Fl%2F1ZMGomJQyxC9kbAmJ3ghFN7nPxGY9bSGs%2BOg8vvyLz%2Bbz%2BKeZrWa6QWBs3lIbEUv2mAxVxyvuwvrIUdcsxmVeX50DaosdKlfC7d8lh1lKa17PJ4syb7DGwNl&amp;X-Amz-Signature=67d1305f3770c53e2c3fbf122ea1c96976f3d01ab37b29daaee0cdfc97be3b7d&amp;X-Amz-SignedHeaders=host&amp;x-amz-checksum-mode=ENABLED&amp;x-id=GetObject" target="_blank" rel="noreferrer">Open image</a>
+          <a class="image-link" href="https://pipl.clappia.com/app/MLA206324/submission/PWU74061577/PIP121027-MLA206324-gojd2b963k6k0000000/IMG-20260310_2056ilf3b.jpeg" target="_blank" rel="noreferrer">Open original Clappia link</a>
+          <img class="photo" src="https://eq-app-data-uploads-2017.s3.ap-south-1.amazonaws.com/PIP121027-MLA206324-gojd2b963k6k0000000/IMG-20260310_2056ilf3b.jpeg?X-Amz-Algorithm=AWS4-HMAC-SHA256&amp;X-Amz-Content-Sha256=UNSIGNED-PAYLOAD&amp;X-Amz-Credential=ASIAR6XFRJFUG3HOGLY5%2F20260324%2Fap-south-1%2Fs3%2Faws4_request&amp;X-Amz-Date=20260324T144238Z&amp;X-Amz-Expires=300&amp;X-Amz-Security-Token=IQoJb3JpZ2luX2VjEM%2F%2F%2F%2F%2F%2F%2F%2F%2F%2F%2FwEaCmFwLXNvdXRoLTEiRjBEAiBwxRMpPOoNGDqTs2V5WgAVa53nMp2ZT%2BqnmaGp5C6bzAIgeew9CeXixOPKi%2FOo64%2FlsBMfYVQmEz%2FeLigj%2B3nuRlsq2gQImP%2F%2F%2F%2F%2F%2F%2F%2F%2F%2FARADGgwxMzQ2OTkxMDg3MTIiDFUzqMUo%2FYAMTPG%2FsiquBER3cXdmgsWnSCdKOYh5344x1JlzOG%2FbhtucOIcXA24MPpCQhYQNrWARhW5JtZf6Bv9Lls89jHMR9ydbwsntsv8Ba6h0mBr%2F3mCvD9BNVeT%2FZt8K4eSRg6TgXZfpAPkFN6L4ID8Z7BQpU0%2F%2FrbGhGXUs8GZCqz1%2BFn0i3wptJM%2FMRTFx3zgAEa0HxczOy4tPtmp2EsoNKiEBHhfNLQgpG1M9FdaNlYu2oYT70VAdILtTEAaQTg94bw6qbKIm7V0FvlwFyoKZbJyaetUIjOhp%2BL1sifgOvM6Dm3DcZGoC9%2BiHG7naEmw4h7Kzw0uas%2BupbS7bi1jx46Gu9eZnuF%2Bkp6nHswLFX%2BC4VUUORZm%2Fx0Kby1AP4fEd3XswmsBqm7nAtDiY87FrYDfB5g8Aj6AAfPfvtjGZwws2Nvb50IQ9VZgpK%2BE%2FhZ3W6Rx%2B8r0TPsW2N62t0guFfWM3je%2BirUIl02Gqk7UvnFTz6ihSfSZ6n7fWoIWOsnqKTr2knA4YEnW0wTkBwcH58a7Bv5vzKnyu8v9hBRy2G0bSHMshvsFpu3un5LG5eB5CO%2FKqhuwUZjoadrLeUybMJcfl9dfMHCybgr5t9ImE375Jhz7hONZ9EX2t1nDrpMQMgfnt%2B0%2B2vWu7VQAgaIMNVtoiVNYO2x4nYxRkKKOVCbx%2FjrvZ7SbFzzNZY56C3KAE5Eob8TTcdXq89byz%2BhxRG1jITpGAXJvsZckk0JPHLJkmj1JHbOdkoTC8xIrOBjqkAb%2FVL3ooelq3jvGXc1W0CR9fZlpK2J9wVyOpy5f6h%2B6BHqOxTr7x6IEVDZGGGNXKgabNMUJSjHr8STdevCTO79oFXlujfMIk4Fl%2F1ZMGomJQyxC9kbAmJ3ghFN7nPxGY9bSGs%2BOg8vvyLz%2Bbz%2BKeZrWa6QWBs3lIbEUv2mAxVxyvuwvrIUdcsxmVeX50DaosdKlfC7d8lh1lKa17PJ4syb7DGwNl&amp;X-Amz-Signature=67d1305f3770c53e2c3fbf122ea1c96976f3d01ab37b29daaee0cdfc97be3b7d&amp;X-Amz-SignedHeaders=host&amp;x-amz-checksum-mode=ENABLED&amp;x-id=GetObject" alt="Centre wall thickness Sample 2" loading="lazy" referrerpolicy="no-referrer" />
+          <dl class="metrics">
+            <div><dt>Expected</dt><dd>0.600</dd></div>
+            <div><dt>System Output</dt><dd>0.605</dd></div>
+            <div><dt>Status</dt><dd>ok</dd></div>
+            <div><dt>Confidence</dt><dd>0.97</dd></div>
+            <div><dt>Reason</dt><dd>Primary image was an invalid crop showing only buttons and text, not the display. The value was clearly read from the LCD display in the context image. Full-image support read matched the same reading.</dd></div>
+          </dl>
+        </article>
+        
+        <article class="card">
+          <div class="card-head">
+            <span class="pill bad">Mismatch</span>
+            <div class="meta">
+              <h3>Side wall thickness Sample 3</h3>
+              <p>Line 1 - Thickness Test</p>
+              <p>Submission: <code>PWU74061577</code></p>
+              <p>Created At: 10-03-2026 08:58 PM</p>
+              <p>Time Slot: 7 PM - 9 PM</p>
+            </div>
+          </div>
+          <a class="image-link" href="https://eq-app-data-uploads-2017.s3.ap-south-1.amazonaws.com/PIP121027-MLA206324-11bid010doob80000000/IMG-20260310_2055709ah.jpeg?X-Amz-Algorithm=AWS4-HMAC-SHA256&amp;X-Amz-Content-Sha256=UNSIGNED-PAYLOAD&amp;X-Amz-Credential=ASIAR6XFRJFUG3HOGLY5%2F20260324%2Fap-south-1%2Fs3%2Faws4_request&amp;X-Amz-Date=20260324T144253Z&amp;X-Amz-Expires=300&amp;X-Amz-Security-Token=IQoJb3JpZ2luX2VjEM%2F%2F%2F%2F%2F%2F%2F%2F%2F%2F%2FwEaCmFwLXNvdXRoLTEiRjBEAiBwxRMpPOoNGDqTs2V5WgAVa53nMp2ZT%2BqnmaGp5C6bzAIgeew9CeXixOPKi%2FOo64%2FlsBMfYVQmEz%2FeLigj%2B3nuRlsq2gQImP%2F%2F%2F%2F%2F%2F%2F%2F%2F%2FARADGgwxMzQ2OTkxMDg3MTIiDFUzqMUo%2FYAMTPG%2FsiquBER3cXdmgsWnSCdKOYh5344x1JlzOG%2FbhtucOIcXA24MPpCQhYQNrWARhW5JtZf6Bv9Lls89jHMR9ydbwsntsv8Ba6h0mBr%2F3mCvD9BNVeT%2FZt8K4eSRg6TgXZfpAPkFN6L4ID8Z7BQpU0%2F%2FrbGhGXUs8GZCqz1%2BFn0i3wptJM%2FMRTFx3zgAEa0HxczOy4tPtmp2EsoNKiEBHhfNLQgpG1M9FdaNlYu2oYT70VAdILtTEAaQTg94bw6qbKIm7V0FvlwFyoKZbJyaetUIjOhp%2BL1sifgOvM6Dm3DcZGoC9%2BiHG7naEmw4h7Kzw0uas%2BupbS7bi1jx46Gu9eZnuF%2Bkp6nHswLFX%2BC4VUUORZm%2Fx0Kby1AP4fEd3XswmsBqm7nAtDiY87FrYDfB5g8Aj6AAfPfvtjGZwws2Nvb50IQ9VZgpK%2BE%2FhZ3W6Rx%2B8r0TPsW2N62t0guFfWM3je%2BirUIl02Gqk7UvnFTz6ihSfSZ6n7fWoIWOsnqKTr2knA4YEnW0wTkBwcH58a7Bv5vzKnyu8v9hBRy2G0bSHMshvsFpu3un5LG5eB5CO%2FKqhuwUZjoadrLeUybMJcfl9dfMHCybgr5t9ImE375Jhz7hONZ9EX2t1nDrpMQMgfnt%2B0%2B2vWu7VQAgaIMNVtoiVNYO2x4nYxRkKKOVCbx%2FjrvZ7SbFzzNZY56C3KAE5Eob8TTcdXq89byz%2BhxRG1jITpGAXJvsZckk0JPHLJkmj1JHbOdkoTC8xIrOBjqkAb%2FVL3ooelq3jvGXc1W0CR9fZlpK2J9wVyOpy5f6h%2B6BHqOxTr7x6IEVDZGGGNXKgabNMUJSjHr8STdevCTO79oFXlujfMIk4Fl%2F1ZMGomJQyxC9kbAmJ3ghFN7nPxGY9bSGs%2BOg8vvyLz%2Bbz%2BKeZrWa6QWBs3lIbEUv2mAxVxyvuwvrIUdcsxmVeX50DaosdKlfC7d8lh1lKa17PJ4syb7DGwNl&amp;X-Amz-Signature=0b0300d866541a8399de9a31f4b645881ff88fe6cff79b7ed40d07fe9a17fd58&amp;X-Amz-SignedHeaders=host&amp;x-amz-checksum-mode=ENABLED&amp;x-id=GetObject" target="_blank" rel="noreferrer">Open image</a>
+          <a class="image-link" href="https://pipl.clappia.com/app/MLA206324/submission/PWU74061577/PIP121027-MLA206324-11bid010doob80000000/IMG-20260310_2055709ah.jpeg" target="_blank" rel="noreferrer">Open original Clappia link</a>
+          <img class="photo" src="https://eq-app-data-uploads-2017.s3.ap-south-1.amazonaws.com/PIP121027-MLA206324-11bid010doob80000000/IMG-20260310_2055709ah.jpeg?X-Amz-Algorithm=AWS4-HMAC-SHA256&amp;X-Amz-Content-Sha256=UNSIGNED-PAYLOAD&amp;X-Amz-Credential=ASIAR6XFRJFUG3HOGLY5%2F20260324%2Fap-south-1%2Fs3%2Faws4_request&amp;X-Amz-Date=20260324T144253Z&amp;X-Amz-Expires=300&amp;X-Amz-Security-Token=IQoJb3JpZ2luX2VjEM%2F%2F%2F%2F%2F%2F%2F%2F%2F%2F%2FwEaCmFwLXNvdXRoLTEiRjBEAiBwxRMpPOoNGDqTs2V5WgAVa53nMp2ZT%2BqnmaGp5C6bzAIgeew9CeXixOPKi%2FOo64%2FlsBMfYVQmEz%2FeLigj%2B3nuRlsq2gQImP%2F%2F%2F%2F%2F%2F%2F%2F%2F%2FARADGgwxMzQ2OTkxMDg3MTIiDFUzqMUo%2FYAMTPG%2FsiquBER3cXdmgsWnSCdKOYh5344x1JlzOG%2FbhtucOIcXA24MPpCQhYQNrWARhW5JtZf6Bv9Lls89jHMR9ydbwsntsv8Ba6h0mBr%2F3mCvD9BNVeT%2FZt8K4eSRg6TgXZfpAPkFN6L4ID8Z7BQpU0%2F%2FrbGhGXUs8GZCqz1%2BFn0i3wptJM%2FMRTFx3zgAEa0HxczOy4tPtmp2EsoNKiEBHhfNLQgpG1M9FdaNlYu2oYT70VAdILtTEAaQTg94bw6qbKIm7V0FvlwFyoKZbJyaetUIjOhp%2BL1sifgOvM6Dm3DcZGoC9%2BiHG7naEmw4h7Kzw0uas%2BupbS7bi1jx46Gu9eZnuF%2Bkp6nHswLFX%2BC4VUUORZm%2Fx0Kby1AP4fEd3XswmsBqm7nAtDiY87FrYDfB5g8Aj6AAfPfvtjGZwws2Nvb50IQ9VZgpK%2BE%2FhZ3W6Rx%2B8r0TPsW2N62t0guFfWM3je%2BirUIl02Gqk7UvnFTz6ihSfSZ6n7fWoIWOsnqKTr2knA4YEnW0wTkBwcH58a7Bv5vzKnyu8v9hBRy2G0bSHMshvsFpu3un5LG5eB5CO%2FKqhuwUZjoadrLeUybMJcfl9dfMHCybgr5t9ImE375Jhz7hONZ9EX2t1nDrpMQMgfnt%2B0%2B2vWu7VQAgaIMNVtoiVNYO2x4nYxRkKKOVCbx%2FjrvZ7SbFzzNZY56C3KAE5Eob8TTcdXq89byz%2BhxRG1jITpGAXJvsZckk0JPHLJkmj1JHbOdkoTC8xIrOBjqkAb%2FVL3ooelq3jvGXc1W0CR9fZlpK2J9wVyOpy5f6h%2B6BHqOxTr7x6IEVDZGGGNXKgabNMUJSjHr8STdevCTO79oFXlujfMIk4Fl%2F1ZMGomJQyxC9kbAmJ3ghFN7nPxGY9bSGs%2BOg8vvyLz%2Bbz%2BKeZrWa6QWBs3lIbEUv2mAxVxyvuwvrIUdcsxmVeX50DaosdKlfC7d8lh1lKa17PJ4syb7DGwNl&amp;X-Amz-Signature=0b0300d866541a8399de9a31f4b645881ff88fe6cff79b7ed40d07fe9a17fd58&amp;X-Amz-SignedHeaders=host&amp;x-amz-checksum-mode=ENABLED&amp;x-id=GetObject" alt="Side wall thickness Sample 3" loading="lazy" referrerpolicy="no-referrer" />
+          <dl class="metrics">
+            <div><dt>Expected</dt><dd>0.690</dd></div>
+            <div><dt>System Output</dt><dd>0.691</dd></div>
+            <div><dt>Status</dt><dd>ok</dd></div>
+            <div><dt>Confidence</dt><dd>0.99</dd></div>
+            <div><dt>Reason</dt><dd>The primary image was an invalid crop showing only buttons. The context image clearly shows an LCD display with the value 0.691. Structured verifier confirmed the same reading.</dd></div>
+          </dl>
+        </article>
+        
+        <article class="card">
+          <div class="card-head">
+            <span class="pill bad">Mismatch</span>
+            <div class="meta">
+              <h3>Side wall thickness Sample 4</h3>
+              <p>Line 1 - Thickness Test</p>
+              <p>Submission: <code>PWU74061577</code></p>
+              <p>Created At: 10-03-2026 08:58 PM</p>
+              <p>Time Slot: 7 PM - 9 PM</p>
+            </div>
+          </div>
+          <a class="image-link" href="https://eq-app-data-uploads-2017.s3.ap-south-1.amazonaws.com/PIP121027-MLA206324-5fg0aejai16400000000/IMG-20260310_2055783kg.jpeg?X-Amz-Algorithm=AWS4-HMAC-SHA256&amp;X-Amz-Content-Sha256=UNSIGNED-PAYLOAD&amp;X-Amz-Credential=ASIAR6XFRJFUJXIF2TPT%2F20260324%2Fap-south-1%2Fs3%2Faws4_request&amp;X-Amz-Date=20260324T144301Z&amp;X-Amz-Expires=300&amp;X-Amz-Security-Token=IQoJb3JpZ2luX2VjEM3%2F%2F%2F%2F%2F%2F%2F%2F%2F%2FwEaCmFwLXNvdXRoLTEiSDBGAiEA0ufSuu%2Fbeb%2B7On0C25z6rffeS5CtwKmlLPRDJLm7z7sCIQD8HBY6n1QmtwK5CeJ%2F9v6Mw7YwiwVPZt22gUEIS2Zy8iraBAiX%2F%2F%2F%2F%2F%2F%2F%2F%2F%2F8BEAMaDDEzNDY5OTEwODcxMiIMKOMSd3xnph3LKjV6Kq4EuS4BcfqzpqUPmi46oXe%2F%2FNpyYOA8K%2Bb8IwsnWhJ6PqnKoTSUKdBdSr38JZGRMIDEHskH3vO4T0Z1bGaOwmXUT7CdHN1S%2F74VJuCLG%2BWRzml4K1D1PPL75VGCNVUvQez5tg0m9%2B5DX5D5g%2FEHSrHDzQZWpO5PAybRXuywrA21EQoHuqfHzRHzQWsHrFUhNWEd%2BiAvfHbY7gN%2F9ZbiJRRIXCwQL0JT08ojrBAvmmFikHJW6shXG5G0n9V680CCAb0v8psYHG5Cg8dSoepD1luFkUHjklxCJT7X%2BTjDOB5SIBDgXUVQ6OaNsQZuJMZUc4lS2byL7xzXjft6Zryq3QiAgw8EDhn3xlw%2FRLj18ElnU30Y6hCFkJAbPqBFfN2jqAYNwjehu%2BBFh7hD7laO6khUAQFEGFjs6idBBgQ1KRT96RpipJr8IOI0b%2F%2FWWlln%2FGYJ25dtBlUeeFVcpE8268PA8GmiiVtyTx6SZhspWRWmlZNqz0qdP0kaRsyfmBtLbyxR%2FOvM1yttde4xMeRBRQvUonRvbckfHYaXGKB2pZOww1MeTjhvnmd9tm5lsjQeG4EllY7dtavxeQFVBA0lNq92vAnFWCobvWtgzHhF4wX9rz2PxExlB3g1yJKjpVTrYw2VpdzhPY488c9TqhPkLMMpscuU4vTnWB8Q4s39rxSKX8hOknxmL8eEBB%2Fn2BPb6TVbYBUdeOUxDl5tK2eamiqLWC5pdGIU9FmKlrSDJPUGMMqhis4GOqIBJqG1WnoAaGyYm3B5KUr%2Fzh1YiWLw2Vrug7nfimR4WqQcDajkHwZnjrSZ0%2FJ20v9FrjIqt21tdlcwAiHqqyzA2SNZV2%2Bn7Tz%2FC%2Bupx1V5uXRXbZSPXzb%2FrgLhHg1nRRw8uhuD4OwnXImYR5XuOw%2F19mZeVTVEWX%2F48b%2Ff1zd1DrXi3%2FbHtvffTCLoNWh1zxxG5l%2BHpQE2TEhklheKDMg%2FEFNU&amp;X-Amz-Signature=ef875c8606fb214ace6f4f53f41b392bf45b503c88ef99d464930edbcfd9673d&amp;X-Amz-SignedHeaders=host&amp;x-amz-checksum-mode=ENABLED&amp;x-id=GetObject" target="_blank" rel="noreferrer">Open image</a>
+          <a class="image-link" href="https://pipl.clappia.com/app/MLA206324/submission/PWU74061577/PIP121027-MLA206324-5fg0aejai16400000000/IMG-20260310_2055783kg.jpeg" target="_blank" rel="noreferrer">Open original Clappia link</a>
+          <img class="photo" src="https://eq-app-data-uploads-2017.s3.ap-south-1.amazonaws.com/PIP121027-MLA206324-5fg0aejai16400000000/IMG-20260310_2055783kg.jpeg?X-Amz-Algorithm=AWS4-HMAC-SHA256&amp;X-Amz-Content-Sha256=UNSIGNED-PAYLOAD&amp;X-Amz-Credential=ASIAR6XFRJFUJXIF2TPT%2F20260324%2Fap-south-1%2Fs3%2Faws4_request&amp;X-Amz-Date=20260324T144301Z&amp;X-Amz-Expires=300&amp;X-Amz-Security-Token=IQoJb3JpZ2luX2VjEM3%2F%2F%2F%2F%2F%2F%2F%2F%2F%2FwEaCmFwLXNvdXRoLTEiSDBGAiEA0ufSuu%2Fbeb%2B7On0C25z6rffeS5CtwKmlLPRDJLm7z7sCIQD8HBY6n1QmtwK5CeJ%2F9v6Mw7YwiwVPZt22gUEIS2Zy8iraBAiX%2F%2F%2F%2F%2F%2F%2F%2F%2F%2F8BEAMaDDEzNDY5OTEwODcxMiIMKOMSd3xnph3LKjV6Kq4EuS4BcfqzpqUPmi46oXe%2F%2FNpyYOA8K%2Bb8IwsnWhJ6PqnKoTSUKdBdSr38JZGRMIDEHskH3vO4T0Z1bGaOwmXUT7CdHN1S%2F74VJuCLG%2BWRzml4K1D1PPL75VGCNVUvQez5tg0m9%2B5DX5D5g%2FEHSrHDzQZWpO5PAybRXuywrA21EQoHuqfHzRHzQWsHrFUhNWEd%2BiAvfHbY7gN%2F9ZbiJRRIXCwQL0JT08ojrBAvmmFikHJW6shXG5G0n9V680CCAb0v8psYHG5Cg8dSoepD1luFkUHjklxCJT7X%2BTjDOB5SIBDgXUVQ6OaNsQZuJMZUc4lS2byL7xzXjft6Zryq3QiAgw8EDhn3xlw%2FRLj18ElnU30Y6hCFkJAbPqBFfN2jqAYNwjehu%2BBFh7hD7laO6khUAQFEGFjs6idBBgQ1KRT96RpipJr8IOI0b%2F%2FWWlln%2FGYJ25dtBlUeeFVcpE8268PA8GmiiVtyTx6SZhspWRWmlZNqz0qdP0kaRsyfmBtLbyxR%2FOvM1yttde4xMeRBRQvUonRvbckfHYaXGKB2pZOww1MeTjhvnmd9tm5lsjQeG4EllY7dtavxeQFVBA0lNq92vAnFWCobvWtgzHhF4wX9rz2PxExlB3g1yJKjpVTrYw2VpdzhPY488c9TqhPkLMMpscuU4vTnWB8Q4s39rxSKX8hOknxmL8eEBB%2Fn2BPb6TVbYBUdeOUxDl5tK2eamiqLWC5pdGIU9FmKlrSDJPUGMMqhis4GOqIBJqG1WnoAaGyYm3B5KUr%2Fzh1YiWLw2Vrug7nfimR4WqQcDajkHwZnjrSZ0%2FJ20v9FrjIqt21tdlcwAiHqqyzA2SNZV2%2Bn7Tz%2FC%2Bupx1V5uXRXbZSPXzb%2FrgLhHg1nRRw8uhuD4OwnXImYR5XuOw%2F19mZeVTVEWX%2F48b%2Ff1zd1DrXi3%2FbHtvffTCLoNWh1zxxG5l%2BHpQE2TEhklheKDMg%2FEFNU&amp;X-Amz-Signature=ef875c8606fb214ace6f4f53f41b392bf45b503c88ef99d464930edbcfd9673d&amp;X-Amz-SignedHeaders=host&amp;x-amz-checksum-mode=ENABLED&amp;x-id=GetObject" alt="Side wall thickness Sample 4" loading="lazy" referrerpolicy="no-referrer" />
+          <dl class="metrics">
+            <div><dt>Expected</dt><dd>0.670</dd></div>
+            <div><dt>System Output</dt><dd>0.678</dd></div>
+            <div><dt>Status</dt><dd>ok</dd></div>
+            <div><dt>Confidence</dt><dd>0.97</dd></div>
+            <div><dt>Reason</dt><dd>The PRIMARY crop was blurry and showed a different value (0.070) compared to the clearer CONTEXT image (0.678). Following the &#x27;Never let a weaker image override a stronger one&#x27; and &#x27;If crop and context disagree, prefer the interpretation matching the complete display row&#x27; rules, the CONTEXT image was used as it provided a clearer and more reliable reading. Full-image support read matched the same reading.</dd></div>
+          </dl>
+        </article>
+        
+        <article class="card">
+          <div class="card-head">
+            <span class="pill bad">Mismatch</span>
+            <div class="meta">
+              <h3>Centre wall thickness Sample 4</h3>
+              <p>Line 1 - Thickness Test</p>
+              <p>Submission: <code>PWU74061577</code></p>
+              <p>Created At: 10-03-2026 08:58 PM</p>
+              <p>Time Slot: 7 PM - 9 PM</p>
+            </div>
+          </div>
+          <a class="image-link" href="https://eq-app-data-uploads-2017.s3.ap-south-1.amazonaws.com/PIP121027-MLA206324-3m9f1oe0k4bi00000000/IMG-20260310_2055pcna1.jpeg?X-Amz-Algorithm=AWS4-HMAC-SHA256&amp;X-Amz-Content-Sha256=UNSIGNED-PAYLOAD&amp;X-Amz-Credential=ASIAR6XFRJFUG2XIG57K%2F20260324%2Fap-south-1%2Fs3%2Faws4_request&amp;X-Amz-Date=20260324T144302Z&amp;X-Amz-Expires=300&amp;X-Amz-Security-Token=IQoJb3JpZ2luX2VjEM3%2F%2F%2F%2F%2F%2F%2F%2F%2F%2FwEaCmFwLXNvdXRoLTEiRzBFAiBl6pySJ7ww6vcQs6ZTgjRT6A2XslvaHdB8aS2f1xzYWQIhAJpjLg8b8lggzWuESDNTSLRAGdzJtMwWqm5ShYFFmoyVKtoECJb%2F%2F%2F%2F%2F%2F%2F%2F%2F%2FwEQAxoMMTM0Njk5MTA4NzEyIgzlqak3iF%2Bko%2Fw33ysqrgQ%2FXixUQA5za9eQOGJRDDlKzLYfQkLEPCdy50Xazz0ov5nLoVnlGmwPzwdw39sHnOfA8KU7YPRBa3Jev1QwoDtmTbXMiaZrwXHiSncw4f4d8sHlkPGjTyWcWLSZiYeibDJuXpbFTFFsOU9TfrG4ZNUB%2F4z7aTMMRddHP1nkZqJZtbyR1Ak2SgfF8xevt0ACT32%2B%2F644svMozLxJshzGBUqfAJnvOPX1%2FJ1x22N%2BCLzDPhzp5khBOp9s0Bz3vs%2FQWrRgxjunSoJN12NfctvJv%2FtWwOMJumuQrrwpDOBuZ1Oqr3NCCxwDJTBdjqrkbj4gOj%2FMiKMDbC2rVvHwC4OXK6j5A0DWEDKGzSgUaJnmWKd7Pxr8%2BcuAbEvKgEA2br%2Bq8GGSeZbg3rp1PgGIZEWtXhP%2FbWOMClIofXSonfg%2F9oveb2zUS9uDUcro5VLkkE0SKZlloxFhU7X37zO%2FsOBieqeOGzPH0YIfr4BGbRWu1%2BdHmojor2Tj0BeOvry%2BNLo5C8cU1Y6FcboTLRKlgpg0KmrqYT6yF6RQPVfPPiMQ1kHWtuPgPg7NPsVHzVLch91TsSuL%2BKNZNYVCrPlO8OkRdrWMv9HuWgXe4hzb499fy%2BrXsfTEC90Sr2BpG54Mscebh2DRiFqw86F7RGC5tztxWkvSYsH1f77VoCU1SG5JSGU8XOty9bLX39VVPSp0mXXmsGD9oDlHr%2Bdg6rKJZhtC0jCvGlTg%2BhIAEIz98MLVfIow85mKzgY6owHrfjsJbFAob%2FckiXLse6k8oiqLkconZpV6mSQihzeIj6zzo3L0AfwzfnOT9vDMwkj9FuAeujMXHH5BRaZFtRBTWgyZoHzhRZ5SGt%2BCzPen5VmOaUoR9fV4M3qXbhxq9N8ZmM61hGdB9TCoZutYBI6C6KfmkY97%2BIVSpnRGDSAmXZbPpxuqpoU6BzoEOqH%2BzpEg5w3YtKJU%2FNfI5bGWMiDIBzuD&amp;X-Amz-Signature=27a416a33c0df20e7ddc103f6284daa61cccc4da7cc1f48d61250f057d27c493&amp;X-Amz-SignedHeaders=host&amp;x-amz-checksum-mode=ENABLED&amp;x-id=GetObject" target="_blank" rel="noreferrer">Open image</a>
+          <a class="image-link" href="https://pipl.clappia.com/app/MLA206324/submission/PWU74061577/PIP121027-MLA206324-3m9f1oe0k4bi00000000/IMG-20260310_2055pcna1.jpeg" target="_blank" rel="noreferrer">Open original Clappia link</a>
+          <img class="photo" src="https://eq-app-data-uploads-2017.s3.ap-south-1.amazonaws.com/PIP121027-MLA206324-3m9f1oe0k4bi00000000/IMG-20260310_2055pcna1.jpeg?X-Amz-Algorithm=AWS4-HMAC-SHA256&amp;X-Amz-Content-Sha256=UNSIGNED-PAYLOAD&amp;X-Amz-Credential=ASIAR6XFRJFUG2XIG57K%2F20260324%2Fap-south-1%2Fs3%2Faws4_request&amp;X-Amz-Date=20260324T144302Z&amp;X-Amz-Expires=300&amp;X-Amz-Security-Token=IQoJb3JpZ2luX2VjEM3%2F%2F%2F%2F%2F%2F%2F%2F%2F%2FwEaCmFwLXNvdXRoLTEiRzBFAiBl6pySJ7ww6vcQs6ZTgjRT6A2XslvaHdB8aS2f1xzYWQIhAJpjLg8b8lggzWuESDNTSLRAGdzJtMwWqm5ShYFFmoyVKtoECJb%2F%2F%2F%2F%2F%2F%2F%2F%2F%2FwEQAxoMMTM0Njk5MTA4NzEyIgzlqak3iF%2Bko%2Fw33ysqrgQ%2FXixUQA5za9eQOGJRDDlKzLYfQkLEPCdy50Xazz0ov5nLoVnlGmwPzwdw39sHnOfA8KU7YPRBa3Jev1QwoDtmTbXMiaZrwXHiSncw4f4d8sHlkPGjTyWcWLSZiYeibDJuXpbFTFFsOU9TfrG4ZNUB%2F4z7aTMMRddHP1nkZqJZtbyR1Ak2SgfF8xevt0ACT32%2B%2F644svMozLxJshzGBUqfAJnvOPX1%2FJ1x22N%2BCLzDPhzp5khBOp9s0Bz3vs%2FQWrRgxjunSoJN12NfctvJv%2FtWwOMJumuQrrwpDOBuZ1Oqr3NCCxwDJTBdjqrkbj4gOj%2FMiKMDbC2rVvHwC4OXK6j5A0DWEDKGzSgUaJnmWKd7Pxr8%2BcuAbEvKgEA2br%2Bq8GGSeZbg3rp1PgGIZEWtXhP%2FbWOMClIofXSonfg%2F9oveb2zUS9uDUcro5VLkkE0SKZlloxFhU7X37zO%2FsOBieqeOGzPH0YIfr4BGbRWu1%2BdHmojor2Tj0BeOvry%2BNLo5C8cU1Y6FcboTLRKlgpg0KmrqYT6yF6RQPVfPPiMQ1kHWtuPgPg7NPsVHzVLch91TsSuL%2BKNZNYVCrPlO8OkRdrWMv9HuWgXe4hzb499fy%2BrXsfTEC90Sr2BpG54Mscebh2DRiFqw86F7RGC5tztxWkvSYsH1f77VoCU1SG5JSGU8XOty9bLX39VVPSp0mXXmsGD9oDlHr%2Bdg6rKJZhtC0jCvGlTg%2BhIAEIz98MLVfIow85mKzgY6owHrfjsJbFAob%2FckiXLse6k8oiqLkconZpV6mSQihzeIj6zzo3L0AfwzfnOT9vDMwkj9FuAeujMXHH5BRaZFtRBTWgyZoHzhRZ5SGt%2BCzPen5VmOaUoR9fV4M3qXbhxq9N8ZmM61hGdB9TCoZutYBI6C6KfmkY97%2BIVSpnRGDSAmXZbPpxuqpoU6BzoEOqH%2BzpEg5w3YtKJU%2FNfI5bGWMiDIBzuD&amp;X-Amz-Signature=27a416a33c0df20e7ddc103f6284daa61cccc4da7cc1f48d61250f057d27c493&amp;X-Amz-SignedHeaders=host&amp;x-amz-checksum-mode=ENABLED&amp;x-id=GetObject" alt="Centre wall thickness Sample 4" loading="lazy" referrerpolicy="no-referrer" />
+          <dl class="metrics">
+            <div><dt>Expected</dt><dd>0.650</dd></div>
+            <div><dt>System Output</dt><dd>0.653</dd></div>
+            <div><dt>Status</dt><dd>ok</dd></div>
+            <div><dt>Confidence</dt><dd>0.99</dd></div>
+            <div><dt>Reason</dt><dd>Read 0.653 from the LCD display in the primary crop, confirmed by context image. Ignored &#x27;mm&#x27; unit. Structured verifier confirmed the same reading.</dd></div>
+          </dl>
+        </article>
+        
+      </div>
+    </details>
+  </main>
+</body>
+</html>

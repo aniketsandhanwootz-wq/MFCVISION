@@ -4,6 +4,8 @@ from __future__ import annotations
 import argparse
 import concurrent.futures
 import json
+import mimetypes
+import os
 import re
 import subprocess
 import sys
@@ -13,6 +15,8 @@ from decimal import Decimal, InvalidOperation
 from html import escape
 from pathlib import Path
 from typing import Any
+from urllib.parse import quote, urlsplit
+from urllib.request import Request, urlopen
 from zipfile import ZipFile
 import xml.etree.ElementTree as ET
 
@@ -21,6 +25,9 @@ from openpyxl import Workbook, load_workbook
 REPO_ROOT = Path(__file__).resolve().parents[1]
 HELPER_SCRIPT = REPO_ROOT / "test" / "run_single_history_case.py"
 VENV_PYTHON = REPO_ROOT / ".venv" / "bin" / "python"
+CLAPPIA_FILE_DOWNLOAD_URL = (
+    os.getenv("CLAPPIA_FILE_DOWNLOAD_URL") or "https://apiv2.clappia.com/file/generateFileDownloadUrl"
+).strip()
 
 
 NS = {"a": "http://schemas.openxmlformats.org/spreadsheetml/2006/main"}
@@ -32,6 +39,7 @@ RESULT_HEADERS = [
     "window_start",
     "window_end",
     "batch_day",
+    "day",
     "case_id",
     "submission_id",
     "owner",
@@ -39,6 +47,7 @@ RESULT_HEADERS = [
     "time_slot",
     "section",
     "case_label",
+    "field",
     "expected_raw",
     "expected_value",
     "expected_display",
@@ -48,6 +57,13 @@ RESULT_HEADERS = [
     "system_status",
     "system_value",
     "system_confidence",
+    "initial_match_status",
+    "review_status",
+    "reviewed_value",
+    "review_note",
+    "final_status",
+    "final_value",
+    "reviewed_at",
     "matched",
     "result_label",
     "error_stage",
@@ -255,6 +271,30 @@ def _matched(expected_value: str | None, system_value: str | None, status: str) 
     return expected_decimal == system_decimal
 
 
+def _match_status(status: str, matched: bool) -> str:
+    if matched:
+        return "correct"
+    if status in {"fetch_failed", "execution_failed"}:
+        return "blocked"
+    if status == "needs_review":
+        return "needs_review"
+    return "mismatch"
+
+
+def _is_last_decimal_only_variation(expected_value: str | None, system_value: str | None, status: str) -> bool:
+    if status != "ok" or not expected_value or not system_value:
+        return False
+    try:
+        expected_decimal = Decimal(expected_value)
+        system_decimal = Decimal(system_value)
+    except InvalidOperation:
+        return False
+    return (
+        expected_decimal.quantize(Decimal("0.01")) == system_decimal.quantize(Decimal("0.01"))
+        and expected_decimal.quantize(Decimal("0.001")) != system_decimal.quantize(Decimal("0.001"))
+    )
+
+
 def _result_label(status: str, matched: bool) -> str:
     if matched:
         return "Correct"
@@ -281,6 +321,7 @@ def _run_single_case(
         "window_start": window_start,
         "window_end": window_end,
         "batch_day": case.batch_day,
+        "day": case.batch_day,
         "case_id": case.case_id,
         "submission_id": case.submission_id,
         "owner": case.owner,
@@ -288,6 +329,7 @@ def _run_single_case(
         "time_slot": case.time_slot,
         "section": case.section,
         "case_label": case.case_label,
+        "field": case.case_label,
         "expected_raw": case.expected_raw,
         "expected_value": case.expected_value,
         "expected_display": case.expected_display,
@@ -297,6 +339,13 @@ def _run_single_case(
         "system_status": "",
         "system_value": "",
         "system_confidence": "",
+        "initial_match_status": "",
+        "review_status": "",
+        "reviewed_value": "",
+        "review_note": "",
+        "final_status": "",
+        "final_value": "",
+        "reviewed_at": "",
         "matched": "no",
         "result_label": "",
         "error_stage": "",
@@ -320,6 +369,7 @@ def _run_single_case(
         system_value = final.get("value_text")
         system_status = final.get("status") or "needs_review"
         is_match = _matched(case.expected_value, system_value, system_status)
+        match_status = _match_status(system_status, is_match)
         row.update(
             {
                 "file_key": history_source.get("file_key"),
@@ -327,6 +377,9 @@ def _run_single_case(
                 "system_status": system_status,
                 "system_value": system_value,
                 "system_confidence": final.get("confidence"),
+                "initial_match_status": match_status,
+                "final_status": match_status,
+                "final_value": system_value,
                 "matched": "yes" if is_match else "no",
                 "result_label": _result_label(system_status, is_match),
                 "reason": final.get("reason"),
@@ -342,6 +395,8 @@ def _run_single_case(
         row.update(
             {
                 "system_status": status,
+                "initial_match_status": _match_status(status, False),
+                "final_status": _match_status(status, False),
                 "result_label": _result_label(status, False),
                 "error_stage": "fetch" if status == "fetch_failed" else "execution",
                 "reason": message,
@@ -438,6 +493,185 @@ def load_existing_case_rows(workbook_path: Path) -> list[dict[str, Any]]:
     return existing
 
 
+def _normalize_existing_case_row(row: dict[str, Any]) -> dict[str, Any]:
+    normalized = {header: row.get(header, "") for header in RESULT_HEADERS}
+    normalized["day"] = normalized.get("day") or normalized.get("batch_day") or ""
+    normalized["field"] = normalized.get("field") or normalized.get("case_label") or ""
+    if not normalized["initial_match_status"]:
+        normalized["initial_match_status"] = _match_status(
+            str(normalized.get("system_status") or ""),
+            str(normalized.get("matched") or "").lower() == "yes",
+        )
+    if not normalized["final_status"]:
+        normalized["final_status"] = normalized["initial_match_status"]
+    if not normalized["final_value"]:
+        normalized["final_value"] = normalized.get("system_value") or ""
+    for key in ("review_status", "reviewed_value", "review_note", "reviewed_at"):
+        normalized[key] = normalized.get(key) or ""
+    return normalized
+
+
+def _merge_review_fields(
+    new_row: dict[str, Any],
+    existing_row: dict[str, Any] | None,
+) -> dict[str, Any]:
+    merged = dict(new_row)
+    merged["day"] = merged.get("day") or merged.get("batch_day") or ""
+    merged["field"] = merged.get("field") or merged.get("case_label") or ""
+    if existing_row is None:
+        merged.setdefault("review_status", "")
+        merged.setdefault("reviewed_value", "")
+        merged.setdefault("review_note", "")
+        merged.setdefault("reviewed_at", "")
+        merged.setdefault("final_status", merged.get("initial_match_status") or "")
+        merged.setdefault("final_value", merged.get("system_value") or "")
+        return merged
+
+    existing = _normalize_existing_case_row(existing_row)
+    for key in ("review_status", "reviewed_value", "review_note", "reviewed_at"):
+        merged[key] = existing.get(key) or ""
+    merged["final_status"] = existing.get("final_status") or merged.get("initial_match_status") or ""
+    merged["final_value"] = existing.get("final_value") or merged.get("system_value") or ""
+    return merged
+
+
+def _resolve_report_image_url(file_key: str) -> str:
+    request = Request(
+        f"{CLAPPIA_FILE_DOWNLOAD_URL}?fileName={quote(file_key, safe='/')}",
+        headers={"Accept": "text/plain"},
+    )
+    with urlopen(request, timeout=60) as response:
+        resolved_url = response.read().decode().strip()
+    if not resolved_url.startswith("http"):
+        raise RuntimeError("Clappia file resolver did not return a valid signed URL.")
+    return resolved_url
+
+
+def refresh_report_image_urls(rows: list[dict[str, Any]], *, workers: int) -> list[dict[str, Any]]:
+    if not rows:
+        return rows
+
+    def refresh_one(row: dict[str, Any]) -> dict[str, Any]:
+        refreshed = dict(row)
+        file_key = str(refreshed.get("file_key") or "").strip()
+        if file_key:
+            try:
+                refreshed["report_image_url"] = _resolve_report_image_url(file_key)
+            except Exception:
+                refreshed["report_image_url"] = refreshed.get("report_image_url") or refreshed.get("image_url") or ""
+        else:
+            refreshed["report_image_url"] = refreshed.get("report_image_url") or refreshed.get("image_url") or ""
+        return refreshed
+
+    max_workers = max(1, min(workers, len(rows)))
+    if max_workers == 1:
+        return [refresh_one(row) for row in rows]
+
+    refreshed_by_case_id: dict[str, dict[str, Any]] = {}
+    with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
+        future_map = {
+            executor.submit(refresh_one, row): str(row["case_id"])
+            for row in rows
+        }
+        for future in concurrent.futures.as_completed(future_map):
+            refreshed_by_case_id[future_map[future]] = future.result()
+    return [refreshed_by_case_id[str(row["case_id"])] for row in rows]
+
+
+def _summary_status(row: dict[str, Any], *, adjusted_last_decimal: bool = False) -> str:
+    status = str(row.get("final_status") or row.get("initial_match_status") or "").strip().lower()
+    if status in {"correct", "mismatch", "needs_review", "blocked"}:
+        resolved = status
+    else:
+        resolved = _match_status(
+            str(row.get("system_status") or ""),
+            str(row.get("matched") or "").lower() == "yes",
+        )
+    if adjusted_last_decimal and resolved == "mismatch" and _is_last_decimal_only_variation(
+        str(row.get("expected_value") or ""),
+        str(row.get("system_value") or ""),
+        str(row.get("system_status") or ""),
+    ):
+        return "correct"
+    return resolved
+
+
+def _summary_counts(rows: list[dict[str, Any]], *, adjusted_last_decimal: bool = False) -> dict[str, Any]:
+    total = len(rows)
+    correct = sum(1 for row in rows if _summary_status(row, adjusted_last_decimal=adjusted_last_decimal) == "correct")
+    mismatch = sum(1 for row in rows if _summary_status(row, adjusted_last_decimal=adjusted_last_decimal) == "mismatch")
+    needs_review = sum(1 for row in rows if _summary_status(row, adjusted_last_decimal=adjusted_last_decimal) == "needs_review")
+    blocked = sum(1 for row in rows if _summary_status(row, adjusted_last_decimal=adjusted_last_decimal) == "blocked")
+    evaluated = total - blocked
+    accuracy = round((correct / evaluated) * 100, 2) if evaluated else 0.0
+    return {
+        "total_cases": total,
+        "correct": correct,
+        "mismatch": mismatch,
+        "needs_review": needs_review,
+        "blocked": blocked,
+        "evaluated": evaluated,
+        "accuracy_percent": accuracy,
+    }
+
+
+def _guess_image_extension(url: str, content_type: str) -> str:
+    guessed_from_type = mimetypes.guess_extension((content_type or "").split(";", 1)[0].strip())
+    if guessed_from_type in {".jpe", ".jpeg", ".jpg", ".png", ".webp"}:
+        return ".jpg" if guessed_from_type == ".jpe" else guessed_from_type
+    path_suffix = Path(urlsplit(url).path).suffix.lower()
+    if path_suffix in {".jpg", ".jpeg", ".png", ".webp"}:
+        return path_suffix
+    return ".jpg"
+
+
+def cache_report_images(
+    rows: list[dict[str, Any]],
+    *,
+    output_path: Path,
+    workers: int,
+) -> list[dict[str, Any]]:
+    if not rows:
+        return rows
+
+    assets_dir = output_path.parent / f"{output_path.stem}_assets"
+    assets_dir.mkdir(parents=True, exist_ok=True)
+
+    def cache_one(index_and_row: tuple[int, dict[str, Any]]) -> dict[str, Any]:
+        index, row = index_and_row
+        cached = dict(row)
+        image_url = str(cached.get("report_image_url") or cached.get("image_url") or "").strip()
+        if not image_url.startswith("http"):
+            return cached
+        try:
+            request = Request(image_url, headers={"Accept": "image/*"})
+            with urlopen(request, timeout=120) as response:
+                payload = response.read()
+                extension = _guess_image_extension(image_url, response.headers.get("Content-Type", ""))
+            asset_name = f"{index:04d}_{re.sub(r'[^A-Za-z0-9._-]+', '_', str(cached.get('case_id') or 'case'))}{extension}"
+            asset_path = assets_dir / asset_name
+            asset_path.write_bytes(payload)
+            cached["report_image_local"] = f"{assets_dir.name}/{asset_name}"
+        except Exception:
+            cached["report_image_local"] = ""
+        return cached
+
+    indexed_rows = list(enumerate(rows, start=1))
+    max_workers = max(1, min(workers, len(indexed_rows)))
+    if max_workers == 1:
+        return [cache_one(item) for item in indexed_rows]
+
+    cached_by_case_id: dict[str, dict[str, Any]] = {}
+    with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
+        future_map = {
+            executor.submit(cache_one, item): str(item[1]["case_id"])
+            for item in indexed_rows
+        }
+        for future in concurrent.futures.as_completed(future_map):
+            cached_by_case_id[future_map[future]] = future.result()
+    return [cached_by_case_id[str(row["case_id"])] for row in rows]
+
+
 def write_report_workbook(workbook_path: Path, case_rows: list[dict[str, Any]]) -> None:
     wb = Workbook()
     cases_ws = wb.active
@@ -463,51 +697,83 @@ def write_report_workbook(workbook_path: Path, case_rows: list[dict[str, Any]]) 
         grouped.setdefault(str(row["batch_day"]), []).append(row)
     for batch_day in sorted(grouped):
         rows = grouped[batch_day]
-        total = len(rows)
-        correct = sum(1 for row in rows if row["matched"] == "yes")
-        needs_review = sum(1 for row in rows if row["system_status"] == "needs_review")
-        blocked = sum(1 for row in rows if row["system_status"] in {"fetch_failed", "execution_failed"})
-        mismatch = total - correct - needs_review - blocked
-        evaluated = total - blocked
-        accuracy = round((correct / evaluated) * 100, 2) if evaluated else 0.0
-        summary_ws.append([batch_day, total, correct, mismatch, needs_review, blocked, accuracy])
+        counts = _summary_counts(rows)
+        summary_ws.append([
+            batch_day,
+            counts["total_cases"],
+            counts["correct"],
+            counts["mismatch"],
+            counts["needs_review"],
+            counts["blocked"],
+            counts["accuracy_percent"],
+        ])
+
+    overall_ws = wb.create_sheet("overall_summary")
+    counts = _summary_counts(case_rows)
+    overall_ws.append(["metric", "value"])
+    overall_ws.append(["window_start", min((str(row["batch_day"]) for row in case_rows), default="")])
+    overall_ws.append(["window_end", max((str(row["batch_day"]) for row in case_rows), default="")])
+    overall_ws.append(["total_days", len(grouped)])
+    overall_ws.append(["total_cases", counts["total_cases"]])
+    overall_ws.append(["correct", counts["correct"]])
+    overall_ws.append(["mismatch", counts["mismatch"]])
+    overall_ws.append(["needs_review", counts["needs_review"]])
+    overall_ws.append(["blocked", counts["blocked"]])
+    overall_ws.append(["evaluated", counts["evaluated"]])
+    overall_ws.append(["accuracy_percent", counts["accuracy_percent"]])
+    overall_ws.append([])
+    overall_ws.append(["section", "total_cases", "correct", "mismatch", "needs_review", "blocked", "accuracy_percent"])
+    sections: dict[str, list[dict[str, Any]]] = {}
+    for row in case_rows:
+        sections.setdefault(str(row.get("section") or "Unknown Section"), []).append(row)
+    for section in sorted(sections):
+        section_counts = _summary_counts(sections[section])
+        overall_ws.append([
+            section,
+            section_counts["total_cases"],
+            section_counts["correct"],
+            section_counts["mismatch"],
+            section_counts["needs_review"],
+            section_counts["blocked"],
+            section_counts["accuracy_percent"],
+        ])
 
     wb.save(workbook_path)
 
 
-def build_day_report_html(
-    *,
-    batch_day: str,
-    rows: list[dict[str, Any]],
-    output_path: Path,
-) -> None:
-    total = len(rows)
-    correct = sum(1 for row in rows if row["matched"] == "yes")
-    needs_review = sum(1 for row in rows if row["system_status"] == "needs_review")
-    blocked = sum(1 for row in rows if row["system_status"] in {"fetch_failed", "execution_failed"})
-    mismatch = total - correct - needs_review - blocked
-    evaluated = total - blocked
-    accuracy = round((correct / evaluated) * 100, 2) if evaluated else 0.0
-
-    worked = [row for row in rows if row["matched"] == "yes"]
-    failed = [row for row in rows if row["matched"] != "yes"]
-
-    def render_card(row: dict[str, Any]) -> str:
-        image_url = escape(str(row.get("report_image_url") or row["image_url"]))
+def _render_report_card(row: dict[str, Any], *, adjusted_last_decimal: bool = False) -> str:
+        image_url = escape(str(row.get("report_image_local") or row.get("report_image_url") or row["image_url"]))
         original_image_url = escape(str(row["image_url"]))
+        case_id = escape(str(row.get("case_id") or ""))
+        batch_day = escape(str(row.get("batch_day") or ""))
         submission_id = escape(str(row["submission_id"]))
-        case_label = escape(str(row["case_label"]))
+        case_label = escape(str(row.get("field") or row["case_label"]))
         section = escape(str(row["section"]))
         expected = escape(str(row["expected_display"] or row["expected_raw"] or ""))
         output = escape(str(row["system_value"] or row["system_status"]))
         reason = escape(str(row["reason"] or ""))
-        result_label = escape(str(row["result_label"]))
+        initial_status = escape(str(row.get("initial_match_status") or ""))
+        effective_status = _summary_status(row, adjusted_last_decimal=adjusted_last_decimal)
+        final_status = escape(effective_status)
+        review_status = escape(str(row.get("review_status") or ""))
+        reviewed_value = escape(str(row.get("reviewed_value") or ""))
+        review_note = escape(str(row.get("review_note") or ""))
+        if adjusted_last_decimal and effective_status == "correct" and _is_last_decimal_only_variation(
+            str(row.get("expected_value") or ""),
+            str(row.get("system_value") or ""),
+            str(row.get("system_status") or ""),
+        ):
+            result_label = "Correct (Last Decimal Accepted)"
+        else:
+            result_label = escape(str(row["result_label"] if effective_status != "correct" else "Correct"))
         created_at = escape(str(row["created_at"]))
         time_slot = escape(str(row["time_slot"] or ""))
+        initial_status_value = escape(str(row.get("initial_match_status") or ""))
+        final_status_value = escape(effective_status)
         return f"""
-        <article class="card">
+        <article class="card" data-case-id="{case_id}" data-day="{batch_day}" data-initial-status="{initial_status_value}" data-final-status="{final_status_value}">
           <div class="card-head">
-            <span class="pill {'ok' if row['matched'] == 'yes' else 'bad'}">{result_label}</span>
+            <span class="pill {'ok' if final_status == 'correct' else 'bad'} card-result-pill">{result_label}</span>
             <div class="meta">
               <h3>{case_label}</h3>
               <p>{section}</p>
@@ -522,19 +788,55 @@ def build_day_report_html(
           <dl class="metrics">
             <div><dt>Expected</dt><dd>{expected}</dd></div>
             <div><dt>System Output</dt><dd>{output}</dd></div>
-            <div><dt>Status</dt><dd>{escape(str(row['system_status']))}</dd></div>
+            <div><dt>System Status</dt><dd>{escape(str(row['system_status']))}</dd></div>
             <div><dt>Confidence</dt><dd>{escape(str(row['system_confidence']))}</dd></div>
+            <div><dt>Initial Match Status</dt><dd>{initial_status}</dd></div>
+            <div><dt>Final Status</dt><dd>{final_status}</dd></div>
+            <div><dt>Review Status</dt><dd>{review_status}</dd></div>
+            <div><dt>Reviewed Value</dt><dd>{reviewed_value}</dd></div>
+            <div><dt>Review Note</dt><dd>{review_note}</dd></div>
             <div><dt>Reason</dt><dd>{reason}</dd></div>
           </dl>
+          <section class="review-panel">
+            <h4>Review Override</h4>
+            <p class="review-help">Update only if this case should not count as a mismatch. The report accuracy updates immediately in the browser.</p>
+            <div class="review-grid">
+              <label>
+                <span>Review Status</span>
+                <select class="review-status">
+                  <option value="">No override</option>
+                  <option value="accepted_as_correct">Accepted as correct</option>
+                  <option value="not_a_mismatch">Not a mismatch</option>
+                  <option value="corrected_value">Corrected value</option>
+                  <option value="ignored_case">Ignored case</option>
+                  <option value="needs_review">Needs review</option>
+                </select>
+              </label>
+              <label>
+                <span>Reviewed Value</span>
+                <input class="reviewed-value" type="text" value="{reviewed_value}" placeholder="Optional corrected value" />
+              </label>
+              <label class="review-note-wrap">
+                <span>Review Note</span>
+                <textarea class="review-note" rows="3" placeholder="Why this should not be counted as a mismatch">{review_note}</textarea>
+              </label>
+            </div>
+            <div class="review-actions">
+              <button class="reset-review" type="button">Reset Review</button>
+              <span class="effective-status-chip"></span>
+            </div>
+          </section>
         </article>
         """
 
-    html = f"""<!doctype html>
+
+def _report_shell(*, title: str, lead: str, stats_html: str, body_html: str) -> str:
+    return f"""<!doctype html>
 <html lang="en">
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>History Batch Report {batch_day}</title>
+  <title>{escape(title)}</title>
   <style>
     :root {{
       --bg: #f5f1e8;
@@ -629,6 +931,7 @@ def build_day_report_html(
       color: #0b4f8a;
       text-decoration: none;
       font-weight: 700;
+      margin-right: 16px;
     }}
     .photo {{
       width: 100%;
@@ -648,71 +951,592 @@ def build_day_report_html(
     }}
     .metrics div {{
       display: grid;
-      grid-template-columns: 160px 1fr;
+      grid-template-columns: 180px 1fr;
       gap: 12px;
     }}
     .metrics dt {{ font-weight: 700; }}
     .metrics dd {{ margin: 0; color: var(--muted); word-break: break-word; }}
+    .subsection-title {{
+      margin: 20px 0 0;
+      font-size: 26px;
+    }}
+    .toolbar {{
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+      margin: 8px 0 24px;
+      align-items: center;
+    }}
+    .toolbar button, .toolbar label.button-like {{
+      border: 1px solid var(--line);
+      background: var(--panel);
+      color: var(--ink);
+      padding: 10px 16px;
+      border-radius: 999px;
+      cursor: pointer;
+      font: inherit;
+      box-shadow: var(--shadow);
+    }}
+    .toolbar input[type="file"] {{ display: none; }}
+    .toolbar-note {{
+      color: var(--muted);
+      font-size: 15px;
+    }}
+    .review-panel {{
+      margin-top: 24px;
+      padding-top: 20px;
+      border-top: 1px solid var(--line);
+    }}
+    .review-panel h4 {{
+      margin: 0 0 8px;
+      font-size: 22px;
+    }}
+    .review-help {{
+      margin: 0 0 14px;
+      color: var(--muted);
+      font-size: 15px;
+    }}
+    .review-grid {{
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 14px 18px;
+    }}
+    .review-grid label {{
+      display: grid;
+      gap: 8px;
+      font-size: 14px;
+      font-weight: 700;
+      color: var(--ink);
+    }}
+    .review-note-wrap {{
+      grid-column: 1 / -1;
+    }}
+    .review-grid select,
+    .review-grid input,
+    .review-grid textarea {{
+      width: 100%;
+      border: 1px solid var(--line);
+      background: #fff;
+      color: var(--ink);
+      border-radius: 12px;
+      padding: 10px 12px;
+      font: inherit;
+    }}
+    .review-actions {{
+      display: flex;
+      gap: 12px;
+      align-items: center;
+      margin-top: 14px;
+    }}
+    .reset-review {{
+      border: 1px solid var(--line);
+      background: transparent;
+      color: var(--ink);
+      padding: 8px 12px;
+      border-radius: 999px;
+      cursor: pointer;
+      font: inherit;
+    }}
+    .effective-status-chip {{
+      display: inline-block;
+      border-radius: 999px;
+      padding: 8px 12px;
+      font-size: 13px;
+      font-weight: 700;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      background: #ece8df;
+      color: var(--ink);
+    }}
+    .effective-status-chip.ok {{
+      background: var(--ok);
+      color: var(--ok-ink);
+    }}
+    .effective-status-chip.bad {{
+      background: var(--bad);
+      color: var(--bad-ink);
+    }}
+    .effective-status-chip.neutral {{
+      background: #ece8df;
+      color: var(--ink);
+    }}
+    .day-summary-line {{
+      display: flex;
+      flex-wrap: wrap;
+      gap: 14px;
+      align-items: center;
+    }}
+    .day-summary-line .meta {{
+      font-size: 18px;
+      color: var(--muted);
+      font-weight: 400;
+    }}
     @media (max-width: 1100px) {{
       .stats, .cards {{ grid-template-columns: 1fr; }}
       h1 {{ font-size: 44px; }}
       summary {{ font-size: 32px; }}
       .photo {{ height: 380px; }}
       .metrics div {{ grid-template-columns: 1fr; }}
+      .review-grid {{ grid-template-columns: 1fr; }}
     }}
   </style>
 </head>
 <body>
   <main>
-    <h1>Day 1 Batch Report</h1>
-    <p class="lead">
-      Batch day <code>{escape(batch_day)}</code>. This report uses fresh signed Clappia file URLs for image display and keeps the original Clappia wrapper link on each card for traceability.
-    </p>
+    <h1>{escape(title)}</h1>
+    <p class="lead">{lead}</p>
+    <section class="toolbar">
+      <button id="export-reviews" type="button">Export Reviews</button>
+      <label class="button-like" for="import-reviews">Import Reviews</label>
+      <input id="import-reviews" type="file" accept="application/json" />
+      <button id="clear-reviews" type="button">Clear All Reviews</button>
+      <span class="toolbar-note">Reviews are stored in this browser and can be exported/imported as JSON.</span>
+    </section>
+    {stats_html}
+    {body_html}
+  </main>
+  <script>
+    (() => {{
+      const storageKey = "mfcvision-history-review-" + {json.dumps(title)};
+      const cards = Array.from(document.querySelectorAll(".card[data-case-id]"));
+      const summaryCards = {{
+        total: document.querySelector('[data-summary="total"] strong'),
+        correct: document.querySelector('[data-summary="correct"] strong'),
+        mismatch: document.querySelector('[data-summary="mismatch"] strong'),
+        needsReview: document.querySelector('[data-summary="needs_review"] strong'),
+        blocked: document.querySelector('[data-summary="blocked"] strong'),
+        evaluated: document.querySelector('[data-summary="evaluated"] strong'),
+        accuracy: document.querySelector('[data-summary="accuracy"] strong'),
+      }};
+      const dayStats = new Map();
+      document.querySelectorAll("[data-day-stats]").forEach((el) => {{
+        dayStats.set(el.getAttribute("data-day-stats"), el);
+      }});
+
+      function loadReviews() {{
+        try {{
+          return JSON.parse(localStorage.getItem(storageKey) || "{{}}");
+        }} catch (error) {{
+          return {{}};
+        }}
+      }}
+
+      let reviews = loadReviews();
+
+      function saveReviews() {{
+        localStorage.setItem(storageKey, JSON.stringify(reviews));
+      }}
+
+      function normalizeReview(review) {{
+        return {{
+          review_status: String(review?.review_status || ""),
+          reviewed_value: String(review?.reviewed_value || ""),
+          review_note: String(review?.review_note || ""),
+        }};
+      }}
+
+      function effectiveStatus(initialStatus, reviewStatus) {{
+        if (reviewStatus === "accepted_as_correct" || reviewStatus === "not_a_mismatch" || reviewStatus === "corrected_value") {{
+          return "correct";
+        }}
+        if (reviewStatus === "needs_review") {{
+          return "needs_review";
+        }}
+        if (reviewStatus === "ignored_case") {{
+          return "ignored";
+        }}
+        return initialStatus || "mismatch";
+      }}
+
+      function resultLabelFor(status) {{
+        if (status === "correct") return "Reviewed Correct";
+        if (status === "mismatch") return "Mismatch";
+        if (status === "needs_review") return "Needs Review";
+        if (status === "blocked") return "Blocked";
+        if (status === "ignored") return "Ignored";
+        return status || "Unknown";
+      }}
+
+      function chipClassFor(status) {{
+        if (status === "correct") return "ok";
+        if (status === "mismatch" || status === "blocked") return "bad";
+        return "neutral";
+      }}
+
+      function applyReviewToCard(card) {{
+        const caseId = card.dataset.caseId;
+        const initialStatus = card.dataset.finalStatus || card.dataset.initialStatus || "";
+        const review = normalizeReview(reviews[caseId] || {{}});
+        const select = card.querySelector(".review-status");
+        const reviewedValue = card.querySelector(".reviewed-value");
+        const reviewNote = card.querySelector(".review-note");
+        const pill = card.querySelector(".card-result-pill");
+        const chip = card.querySelector(".effective-status-chip");
+        if (select && select.value !== review.review_status) select.value = review.review_status;
+        if (reviewedValue && reviewedValue.value !== review.reviewed_value) reviewedValue.value = review.reviewed_value;
+        if (reviewNote && reviewNote.value !== review.review_note) reviewNote.value = review.review_note;
+        const status = effectiveStatus(initialStatus, review.review_status);
+        card.dataset.effectiveStatus = status;
+        if (pill) {{
+          pill.textContent = resultLabelFor(status);
+          pill.classList.remove("ok", "bad");
+          pill.classList.add(status === "correct" ? "ok" : "bad");
+        }}
+        if (chip) {{
+          chip.textContent = "Effective: " + resultLabelFor(status);
+          chip.className = "effective-status-chip " + chipClassFor(status);
+        }}
+      }}
+
+      function recalcSummaries() {{
+        const totals = {{ total: 0, correct: 0, mismatch: 0, needs_review: 0, blocked: 0, ignored: 0 }};
+        const byDay = new Map();
+        cards.forEach((card) => {{
+          const day = card.dataset.day || "";
+          const status = card.dataset.effectiveStatus || card.dataset.finalStatus || card.dataset.initialStatus || "mismatch";
+          totals.total += 1;
+          if (status in totals) totals[status] += 1;
+          if (!byDay.has(day)) byDay.set(day, {{ total: 0, correct: 0, mismatch: 0, needs_review: 0, blocked: 0, ignored: 0 }});
+          const bucket = byDay.get(day);
+          bucket.total += 1;
+          if (status in bucket) bucket[status] += 1;
+        }});
+
+        const evaluated = totals.total - totals.blocked - totals.ignored;
+        const accuracy = evaluated ? ((totals.correct / evaluated) * 100).toFixed(2) : "0.00";
+        if (summaryCards.total) summaryCards.total.textContent = String(totals.total);
+        if (summaryCards.correct) summaryCards.correct.textContent = String(totals.correct);
+        if (summaryCards.mismatch) summaryCards.mismatch.textContent = String(totals.mismatch);
+        if (summaryCards.needsReview) summaryCards.needsReview.textContent = String(totals.needs_review);
+        if (summaryCards.blocked) summaryCards.blocked.textContent = String(totals.blocked);
+        if (summaryCards.evaluated) summaryCards.evaluated.textContent = String(evaluated);
+        if (summaryCards.accuracy) summaryCards.accuracy.textContent = accuracy + "%";
+
+        byDay.forEach((counts, day) => {{
+          const evaluatedDay = counts.total - counts.blocked - counts.ignored;
+          const accuracyDay = evaluatedDay ? ((counts.correct / evaluatedDay) * 100).toFixed(2) : "0.00";
+          const container = dayStats.get(day);
+          if (!container) return;
+          container.querySelector('[data-day-metric="total"]').textContent = String(counts.total);
+          container.querySelector('[data-day-metric="correct"]').textContent = String(counts.correct);
+          container.querySelector('[data-day-metric="mismatch"]').textContent = String(counts.mismatch);
+          container.querySelector('[data-day-metric="needs_review"]').textContent = String(counts.needs_review);
+          container.querySelector('[data-day-metric="blocked"]').textContent = String(counts.blocked);
+          container.querySelector('[data-day-metric="accuracy"]').textContent = accuracyDay + "%";
+          const summaryLine = document.querySelector('[data-day-summary="' + CSS.escape(day) + '"]');
+          if (summaryLine) {{
+            summaryLine.querySelector('[data-day-summary-metric="accuracy"]').textContent = accuracyDay + "%";
+            summaryLine.querySelector('[data-day-summary-metric="correct"]').textContent = String(counts.correct);
+            summaryLine.querySelector('[data-day-summary-metric="evaluated"]').textContent = String(evaluatedDay);
+          }}
+        }});
+      }}
+
+      function persistCard(card) {{
+        const caseId = card.dataset.caseId;
+        const select = card.querySelector(".review-status");
+        const reviewedValue = card.querySelector(".reviewed-value");
+        const reviewNote = card.querySelector(".review-note");
+        reviews[caseId] = normalizeReview({{
+          review_status: select?.value || "",
+          reviewed_value: reviewedValue?.value || "",
+          review_note: reviewNote?.value || "",
+        }});
+        if (!reviews[caseId].review_status && !reviews[caseId].reviewed_value && !reviews[caseId].review_note) {{
+          delete reviews[caseId];
+        }}
+        saveReviews();
+        applyReviewToCard(card);
+        recalcSummaries();
+      }}
+
+      cards.forEach((card) => {{
+        applyReviewToCard(card);
+        card.querySelector(".review-status")?.addEventListener("change", () => persistCard(card));
+        card.querySelector(".reviewed-value")?.addEventListener("input", () => persistCard(card));
+        card.querySelector(".review-note")?.addEventListener("input", () => persistCard(card));
+        card.querySelector(".reset-review")?.addEventListener("click", () => {{
+          delete reviews[card.dataset.caseId];
+          saveReviews();
+          applyReviewToCard(card);
+          recalcSummaries();
+        }});
+      }});
+
+      document.getElementById("clear-reviews")?.addEventListener("click", () => {{
+        reviews = {{}};
+        saveReviews();
+        cards.forEach(applyReviewToCard);
+        recalcSummaries();
+      }});
+
+      document.getElementById("export-reviews")?.addEventListener("click", () => {{
+        const payload = {{
+          exported_at: new Date().toISOString(),
+          report_title: {json.dumps(title)},
+          reviews,
+        }};
+        const blob = new Blob([JSON.stringify(payload, null, 2)], {{ type: "application/json" }});
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement("a");
+        link.href = url;
+        link.download = "mfcvision-report-reviews.json";
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+        URL.revokeObjectURL(url);
+      }});
+
+      document.getElementById("import-reviews")?.addEventListener("change", async (event) => {{
+        const file = event.target.files?.[0];
+        if (!file) return;
+        try {{
+          const text = await file.text();
+          const payload = JSON.parse(text);
+          reviews = payload.reviews || {{}};
+          saveReviews();
+          cards.forEach(applyReviewToCard);
+          recalcSummaries();
+        }} catch (error) {{
+          window.alert("Could not import review JSON.");
+        }}
+        event.target.value = "";
+      }});
+
+      recalcSummaries();
+    }})();
+  </script>
+</body>
+</html>
+"""
+
+
+def build_day_report_html(
+    *,
+    batch_day: str,
+    rows: list[dict[str, Any]],
+    output_path: Path,
+    adjusted_last_decimal: bool = False,
+) -> None:
+    counts = _summary_counts(rows, adjusted_last_decimal=adjusted_last_decimal)
+    worked = [row for row in rows if _summary_status(row, adjusted_last_decimal=adjusted_last_decimal) == "correct"]
+    failed = [row for row in rows if _summary_status(row, adjusted_last_decimal=adjusted_last_decimal) != "correct"]
+
+    stats_html = f"""
     <section class="stats">
-      <article class="stat"><h2>Total Cases</h2><strong>{total}</strong></article>
-      <article class="stat"><h2>Correct</h2><strong>{correct}</strong></article>
-      <article class="stat"><h2>Did Not Match</h2><strong>{mismatch}</strong></article>
-      <article class="stat"><h2>Accuracy</h2><strong>{accuracy}%</strong></article>
+      <article class="stat" data-summary="total"><h2>Total Cases</h2><strong>{counts['total_cases']}</strong></article>
+      <article class="stat" data-summary="correct"><h2>Correct</h2><strong>{counts['correct']}</strong></article>
+      <article class="stat" data-summary="mismatch"><h2>Did Not Match</h2><strong>{counts['mismatch']}</strong></article>
+      <article class="stat" data-summary="accuracy"><h2>Accuracy</h2><strong>{counts['accuracy_percent']}%</strong></article>
     </section>
     <section class="stats">
-      <article class="stat"><h2>Needs Review</h2><strong>{needs_review}</strong></article>
-      <article class="stat"><h2>Blocked</h2><strong>{blocked}</strong></article>
-      <article class="stat"><h2>Evaluated</h2><strong>{evaluated}</strong></article>
+      <article class="stat" data-summary="needs_review"><h2>Needs Review</h2><strong>{counts['needs_review']}</strong></article>
+      <article class="stat" data-summary="blocked"><h2>Blocked</h2><strong>{counts['blocked']}</strong></article>
+      <article class="stat" data-summary="evaluated"><h2>Evaluated</h2><strong>{counts['evaluated']}</strong></article>
       <article class="stat"><h2>Batch Day</h2><strong style="font-size:34px">{escape(batch_day)}</strong></article>
     </section>
+    """
+    body_html = f"""
     <details open>
       <summary>Worked ({len(worked)})</summary>
       <div class="cards">
-        {''.join(render_card(row) for row in worked)}
+        {''.join(_render_report_card(row, adjusted_last_decimal=adjusted_last_decimal) for row in worked)}
       </div>
     </details>
     <details open>
       <summary>Did Not Work / Needs Review ({len(failed)})</summary>
       <div class="cards">
-        {''.join(render_card(row) for row in failed)}
+        {''.join(_render_report_card(row, adjusted_last_decimal=adjusted_last_decimal) for row in failed)}
       </div>
     </details>
-  </main>
-</body>
-</html>
-"""
-    output_path.write_text(html)
+    """
+    output_path.write_text(
+        _report_shell(
+            title=f"History Batch Report {batch_day}",
+            lead=(
+                f"Batch day <code>{escape(batch_day)}</code>. This report keeps the original Clappia wrapper link on each card for traceability. "
+                + ("Last-decimal-only mismatches are counted as correct. " if adjusted_last_decimal else "")
+                + ("Images are cached locally with this report." if any(row.get('report_image_local') for row in rows) else "This report uses fresh signed Clappia file URLs for image display.")
+            ),
+            stats_html=stats_html,
+            body_html=body_html,
+        )
+    )
+
+
+def build_window_report_html(
+    *,
+    window_start: str,
+    window_end: str,
+    rows: list[dict[str, Any]],
+    output_path: Path,
+) -> None:
+    counts = _summary_counts(rows)
+    grouped: dict[str, list[dict[str, Any]]] = {}
+    for row in rows:
+        grouped.setdefault(str(row["batch_day"]), []).append(row)
+
+    sections_html: list[str] = []
+    for batch_day in sorted(grouped):
+        day_rows = grouped[batch_day]
+        day_counts = _summary_counts(day_rows)
+        worked = [row for row in day_rows if _summary_status(row) == "correct"]
+        failed = [row for row in day_rows if _summary_status(row) != "correct"]
+        sections_html.append(
+            f"""
+            <details>
+              <summary>
+                <span class="day-summary-line" data-day-summary="{escape(batch_day)}">
+                  <span>{escape(batch_day)}</span>
+                  <span class="meta">Accuracy <span data-day-summary-metric="accuracy">{day_counts['accuracy_percent']}%</span></span>
+                  <span class="meta">Correct <span data-day-summary-metric="correct">{day_counts['correct']}</span> / <span data-day-summary-metric="evaluated">{day_counts['evaluated']}</span></span>
+                </span>
+              </summary>
+              <section class="stats" data-day-stats="{escape(batch_day)}">
+                <article class="stat"><h2>Total Cases</h2><strong data-day-metric="total">{day_counts['total_cases']}</strong></article>
+                <article class="stat"><h2>Correct</h2><strong data-day-metric="correct">{day_counts['correct']}</strong></article>
+                <article class="stat"><h2>Mismatch</h2><strong data-day-metric="mismatch">{day_counts['mismatch']}</strong></article>
+                <article class="stat"><h2>Needs Review</h2><strong data-day-metric="needs_review">{day_counts['needs_review']}</strong></article>
+                <article class="stat"><h2>Blocked</h2><strong data-day-metric="blocked">{day_counts['blocked']}</strong></article>
+                <article class="stat"><h2>Accuracy</h2><strong data-day-metric="accuracy">{day_counts['accuracy_percent']}%</strong></article>
+              </section>
+              <h3 class="subsection-title">Worked ({len(worked)})</h3>
+              <div class="cards">
+                {''.join(_render_report_card(row) for row in worked)}
+              </div>
+              <h3 class="subsection-title">Did Not Work / Needs Review ({len(failed)})</h3>
+              <div class="cards">
+                {''.join(_render_report_card(row) for row in failed)}
+              </div>
+            </details>
+            """
+        )
+
+    stats_html = f"""
+    <section class="stats">
+      <article class="stat" data-summary="total"><h2>Total Cases</h2><strong>{counts['total_cases']}</strong></article>
+      <article class="stat" data-summary="correct"><h2>Correct</h2><strong>{counts['correct']}</strong></article>
+      <article class="stat" data-summary="mismatch"><h2>Did Not Match</h2><strong>{counts['mismatch']}</strong></article>
+      <article class="stat" data-summary="accuracy"><h2>Accuracy</h2><strong>{counts['accuracy_percent']}%</strong></article>
+    </section>
+    <section class="stats">
+      <article class="stat" data-summary="needs_review"><h2>Needs Review</h2><strong>{counts['needs_review']}</strong></article>
+      <article class="stat" data-summary="blocked"><h2>Blocked</h2><strong>{counts['blocked']}</strong></article>
+      <article class="stat" data-summary="evaluated"><h2>Evaluated</h2><strong>{counts['evaluated']}</strong></article>
+      <article class="stat"><h2>Days</h2><strong style="font-size:34px">{len(grouped)}</strong></article>
+    </section>
+    """
+    output_path.write_text(
+        _report_shell(
+            title="Last 2 Weeks Validation Report",
+            lead=(
+                f"Window <code>{escape(window_start)}</code> to <code>{escape(window_end)}</code>. "
+                "Each day is collapsible. The report uses fresh signed Clappia file URLs for image display and keeps the original Clappia wrapper link on each card."
+            ),
+            stats_html=stats_html,
+            body_html="".join(sections_html),
+        )
+    )
 
 
 def write_json(path: Path, payload: Any) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(payload, indent=2, ensure_ascii=False))
 
 
+def _sort_case_rows(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    return sorted(
+        rows,
+        key=lambda row: (
+            str(row.get("batch_day") or ""),
+            str(row.get("created_at") or ""),
+            str(row.get("submission_id") or ""),
+            str(row.get("case_label") or ""),
+        ),
+    )
+
+
+def _build_window_summary_payload(
+    *,
+    window_start: str,
+    window_end: str,
+    rows: list[dict[str, Any]],
+    target_days: list[str],
+    processed_days: list[str],
+    report_xlsx: Path,
+    overall_json_path: Path,
+    overall_html_path: Path,
+    results_dir: Path,
+    workers: int,
+) -> dict[str, Any]:
+    return {
+        "window_start": window_start,
+        "window_end": window_end,
+        "days": target_days,
+        "processed_days": processed_days,
+        "pending_days": [day for day in target_days if day not in set(processed_days)],
+        "counts": _summary_counts(rows),
+        "report_xlsx": str(report_xlsx),
+        "overall_json": str(overall_json_path),
+        "overall_html": str(overall_html_path),
+        "results_dir": str(results_dir),
+        "workers": workers,
+    }
+
+
 def main() -> int:
-    parser = argparse.ArgumentParser(description="Run one day of history validation from the exported Clappia workbook.")
+    parser = argparse.ArgumentParser(description="Run history validation from the exported Clappia workbook.")
     parser.add_argument("--source-xlsx", required=True, type=Path)
     parser.add_argument("--report-xlsx", required=True, type=Path)
-    parser.add_argument("--results-json", required=True, type=Path)
-    parser.add_argument("--report-html", required=True, type=Path)
-    parser.add_argument("--manifest-json", required=True, type=Path)
+    parser.add_argument("--results-json", type=Path, default=None)
+    parser.add_argument("--report-html", type=Path, default=None)
+    parser.add_argument("--manifest-json", type=Path, default=None)
     parser.add_argument("--day", default=None, help="ISO day to run, for example 2026-03-10. Defaults to Day 1 of the last 2-week window.")
+    parser.add_argument("--all-days", action="store_true", help="Run the full last 2-week window day by day.")
+    parser.add_argument("--results-dir", type=Path, default=None, help="Directory for per-day manifests/results/reports when running all days.")
+    parser.add_argument("--overall-json", type=Path, default=None, help="Combined case results JSON for the full last 2-week run.")
+    parser.add_argument("--overall-html", type=Path, default=None, help="Combined HTML report for the full last 2-week run.")
+    parser.add_argument("--summary-json", type=Path, default=None, help="Window summary JSON output.")
     parser.add_argument("--workers", type=int, default=8, help="Number of parallel worker threads for case execution.")
+    parser.add_argument("--rebuild-results-json", type=Path, default=None, help="Rebuild report HTML from an existing day/window results JSON without rerunning Gemini.")
+    parser.add_argument("--cache-report-images", action="store_true", help="Download report images locally so the HTML remains viewable after signed URLs expire.")
+    parser.add_argument("--adjust-last-decimal", action="store_true", help="Treat last-decimal-only mismatches as correct in the rendered report.")
     args = parser.parse_args()
+
+    if args.rebuild_results_json:
+        results_json_path = args.rebuild_results_json.resolve()
+        rows = json.loads(results_json_path.read_text())
+        if not isinstance(rows, list):
+            raise SystemExit("Expected the rebuild results JSON to contain a list of case rows.")
+        normalized_rows = [_normalize_existing_case_row(row) for row in rows]
+        refreshed_rows = refresh_report_image_urls(normalized_rows, workers=args.workers)
+        report_html_path = (args.report_html or results_json_path.with_name(results_json_path.name.replace("_results.json", "_report.html"))).resolve()
+        if args.cache_report_images:
+            refreshed_rows = cache_report_images(refreshed_rows, output_path=report_html_path, workers=args.workers)
+        write_json(results_json_path, refreshed_rows)
+        batch_days = sorted({str(row.get("batch_day") or "") for row in refreshed_rows if str(row.get("batch_day") or "").strip()})
+        if len(batch_days) == 1:
+            build_day_report_html(
+                batch_day=batch_days[0],
+                rows=refreshed_rows,
+                output_path=report_html_path,
+                adjusted_last_decimal=args.adjust_last_decimal,
+            )
+            print(
+                json.dumps(
+                    {
+                        "batch_day": batch_days[0],
+                        "counts": _summary_counts(refreshed_rows, adjusted_last_decimal=args.adjust_last_decimal),
+                        "results_json": str(results_json_path),
+                        "report_html": str(report_html_path),
+                        "cache_report_images": args.cache_report_images,
+                        "adjust_last_decimal": args.adjust_last_decimal,
+                    },
+                    indent=2,
+                )
+            )
+            return 0
+        raise SystemExit("Rebuild mode currently supports a single-day results JSON.")
 
     source_xlsx = args.source_xlsx.resolve()
     all_cases = parse_cases_from_workbook(source_xlsx)
@@ -723,72 +1547,185 @@ def main() -> int:
     if not window_days:
         raise SystemExit("Could not derive the last 2-week window from Created At.")
 
-    target_day = args.day or window_days[0]
-    if target_day not in window_days:
-        raise SystemExit(
-            f"Requested day {target_day} is not in the last 2-week window: {window_days[0]} to {window_days[-1]}"
-        )
+    if args.all_days and args.day:
+        raise SystemExit("Use either --day for a single batch or --all-days for the full window, not both.")
 
-    day_cases = [case for case in all_cases if case.batch_day == target_day]
-    if not day_cases:
-        raise SystemExit(f"No cases found for {target_day}.")
+    if args.all_days:
+        target_days = window_days
+        results_dir = (args.results_dir or (args.report_xlsx.parent / "last_2_weeks_outputs")).resolve()
+        results_dir.mkdir(parents=True, exist_ok=True)
+        overall_json_path = (args.overall_json or (results_dir / "last_2_weeks_case_results.json")).resolve()
+        overall_html_path = (args.overall_html or (results_dir / "last_2_weeks_report.html")).resolve()
+        summary_json_path = (args.summary_json or (results_dir / "last_2_weeks_summary.json")).resolve()
+    else:
+        target_day = args.day or window_days[0]
+        if target_day not in window_days:
+            raise SystemExit(
+                f"Requested day {target_day} is not in the last 2-week window: {window_days[0]} to {window_days[-1]}"
+            )
+        target_days = [target_day]
+        results_dir = None
+        overall_json_path = None
+        overall_html_path = None
+        summary_json_path = None
 
-    write_json(
-        args.manifest_json,
-        {
-            "source_workbook": str(source_xlsx),
-            "window_start": window_days[0],
-            "window_end": window_days[-1],
-            "batch_day": target_day,
-            "case_count": len(day_cases),
-            "cases": [asdict(case) | {"case_id": case.case_id} for case in day_cases],
-        },
-    )
+    existing_rows = [_normalize_existing_case_row(row) for row in load_existing_case_rows(args.report_xlsx)]
+    target_days_set = set(target_days)
+    existing_by_case_id = {str(row.get("case_id")): row for row in existing_rows}
+    incremental_rows_by_case_id = {
+        str(row["case_id"]): row
+        for row in existing_rows
+        if str(row.get("batch_day")) not in target_days_set
+    }
 
-    new_results = run_batch(
-        day_cases,
-        source_workbook=source_xlsx.name,
-        window_start=window_days[0],
-        window_end=window_days[-1],
-        workers=args.workers,
-    )
-    write_json(args.results_json, new_results)
+    per_day_results: dict[str, list[dict[str, Any]]] = {}
+    processed_days: list[str] = []
+    for batch_day in target_days:
+        day_cases = [case for case in all_cases if case.batch_day == batch_day]
+        if not day_cases:
+            continue
 
-    existing_rows = load_existing_case_rows(args.report_xlsx)
-    kept_rows = [row for row in existing_rows if str(row.get("batch_day")) != target_day]
-    combined_rows = kept_rows + new_results
-    combined_rows.sort(key=lambda row: (str(row["batch_day"]), str(row["created_at"]), str(row["submission_id"]), str(row["case_label"])))
-    write_report_workbook(args.report_xlsx, combined_rows)
-    build_day_report_html(batch_day=target_day, rows=new_results, output_path=args.report_html)
+        if args.all_days:
+            manifest_path = results_dir / f"day_{batch_day}_manifest.json"
+            results_path = results_dir / f"day_{batch_day}_results.json"
+            report_path = results_dir / f"day_{batch_day}_report.html"
+        else:
+            manifest_path = (args.manifest_json or (args.report_xlsx.parent / f"day_{batch_day}_manifest.json")).resolve()
+            results_path = (args.results_json or (args.report_xlsx.parent / f"day_{batch_day}_results.json")).resolve()
+            report_path = (args.report_html or (args.report_xlsx.parent / f"day_{batch_day}_report.html")).resolve()
 
-    correct = sum(1 for row in new_results if row["matched"] == "yes")
-    needs_review = sum(1 for row in new_results if row["system_status"] == "needs_review")
-    blocked = sum(1 for row in new_results if row["system_status"] in {"fetch_failed", "execution_failed"})
-    mismatch = len(new_results) - correct - needs_review - blocked
-    evaluated = len(new_results) - blocked
-    accuracy = round((correct / evaluated) * 100, 2) if evaluated else 0.0
-    print(
-        json.dumps(
+        write_json(
+            manifest_path,
             {
-                "batch_day": target_day,
+                "source_workbook": str(source_xlsx),
                 "window_start": window_days[0],
                 "window_end": window_days[-1],
-                "case_count": len(new_results),
-                "correct": correct,
-                "mismatch": mismatch,
-                "needs_review": needs_review,
-                "blocked": blocked,
-                "evaluated": evaluated,
-                "accuracy_percent": accuracy,
-                "report_xlsx": str(args.report_xlsx),
-                "results_json": str(args.results_json),
-                "report_html": str(args.report_html),
-                "manifest_json": str(args.manifest_json),
-                "workers": args.workers,
+                "batch_day": batch_day,
+                "case_count": len(day_cases),
+                "cases": [asdict(case) | {"case_id": case.case_id} for case in day_cases],
             },
-            indent=2,
         )
-    )
+
+        day_results = run_batch(
+            day_cases,
+            source_workbook=source_xlsx.name,
+            window_start=window_days[0],
+            window_end=window_days[-1],
+            workers=args.workers,
+        )
+        per_day_results[batch_day] = day_results
+        processed_days.append(batch_day)
+
+        refreshed_day_rows = refresh_report_image_urls(day_results, workers=args.workers)
+        merged_day_rows = [
+            _merge_review_fields(row, existing_by_case_id.get(str(row["case_id"])))
+            for row in refreshed_day_rows
+        ]
+        for row in merged_day_rows:
+            incremental_rows_by_case_id[str(row["case_id"])] = row
+
+        incremental_combined_rows = _sort_case_rows(list(incremental_rows_by_case_id.values()))
+        write_report_workbook(args.report_xlsx, incremental_combined_rows)
+        write_json(results_path, refreshed_day_rows)
+
+        if args.all_days:
+            current_window_rows = [
+                row for row in incremental_combined_rows if str(row.get("batch_day")) in set(processed_days)
+            ]
+            write_json(overall_json_path, current_window_rows)
+            write_json(
+                summary_json_path,
+                _build_window_summary_payload(
+                    window_start=window_days[0],
+                    window_end=window_days[-1],
+                    rows=current_window_rows,
+                    target_days=target_days,
+                    processed_days=processed_days,
+                    report_xlsx=args.report_xlsx,
+                    overall_json_path=overall_json_path,
+                    overall_html_path=overall_html_path,
+                    results_dir=results_dir,
+                    workers=args.workers,
+                ),
+            )
+
+    refreshed_day_results: dict[str, list[dict[str, Any]]] = {}
+    for batch_day in target_days:
+        day_rows = per_day_results.get(batch_day, [])
+        if not day_rows:
+            continue
+        refreshed_day_results[batch_day] = refresh_report_image_urls(day_rows, workers=args.workers)
+
+    merged_new_rows: list[dict[str, Any]] = []
+    for batch_day in target_days:
+        for row in refreshed_day_results.get(batch_day, []):
+            merged_new_rows.append(_merge_review_fields(row, existing_by_case_id.get(str(row["case_id"]))))
+
+    kept_rows = [row for row in existing_rows if str(row.get("batch_day")) not in target_days_set]
+    combined_rows = kept_rows + merged_new_rows
+    combined_rows = _sort_case_rows(combined_rows)
+    write_report_workbook(args.report_xlsx, combined_rows)
+
+    for batch_day in target_days:
+        day_rows = refreshed_day_results.get(batch_day, [])
+        if args.all_days:
+            results_path = results_dir / f"day_{batch_day}_results.json"
+            report_path = results_dir / f"day_{batch_day}_report.html"
+        else:
+            results_path = (args.results_json or (args.report_xlsx.parent / f"day_{batch_day}_results.json")).resolve()
+            report_path = (args.report_html or (args.report_xlsx.parent / f"day_{batch_day}_report.html")).resolve()
+        write_json(results_path, day_rows)
+        build_day_report_html(batch_day=batch_day, rows=day_rows, output_path=report_path)
+
+    if args.all_days:
+        window_rows = [row for row in combined_rows if str(row.get("batch_day")) in set(target_days)]
+        write_json(overall_json_path, window_rows)
+        build_window_report_html(
+            window_start=window_days[0],
+            window_end=window_days[-1],
+            rows=window_rows,
+            output_path=overall_html_path,
+        )
+        summary_payload = _build_window_summary_payload(
+            window_start=window_days[0],
+            window_end=window_days[-1],
+            rows=window_rows,
+            target_days=target_days,
+            processed_days=target_days,
+            report_xlsx=args.report_xlsx,
+            overall_json_path=overall_json_path,
+            overall_html_path=overall_html_path,
+            results_dir=results_dir,
+            workers=args.workers,
+        )
+        write_json(summary_json_path, summary_payload)
+        print(json.dumps(summary_payload, indent=2))
+    else:
+        batch_day = target_days[0]
+        day_rows = refreshed_day_results.get(batch_day, [])
+        counts = _summary_counts(day_rows)
+        print(
+            json.dumps(
+                {
+                    "batch_day": batch_day,
+                    "window_start": window_days[0],
+                    "window_end": window_days[-1],
+                    "case_count": counts["total_cases"],
+                    "correct": counts["correct"],
+                    "mismatch": counts["mismatch"],
+                    "needs_review": counts["needs_review"],
+                    "blocked": counts["blocked"],
+                    "evaluated": counts["evaluated"],
+                    "accuracy_percent": counts["accuracy_percent"],
+                    "report_xlsx": str(args.report_xlsx),
+                    "results_json": str((args.results_json or (args.report_xlsx.parent / f"day_{batch_day}_results.json")).resolve()),
+                    "report_html": str((args.report_html or (args.report_xlsx.parent / f"day_{batch_day}_report.html")).resolve()),
+                    "manifest_json": str((args.manifest_json or (args.report_xlsx.parent / f"day_{batch_day}_manifest.json")).resolve()),
+                    "workers": args.workers,
+                },
+                indent=2,
+            )
+        )
     return 0
 
 
