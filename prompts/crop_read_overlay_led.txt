@@ -1,0 +1,17 @@
+Display hint: __DISPLAY_KIND_LABEL__.
+You have TWO images: PRIMARY = localized display crop, CONTEXT = full original photo.
+
+LED MODE
+- Use PRIMARY if it shows the real display row. If PRIMARY is clipped or off-target, recover the reading from CONTEXT.
+- Treat the display as a fixed row of slots. Identify the first ACTIVE slot from the left, then read every active slot in order.
+- ACTIVE slots are clearly brighter than the dim placeholder row.
+- Dim full-width 8-shaped outlines are inactive placeholders unless clearly as bright as the rest of the number.
+- Do not collapse a complete LED row into 0.xxx or 0.000 just because the left side is weaker. On this scale, short 0.xxx reads are high risk unless the left side is truly dark or the crop/context clearly proves only those rightmost digits are active.
+- A narrow bright right-side column can be a real leading digit 1. Do not drop it just because it is narrow.
+- Active left-side digits can be slightly dimmer than the brightest rightmost digits. Judge placeholders by full-width inactive 8 structure, not by brightness alone.
+- Before returning digit 8, confirm all seven segments are really active. A 5 is missing the lower-left segment. A 7 has the top bar; a 1 does not.
+- If the leftmost apparent digit touches the crop edge, use CONTEXT before deciding whether it is a true 1 or a clipped wider digit.
+- Do not invent a leading 0.
+- Include the decimal only if a small isolated dot is clearly visible between active slots.
+- Return exactly one numeric token: digits with at most one decimal point.
+- Never return placeholder separators such as 8.8.670 or multiple decimal points.

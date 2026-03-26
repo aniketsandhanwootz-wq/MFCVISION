@@ -1316,7 +1316,7 @@ def build_day_report_html(
     batch_day: str,
     rows: list[dict[str, Any]],
     output_path: Path,
-    adjusted_last_decimal: bool = False,
+    adjusted_last_decimal: bool = True,
 ) -> None:
     counts = _summary_counts(rows, adjusted_last_decimal=adjusted_last_decimal)
     worked = [row for row in rows if _summary_status(row, adjusted_last_decimal=adjusted_last_decimal) == "correct"]
@@ -1370,8 +1370,9 @@ def build_window_report_html(
     window_end: str,
     rows: list[dict[str, Any]],
     output_path: Path,
+    adjusted_last_decimal: bool = True,
 ) -> None:
-    counts = _summary_counts(rows)
+    counts = _summary_counts(rows, adjusted_last_decimal=adjusted_last_decimal)
     grouped: dict[str, list[dict[str, Any]]] = {}
     for row in rows:
         grouped.setdefault(str(row["batch_day"]), []).append(row)
@@ -1379,9 +1380,9 @@ def build_window_report_html(
     sections_html: list[str] = []
     for batch_day in sorted(grouped):
         day_rows = grouped[batch_day]
-        day_counts = _summary_counts(day_rows)
-        worked = [row for row in day_rows if _summary_status(row) == "correct"]
-        failed = [row for row in day_rows if _summary_status(row) != "correct"]
+        day_counts = _summary_counts(day_rows, adjusted_last_decimal=adjusted_last_decimal)
+        worked = [row for row in day_rows if _summary_status(row, adjusted_last_decimal=adjusted_last_decimal) == "correct"]
+        failed = [row for row in day_rows if _summary_status(row, adjusted_last_decimal=adjusted_last_decimal) != "correct"]
         sections_html.append(
             f"""
             <details>
@@ -1402,11 +1403,11 @@ def build_window_report_html(
               </section>
               <h3 class="subsection-title">Worked ({len(worked)})</h3>
               <div class="cards">
-                {''.join(_render_report_card(row) for row in worked)}
+                {''.join(_render_report_card(row, adjusted_last_decimal=adjusted_last_decimal) for row in worked)}
               </div>
               <h3 class="subsection-title">Did Not Work / Needs Review ({len(failed)})</h3>
               <div class="cards">
-                {''.join(_render_report_card(row) for row in failed)}
+                {''.join(_render_report_card(row, adjusted_last_decimal=adjusted_last_decimal) for row in failed)}
               </div>
             </details>
             """
@@ -1431,7 +1432,8 @@ def build_window_report_html(
             title="Last 2 Weeks Validation Report",
             lead=(
                 f"Window <code>{escape(window_start)}</code> to <code>{escape(window_end)}</code>. "
-                "Each day is collapsible. The report uses fresh signed Clappia file URLs for image display and keeps the original Clappia wrapper link on each card."
+                + ("Last-decimal-only mismatches are counted as correct. " if adjusted_last_decimal else "")
+                + "Each day is collapsible. The report uses fresh signed Clappia file URLs for image display and keeps the original Clappia wrapper link on each card."
             ),
             stats_html=stats_html,
             body_html="".join(sections_html),

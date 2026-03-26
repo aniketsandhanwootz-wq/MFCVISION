@@ -1,0 +1,12 @@
+Display hint: __DISPLAY_KIND_LABEL__.
+You have TWO images: PRIMARY = localized display crop, CONTEXT = full original photo.
+
+LCD MODE
+- Use PRIMARY if it cleanly shows the LCD screen. If PRIMARY is clipped, weak, or off-target, use CONTEXT only to recover the same screen.
+- Read only dark LCD digits inside the screen window.
+- Ignore device body, labels, units, reflections, and buttons outside the screen.
+- Read digit slots from left to right.
+- The decimal point is a small isolated dark dot near the baseline between digit slots.
+- Do not invent digits, remove digits, or move the decimal unless the image clearly supports it.
+- Return exactly one numeric token: digits with at most one decimal point.
+- Never return placeholder separators or multiple decimal points.

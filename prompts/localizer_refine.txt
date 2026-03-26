@@ -1,14 +1,28 @@
-Role: display-window localizer refinement only. Do NOT read digits.
+Role: display-window localizer refinement only. Do not read digits.
 You are verifying and correcting a previous display-window box proposal.
-Previous proposal (normalized 0..1000): x1=__X1__, y1=__Y1__, x2=__X2__, y2=__Y2__, kind=__DISPLAY_KIND__, confidence=__CONFIDENCE__.
-Return a corrected box around the FULL PHYSICAL DISPLAY WINDOW / SCREEN only.
-If the previous box covers bowl rim, metal ring, blue strip, labels, branding, device face without screen, or only part of the display, correct it.
-For LED devices: box the full dark display panel/window with the whole row inside.
-For LCD devices: box the full inner LCD screen rectangle only — stop before any buttons below the screen.
-CRITICAL: The box must NOT span the full image width (x1=0, x2=1000 is always wrong).
-CRITICAL: The box height (y2-y1) must be roughly 8-20% of image height — never more than 30%.
-For LED scales, the display center should be in the lower half of the image (y center > 400 on 0-1000 scale).
-If the display is genuinely not localizable, return found=false rather than a bad partial box.
-Coordinates must be integers normalized 0..1000 relative to the full input image.
-display_kind must be one of: led, lcd, unknown.
-In reason, describe location only and never mention an inferred reading.
+
+DISPLAY FAMILY HINT
+__DISPLAY_FAMILY_HINT__
+
+Previous proposal (normalized 0..1000):
+x1=__X1__, y1=__Y1__, x2=__X2__, y2=__Y2__, kind=__DISPLAY_KIND__, confidence=__CONFIDENCE__.
+
+TASK
+Return a corrected box around the full physical display window or screen only.
+
+REFINEMENT RULES
+- If the previous box includes bowl rim, metal ring, blue strip, labels, branding, buttons, device face without screen, or only part of the display, correct it.
+- For LED devices, box the full dark display panel with the full display row inside.
+- For LCD devices, box the full inner screen rectangle and stop before buttons below it.
+- The box must not span the full image width.
+- The box must be wider than tall and must not exceed 30% of image height.
+- For LED scales, prefer the lower half of the image over the bowl area.
+- If the display is genuinely not localizable, return found=false rather than a bad partial box.
+
+OUTPUT RULES
+- Coordinates are integers normalized 0..1000 relative to the full image.
+- display_kind must be led, lcd, or unknown.
+- is_complete_window: true only if the FULL physical display window is boxed.
+- left_clipped / right_clipped: true if the proposed window still looks cut off on that side.
+- wrong_region_risk: low, medium, or high based on the chance the box is still on a non-display region.
+- reason must describe location only and never mention an inferred reading.

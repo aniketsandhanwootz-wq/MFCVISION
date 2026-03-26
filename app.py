@@ -24,13 +24,18 @@ from google.genai import types
 from PIL import Image, ImageDraw
 from pydantic import AliasChoices, BaseModel, ConfigDict, Field, ValidationError
 
-from image_enhance import make_enhanced_display_image
+from image_enhance import (
+    make_enhanced_display_image,
+    make_localizer_support_variant,
+    make_risky_display_variant,
+    propose_display_candidate_boxes,
+)
+from led_decoder import LedDecodeArtifact, decode_led_display, resolve_led_read, score_led_crop
 from mfc_queue import MFCQueueClient, MFCQueueConfig
 from vision import (
     CropDiagnostics,
     LocalDecodeResult,
     analyze_crop_diagnostics,
-    decode_display_crop,
     resize_keep_aspect,
 )
 
@@ -76,6 +81,9 @@ LOCAL_DECODER_MIN_CONFIDENCE = float(os.getenv("LOCAL_DECODER_MIN_CONFIDENCE", "
 LOCALIZER_MIN_CONFIDENCE = float(os.getenv("LOCALIZER_MIN_CONFIDENCE", "0.45"))
 # Confidence threshold above which we skip the region-refiner pass (saves ~1s latency)
 LOCALIZER_SKIP_REFINE_THRESHOLD = float(os.getenv("LOCALIZER_SKIP_REFINE_THRESHOLD", "0.90"))
+VERIFIER_EASY_QUALITY_SCORE = float(os.getenv("VERIFIER_EASY_QUALITY_SCORE", "0.72"))
+SUPPORT_READ_MAX_QUALITY_SCORE = float(os.getenv("SUPPORT_READ_MAX_QUALITY_SCORE", "0.68"))
+CROP_VERIFICATION_MIN_IMPROVEMENT = float(os.getenv("CROP_VERIFICATION_MIN_IMPROVEMENT", "0.10"))
 CLAPPIA_API_KEY = (os.getenv("CLAPPIA_API_KEY") or "").strip()
 CLAPPIA_APP_ID = (os.getenv("CLAPPIA_APP_ID") or "MFC182090").strip()
 CLAPPIA_WORKPLACE_ID = (os.getenv("CLAPPIA_WORKPLACE_ID") or "").strip()
@@ -139,6 +147,7 @@ _LAST_PREVIEWS: dict[str, bytes] = {}
 # Prompt cache — load once, never hit disk again                       #
 # ------------------------------------------------------------------ #
 _PROMPT_CACHE: dict[str, str] = {}
+_PROMPT_LABELS_CACHE: dict[str, str] | None = None
 
 
 def load_prompt_text(filename: str = "scale_reader.txt") -> str:
@@ -151,6 +160,25 @@ def load_prompt_text(filename: str = "scale_reader.txt") -> str:
     prompt_text = prompt_path.read_text(encoding="utf-8").strip()
     _PROMPT_CACHE[filename] = prompt_text
     return prompt_text
+
+
+def load_prompt_label(label_key: str) -> str:
+    global _PROMPT_LABELS_CACHE
+    if _PROMPT_LABELS_CACHE is None:
+        labels_path = PROMPTS_DIR / "image_labels.json"
+        if not labels_path.exists():
+            raise RuntimeError(f"Prompt label file not found: {labels_path}")
+        payload = json.loads(labels_path.read_text(encoding="utf-8"))
+        if not isinstance(payload, dict):
+            raise RuntimeError(f"Prompt label file must contain a JSON object: {labels_path}")
+        _PROMPT_LABELS_CACHE = {
+            str(key): str(value).strip()
+            for key, value in payload.items()
+        }
+    label = _PROMPT_LABELS_CACHE.get(label_key)
+    if label is None:
+        raise RuntimeError(f"Prompt label not found: {label_key}")
+    return label
 
 
 def render_prompt_template(
@@ -181,6 +209,10 @@ class LocalizationResult(BaseModel):
     y2: Optional[int] = Field(default=None, ge=0, le=1000)
     confidence: float = Field(ge=0.0, le=1.0)
     display_kind: Literal["led", "lcd", "unknown"] = "unknown"
+    is_complete_window: Optional[bool] = None
+    left_clipped: Optional[bool] = None
+    right_clipped: Optional[bool] = None
+    wrong_region_risk: Optional[Literal["low", "medium", "high"]] = None
     reason: str
 
 
@@ -980,16 +1012,26 @@ def _call_gemini_localizer_once(
     localizer_enhanced_img: Image.Image,
     instructions: str,
     *,
+    localizer_support_img: Image.Image | None = None,
+    candidate_crops: list[Image.Image] | None = None,
     model_name: str | None = None,
 ) -> LocalizationResult:
     selected_model = model_name or LOCALIZER_MODEL_NAME
     localizer_contents = [
         instructions,
-        load_prompt_text("localizer_primary_image_label.txt"),
+        load_prompt_label("localizer_primary_image"),
         localizer_original_img,
-        load_prompt_text("localizer_context_image_label.txt"),
+        load_prompt_label("localizer_context_image"),
         localizer_enhanced_img,
     ]
+    if localizer_support_img is not None:
+        localizer_contents.extend(
+            [load_prompt_label("localizer_support_image"), localizer_support_img]
+        )
+    for candidate_crop in candidate_crops or []:
+        localizer_contents.extend(
+            [load_prompt_label("localizer_candidate_crop"), candidate_crop]
+        )
     try:
         response = client.models.generate_content(
             model=selected_model,
@@ -1036,11 +1078,87 @@ def _display_kind_label(display_kind: str) -> str:
     return display_kind.upper() if display_kind in {"led", "lcd"} else "UNKNOWN"
 
 
-def _primary_localizer_instructions() -> str:
-    return load_prompt_text("localizer_primary.txt")
+def _localizer_display_hint(target_family: str) -> str:
+    if target_family == "weight":
+        return "Prefer LED display localization."
+    if target_family == "thickness":
+        return "Prefer LCD display localization."
+    return "Display type may be LED or LCD."
 
 
-def _refine_localizer_instructions(previous: LocalizationResult) -> str:
+def _target_family_for_target(target_key: str | None) -> str:
+    key = (target_key or "").strip().lower()
+    if not key:
+        return "generic"
+
+    weight_fragments = (
+        "pre_weight",
+        "post_weight",
+        "moisture",
+    )
+    thickness_fragments = (
+        "side_wall",
+        "centre_wall",
+        "thickness",
+    )
+    if any(fragment in key for fragment in weight_fragments):
+        return "weight"
+    if any(fragment in key for fragment in thickness_fragments):
+        return "thickness"
+    return "generic"
+
+
+def _expected_display_kind_for_target(
+    target_family: str,
+    localized_display_kind: str,
+) -> str:
+    if target_family == "weight":
+        return "led"
+    if target_family == "thickness":
+        return "lcd"
+    return localized_display_kind if localized_display_kind in {"led", "lcd"} else "unknown"
+
+
+def _primary_read_instruction_template(display_kind: str, target_family: str) -> str:
+    if display_kind == "led" or target_family == "weight":
+        return "crop_read_overlay_led.txt"
+    if display_kind == "lcd" or target_family == "thickness":
+        return "crop_read_overlay_lcd.txt"
+    return "crop_read_overlay.txt"
+
+
+def _candidate_summary_text(
+    candidate_boxes: list[tuple[int, int, int, int]],
+    image_size: tuple[int, int],
+) -> str:
+    if not candidate_boxes:
+        return "- No local CV candidate regions were found. If uncertain, return found=false."
+    lines = [
+        "- Candidate crops are hints only. Use them to recognize likely display regions, not as a replacement for the full image."
+    ]
+    for index, box in enumerate(candidate_boxes[:2], start=1):
+        norm = pixels_to_norm1000(box, image_size)
+        lines.append(
+            f"- Candidate {index}: x1={norm['x1']}, y1={norm['y1']}, x2={norm['x2']}, y2={norm['y2']}."
+        )
+    return "\n".join(lines)
+
+
+def _primary_localizer_instructions(
+    *,
+    target_family: str,
+    candidate_summary: str,
+) -> str:
+    return render_prompt_template(
+        "localizer_primary.txt",
+        {
+            "DISPLAY_FAMILY_HINT": _localizer_display_hint(target_family),
+            "CV_CANDIDATES": candidate_summary,
+        },
+    )
+
+
+def _refine_localizer_instructions(previous: LocalizationResult, *, target_family: str) -> str:
     return render_prompt_template(
         "localizer_refine.txt",
         {
@@ -1050,6 +1168,7 @@ def _refine_localizer_instructions(previous: LocalizationResult) -> str:
             "Y2": previous.y2,
             "DISPLAY_KIND": previous.display_kind,
             "CONFIDENCE": previous.confidence,
+            "DISPLAY_FAMILY_HINT": _localizer_display_hint(target_family),
         },
     )
 
@@ -1077,17 +1196,26 @@ def call_gemini_localizer(
     localizer_original_img: Image.Image,
     localizer_enhanced_img: Image.Image,
     *,
+    target_family: str,
+    localizer_support_img: Image.Image | None = None,
+    candidate_crops: list[Image.Image] | None = None,
+    candidate_summary: str = "",
     previous: LocalizationResult | None = None,
 ) -> LocalizationResult:
     instructions = (
-        _primary_localizer_instructions()
+        _primary_localizer_instructions(
+            target_family=target_family,
+            candidate_summary=candidate_summary,
+        )
         if previous is None
-        else _refine_localizer_instructions(previous)
+        else _refine_localizer_instructions(previous, target_family=target_family)
     )
     return _call_gemini_localizer_once(
         localizer_original_img,
         localizer_enhanced_img,
         instructions,
+        localizer_support_img=localizer_support_img if previous is None else None,
+        candidate_crops=candidate_crops if previous is None else None,
         model_name=LOCALIZER_MODEL_NAME,
     )
 
@@ -1271,6 +1399,18 @@ def _is_high_quality_localization(
     return True
 
 
+def _localization_requires_caution(localization: LocalizationResult | None) -> bool:
+    if localization is None:
+        return False
+    if localization.is_complete_window is False:
+        return True
+    if localization.left_clipped or localization.right_clipped:
+        return True
+    if localization.wrong_region_risk == "high":
+        return True
+    return False
+
+
 def expand_localization_box(
     box: tuple[int, int, int, int],
     image_size: tuple[int, int],
@@ -1333,6 +1473,28 @@ def make_search_region_box(
         min(width,  x2 + right_pad),
         min(height, y2 + bottom_pad),
     )
+
+
+def adjust_localization_box(
+    box: tuple[int, int, int, int],
+    image_size: tuple[int, int],
+    *,
+    dx: int = 0,
+    dy: int = 0,
+    left_pad: int = 0,
+    right_pad: int = 0,
+    top_pad: int = 0,
+    bottom_pad: int = 0,
+) -> tuple[int, int, int, int] | None:
+    width, height = image_size
+    x1, y1, x2, y2 = box
+    candidate = (
+        max(0, x1 - left_pad + dx),
+        max(0, y1 - top_pad + dy),
+        min(width, x2 + right_pad + dx),
+        min(height, y2 + bottom_pad + dy),
+    )
+    return candidate if is_valid_localization_box(candidate, image_size) else None
 
 
 def map_child_box_to_parent(
@@ -1567,6 +1729,83 @@ def _is_led_single_digit_risk(
     )
 
 
+def _crop_has_led_like_evidence(
+    crop_diagnostics: CropDiagnostics | None,
+    *,
+    display_kind: str,
+) -> bool:
+    if crop_diagnostics is None:
+        return False
+    if display_kind == "led" and crop_diagnostics.mode == "led":
+        return True
+    return (
+        display_kind == "led"
+        and crop_diagnostics.green_ratio >= 0.020
+        and crop_diagnostics.component_count >= 5
+        and 0.07 <= crop_diagnostics.active_band_height_ratio <= 0.35
+    )
+
+
+def _led_crop_artifact_is_plausible(led_decode: LedDecodeArtifact | None) -> bool:
+    if led_decode is None or not led_decode.ok or led_decode.confidence < 0.62:
+        return False
+    slot_count = len(led_decode.slots)
+    if slot_count < 4 or slot_count > 6:
+        return False
+    digits = [slot.digit for slot in led_decode.slots if slot.digit]
+    if not digits:
+        return False
+    unique_digits = len(set(digits))
+    if unique_digits <= 1 and not led_decode.leading_one_info.present:
+        return False
+    if not led_decode.decimal_info.visible and slot_count <= 4 and unique_digits <= 2:
+        return False
+    return True
+
+
+def _is_led_underread_risk(
+    result: ReadingResult,
+    crop_diagnostics: CropDiagnostics | None,
+    local_decode: LocalDecodeResult | None,
+    *,
+    display_kind: str,
+) -> bool:
+    if display_kind != "led" or result.status != "ok" or not result.value_text:
+        return False
+    if not _crop_has_led_like_evidence(crop_diagnostics, display_kind=display_kind):
+        return False
+
+    digit_count = count_numeric_digits(result.value_text)
+    integer_digits = count_integer_digits(result.value_text)
+
+    if result.ignored_text_present and digit_count <= 4:
+        return True
+    if digit_count <= 1 and crop_diagnostics is not None and crop_diagnostics.component_count >= 5:
+        return True
+    if (
+        crop_diagnostics is not None
+        and integer_digits <= 1
+        and crop_diagnostics.leading_blank_ratio <= 0.45
+        and crop_diagnostics.component_count >= max(digit_count + 3, 6)
+    ):
+        return True
+    if (
+        crop_diagnostics is not None
+        and digit_count <= 3
+        and crop_diagnostics.active_span_ratio >= 0.55
+    ):
+        return True
+    if (
+        local_decode is not None
+        and local_decode.ok
+        and local_decode.value_text
+        and local_decode.confidence >= 0.60
+        and local_decode.digit_count >= max(digit_count + 2, 4)
+    ):
+        return True
+    return False
+
+
 def _support_extends_led_primary(primary_text: str, support_text: str) -> bool:
     if not primary_text or not support_text:
         return False
@@ -1641,6 +1880,176 @@ def _support_should_win_led_conflict(
     return False
 
 
+def _primary_read_looks_easy(
+    primary_result: ReadingResult,
+    crop_diagnostics: CropDiagnostics | None,
+    local_decode: LocalDecodeResult | None,
+    *,
+    display_kind: str,
+    used_full_image_fallback: bool,
+) -> bool:
+    if used_full_image_fallback:
+        return False
+    if primary_result.status != "ok" or not primary_result.value_text:
+        return False
+    if crop_diagnostics is None or not crop_diagnostics.is_reliable:
+        return False
+    if crop_diagnostics.quality_score < VERIFIER_EASY_QUALITY_SCORE:
+        return False
+    if is_suspicious_read(primary_result, crop_diagnostics):
+        return False
+    if _is_led_single_digit_risk(primary_result, crop_diagnostics, display_kind=display_kind):
+        return False
+    if _is_led_underread_risk(
+        primary_result,
+        crop_diagnostics,
+        local_decode,
+        display_kind=display_kind,
+    ):
+        return False
+    if display_kind == "led" and crop_diagnostics.mode != "led":
+        return False
+    if (
+        local_decode is not None
+        and local_decode.ok
+        and local_decode.value_text
+        and local_decode.value_text != primary_result.value_text
+        and local_decode.confidence >= LOCAL_DECODER_MIN_CONFIDENCE
+    ):
+        return False
+    return True
+
+
+def _should_run_decimal_verifier(
+    candidate_texts: list[str],
+    *,
+    primary_result: ReadingResult,
+    verification: ReadVerificationResult | None,
+) -> bool:
+    if len(candidate_texts) >= 2:
+        return True
+    if verification is None:
+        return False
+    if primary_result.status != "ok" or not primary_result.value_text:
+        return False
+    if verification.suggested_value_text and _same_digits_except_decimal(
+        primary_result.value_text,
+        verification.suggested_value_text,
+    ):
+        return True
+    return False
+
+
+def _should_run_support_read(
+    *,
+    best_box_pixels: tuple[int, int, int, int] | None,
+    used_full_image_fallback: bool,
+    primary_suspicious: bool,
+    primary_result: ReadingResult,
+    crop_diagnostics: CropDiagnostics,
+    local_decode: LocalDecodeResult | None,
+    verification: ReadVerificationResult | None,
+    decimal_verification: DecimalVerificationResult | None,
+    decimal_candidate_texts: list[str],
+    decimal_resolved_text: str | None,
+    display_kind: str,
+) -> bool:
+    if used_full_image_fallback:
+        return False
+    if best_box_pixels is None:
+        return False
+    led_underread_risk = _is_led_underread_risk(
+        primary_result,
+        crop_diagnostics,
+        local_decode,
+        display_kind=display_kind,
+    )
+    if (
+        crop_diagnostics.quality_score > SUPPORT_READ_MAX_QUALITY_SCORE
+        and not primary_suspicious
+        and not led_underread_risk
+    ):
+        if verification is None:
+            return False
+        if verification.verdict == "confirmed" and verification.agrees_with_primary and decimal_resolved_text is None:
+            return False
+    if (
+        verification is not None
+        and verification.verdict == "corrected"
+        and not led_underread_risk
+        and not (
+            display_kind == "led"
+            and primary_result.status == "ok"
+            and primary_result.value_text
+            and verification.suggested_value_text
+            and _is_leading_one_shortening(
+                primary_result.value_text,
+                verification.suggested_value_text,
+            )
+        )
+    ):
+        return False
+    if verification is not None and (
+        verification.crop_edge_clipped
+        or not verification.leftmost_digit_fully_visible
+        or verification.verdict == "uncertain"
+    ):
+        return True
+    if led_underread_risk:
+        return True
+    if (
+        display_kind == "led"
+        and _is_led_single_digit_risk(
+            primary_result,
+            crop_diagnostics,
+            display_kind=display_kind,
+        )
+        and (verification is None or not verification.agrees_with_primary)
+    ):
+        return True
+    if (
+        decimal_verification is not None
+        and len(decimal_candidate_texts) >= 2
+        and decimal_resolved_text is None
+    ):
+        return True
+    return primary_suspicious and crop_diagnostics.quality_score < SUPPORT_READ_MAX_QUALITY_SCORE
+
+
+def _crop_is_usable_for_primary(
+    crop_diagnostics: CropDiagnostics,
+    *,
+    display_kind: str,
+) -> bool:
+    if display_kind == "lcd" and crop_diagnostics.mode != "lcd":
+        return False
+    if (
+        display_kind == "led"
+        and crop_diagnostics.mode != "led"
+        and not (
+            crop_diagnostics.green_ratio >= 0.020
+            and crop_diagnostics.quality_score >= 0.82
+            and crop_diagnostics.component_count >= 5
+            and 0.08 <= crop_diagnostics.active_band_height_ratio <= 0.35
+        )
+    ):
+        return False
+    if crop_diagnostics.is_reliable:
+        return True
+    if display_kind == "led":
+        return (
+            crop_diagnostics.quality_score >= 0.82
+            and crop_diagnostics.green_ratio >= 0.015
+            and crop_diagnostics.active_band_height_ratio <= 0.68
+        )
+    if display_kind == "lcd":
+        return (
+            crop_diagnostics.quality_score >= 0.80
+            and crop_diagnostics.active_band_height_ratio <= 0.60
+        )
+    return crop_diagnostics.quality_score >= 0.80
+
+
 def _same_digits_except_decimal(first_text: str | None, second_text: str | None) -> bool:
     if not first_text or not second_text or first_text == second_text:
         return False
@@ -1669,16 +2078,6 @@ def _collect_decimal_conflict_texts(*value_texts: str | None) -> list[str]:
     return []
 
 
-def _is_decimal_risk_text(value_text: str | None, *, display_kind: str) -> bool:
-    if not value_text or "." in value_text:
-        return False
-    if not re.fullmatch(r"\d+", value_text):
-        return False
-    if count_numeric_digits(value_text) < 4:
-        return False
-    return display_kind in {"led", "lcd", "unknown"}
-
-
 def _decimal_signature_for_verification(
     primary_text: str | None,
     verifier_text: str | None,
@@ -1689,8 +2088,6 @@ def _decimal_signature_for_verification(
     conflict_texts = _collect_decimal_conflict_texts(primary_text, verifier_text, support_text)
     if conflict_texts:
         return conflict_texts, digits_only(conflict_texts[0])
-    if _is_decimal_risk_text(primary_text, display_kind=display_kind):
-        return [primary_text], digits_only(primary_text)
     return [], None
 
 
@@ -1837,6 +2234,12 @@ def _serialize_local_decode(local_decode: LocalDecodeResult | None) -> dict[str,
     }
 
 
+def _serialize_led_decode(led_decode: LedDecodeArtifact | None) -> dict[str, Any]:
+    if led_decode is None:
+        return {"available": False}
+    return led_decode.to_payload()
+
+
 def _serialize_read_verification(verification: ReadVerificationResult | None) -> dict[str, Any]:
     if verification is None:
         return {"available": False}
@@ -1897,17 +2300,354 @@ def _safe_analyze_crop_diagnostics(
         )
 
 
+def _serialize_crop_diagnostics(crop_diagnostics: CropDiagnostics) -> dict[str, object]:
+    return {
+        "is_reliable": crop_diagnostics.is_reliable,
+        "mode": crop_diagnostics.mode,
+        "quality_score": crop_diagnostics.quality_score,
+        "lit_ratio": crop_diagnostics.lit_ratio,
+        "green_ratio": crop_diagnostics.green_ratio,
+        "component_count": crop_diagnostics.component_count,
+        "active_span_ratio": crop_diagnostics.active_span_ratio,
+        "active_band_height_ratio": crop_diagnostics.active_band_height_ratio,
+        "leading_blank_ratio": crop_diagnostics.leading_blank_ratio,
+        "reason": crop_diagnostics.reason,
+    }
+
+
+def _score_crop_verification_candidate(
+    box: tuple[int, int, int, int],
+    crop_diagnostics: CropDiagnostics,
+    *,
+    display_kind_hint: str,
+    image_size: tuple[int, int],
+    led_crop_score: LedDecodeArtifact | None = None,
+) -> float:
+    img_w, img_h = image_size
+    x1, y1, x2, y2 = box
+    bw = x2 - x1
+    bh = y2 - y1
+    cy_frac = ((y1 + y2) / 2.0) / max(img_h, 1)
+    bw_frac = bw / max(img_w, 1)
+    bh_frac = bh / max(img_h, 1)
+
+    score = float(crop_diagnostics.quality_score)
+    if crop_diagnostics.is_reliable:
+        score += 0.34
+
+    if display_kind_hint in {"led", "lcd"}:
+        if crop_diagnostics.mode == display_kind_hint:
+            score += 0.18
+        elif crop_diagnostics.mode in {"led", "lcd"}:
+            score -= 0.16
+
+    if display_kind_hint == "led":
+        if cy_frac >= 0.50:
+            score += 0.09
+        else:
+            score -= min(0.18, (0.50 - cy_frac) * 0.80)
+        if 0.18 <= bw_frac <= 0.78:
+            score += 0.06
+        elif bw_frac > 0.85:
+            score -= min(0.36, 0.12 + (bw_frac - 0.85) * 1.30)
+        if crop_diagnostics.green_ratio >= 0.015:
+            score += 0.07
+        else:
+            score -= 0.04
+        if crop_diagnostics.leading_blank_ratio <= 0.34:
+            score += 0.05
+        if bw_frac > 0.75 and crop_diagnostics.leading_blank_ratio <= 0.01:
+            score -= 0.08
+        if crop_diagnostics.active_band_height_ratio >= 0.10:
+            score += 0.04
+        if bw_frac >= 0.16:
+            score += 0.03
+        if led_crop_score is not None:
+            if _led_crop_artifact_is_plausible(led_crop_score):
+                score += float(led_crop_score.crop_score.score) * 0.24
+                if led_crop_score.leading_one_info.present:
+                    score += min(0.08, led_crop_score.leading_one_info.confidence * 0.08)
+                if led_crop_score.decimal_info.visible:
+                    score += min(0.05, led_crop_score.decimal_info.confidence * 0.05)
+            else:
+                score -= 0.10
+    elif display_kind_hint == "lcd":
+        if crop_diagnostics.green_ratio <= 0.025:
+            score += 0.05
+        if 0.06 <= crop_diagnostics.active_band_height_ratio <= 0.52:
+            score += 0.05
+        if 0.08 <= bh_frac <= 0.26:
+            score += 0.04
+        if bw_frac >= 0.10:
+            score += 0.03
+    else:
+        if crop_diagnostics.mode in {"led", "lcd"}:
+            score += 0.03
+
+    return round(score, 3)
+
+
+def _verify_localized_crop(
+    original_img: Image.Image,
+    box: tuple[int, int, int, int],
+    *,
+    display_kind_hint: str,
+) -> tuple[tuple[int, int, int, int], CropDiagnostics, dict[str, object]]:
+    bw = box[2] - box[0]
+    bh = box[3] - box[1]
+    candidate_specs: list[tuple[str, tuple[int, int, int, int]]] = [("localized_box", box)]
+
+    if display_kind_hint == "led":
+        led_candidates = [
+            ("led_lower_10", adjust_localization_box(box, original_img.size, dy=int(round(bh * 0.10)))),
+            ("led_lower_18", adjust_localization_box(box, original_img.size, dy=int(round(bh * 0.18)))),
+            ("led_lower_26", adjust_localization_box(box, original_img.size, dy=int(round(bh * 0.26)))),
+            (
+                "led_lower_tighter",
+                adjust_localization_box(
+                    box,
+                    original_img.size,
+                    dy=int(round(bh * 0.12)),
+                    left_pad=-int(round(bw * 0.04)),
+                    right_pad=-int(round(bw * 0.04)),
+                    top_pad=-int(round(bh * 0.06)),
+                    bottom_pad=-int(round(bh * 0.10)),
+                ),
+            ),
+            (
+                "led_lower_expand",
+                adjust_localization_box(
+                    box,
+                    original_img.size,
+                    dy=int(round(bh * 0.14)),
+                    left_pad=int(round(bw * 0.06)),
+                    right_pad=int(round(bw * 0.10)),
+                    top_pad=-int(round(bh * 0.08)),
+                    bottom_pad=int(round(bh * 0.16)),
+                ),
+            ),
+            (
+                "led_tighter_band",
+                adjust_localization_box(
+                    box,
+                    original_img.size,
+                    left_pad=-int(round(bw * 0.03)),
+                    right_pad=-int(round(bw * 0.03)),
+                    top_pad=-int(round(bh * 0.08)),
+                    bottom_pad=-int(round(bh * 0.12)),
+                ),
+            ),
+        ]
+        candidate_specs.extend(
+            (name, candidate_box)
+            for name, candidate_box in led_candidates
+            if candidate_box is not None
+        )
+    elif display_kind_hint == "lcd":
+        lcd_candidates = [
+            (
+                "lcd_tighter_band",
+                adjust_localization_box(
+                    box,
+                    original_img.size,
+                    left_pad=-int(round(bw * 0.04)),
+                    right_pad=-int(round(bw * 0.04)),
+                    top_pad=-int(round(bh * 0.10)),
+                    bottom_pad=-int(round(bh * 0.10)),
+                ),
+            ),
+            ("lcd_lower_08", adjust_localization_box(box, original_img.size, dy=int(round(bh * 0.08)))),
+            (
+                "lcd_lower_tighter",
+                adjust_localization_box(
+                    box,
+                    original_img.size,
+                    dy=int(round(bh * 0.06)),
+                    left_pad=-int(round(bw * 0.03)),
+                    right_pad=-int(round(bw * 0.03)),
+                    top_pad=-int(round(bh * 0.12)),
+                    bottom_pad=-int(round(bh * 0.12)),
+                ),
+            ),
+            (
+                "lcd_wider_band",
+                adjust_localization_box(
+                    box,
+                    original_img.size,
+                    left_pad=int(round(bw * 0.04)),
+                    right_pad=int(round(bw * 0.04)),
+                    top_pad=-int(round(bh * 0.08)),
+                    bottom_pad=-int(round(bh * 0.08)),
+                ),
+            ),
+        ]
+        candidate_specs.extend(
+            (name, candidate_box)
+            for name, candidate_box in lcd_candidates
+            if candidate_box is not None
+        )
+    else:
+        generic_candidates = [
+            ("generic_lower_12", adjust_localization_box(box, original_img.size, dy=int(round(bh * 0.12)))),
+            (
+                "generic_tighter",
+                adjust_localization_box(
+                    box,
+                    original_img.size,
+                    left_pad=-int(round(bw * 0.04)),
+                    right_pad=-int(round(bw * 0.04)),
+                    top_pad=-int(round(bh * 0.08)),
+                    bottom_pad=-int(round(bh * 0.10)),
+                ),
+            ),
+        ]
+        candidate_specs.extend(
+            (name, candidate_box)
+            for name, candidate_box in generic_candidates
+            if candidate_box is not None
+        )
+
+    seen_boxes: set[tuple[int, int, int, int]] = set()
+    evaluated: list[dict[str, object]] = []
+    for variant_name, candidate_box in candidate_specs:
+        if candidate_box in seen_boxes:
+            continue
+        seen_boxes.add(candidate_box)
+        candidate_crop = crop_from_box(original_img, candidate_box)
+        diagnostics = _safe_analyze_crop_diagnostics(
+            candidate_crop,
+            fallback_mode=display_kind_hint,
+        )
+        led_crop_artifact = None
+        if display_kind_hint == "led":
+            try:
+                led_crop_artifact = decode_led_display(candidate_crop)
+            except Exception as e:
+                logger.warning("crop_led_decode_exception variant=%s error=%s", variant_name, e)
+        score = _score_crop_verification_candidate(
+            candidate_box,
+            diagnostics,
+            display_kind_hint=display_kind_hint,
+            image_size=original_img.size,
+            led_crop_score=led_crop_artifact,
+        )
+        evaluated.append(
+            {
+                "variant": variant_name,
+                "box": candidate_box,
+                "diagnostics": diagnostics,
+                "score": score,
+                "led_crop": led_crop_artifact,
+            }
+        )
+
+    base = evaluated[0]
+    best = max(evaluated, key=lambda item: float(item["score"]))
+    base_diagnostics = base["diagnostics"]
+    best_diagnostics = best["diagnostics"]
+    base_score = float(base["score"])
+    best_score = float(best["score"])
+
+    apply_best = False
+    if best["variant"] != base["variant"]:
+        base_mode_mismatch = (
+            display_kind_hint in {"led", "lcd"}
+            and isinstance(base_diagnostics, CropDiagnostics)
+            and base_diagnostics.mode != display_kind_hint
+        )
+        best_mode_matches = (
+            display_kind_hint in {"led", "lcd"}
+            and isinstance(best_diagnostics, CropDiagnostics)
+            and best_diagnostics.mode == display_kind_hint
+        )
+        if isinstance(base_diagnostics, CropDiagnostics) and not base_diagnostics.is_reliable and isinstance(best_diagnostics, CropDiagnostics) and best_diagnostics.is_reliable:
+            apply_best = True
+        elif base_mode_mismatch and best_mode_matches and best_score >= base_score + 0.04:
+            apply_best = True
+        elif isinstance(base_diagnostics, CropDiagnostics) and not base_diagnostics.is_reliable and best_score >= base_score + 0.06:
+            apply_best = True
+        elif best_score >= base_score + CROP_VERIFICATION_MIN_IMPROVEMENT:
+            apply_best = True
+
+    selected = best if apply_best else base
+    selected_box = selected["box"]
+    selected_diagnostics = selected["diagnostics"]
+    selected_score = float(selected["score"])
+    selected_variant = str(selected["variant"])
+    usable_for_read = _crop_is_usable_for_primary(
+        selected_diagnostics,
+        display_kind=display_kind_hint,
+    )
+    if (
+        display_kind_hint == "led"
+        and not usable_for_read
+        and _led_crop_artifact_is_plausible(selected.get("led_crop"))
+    ):
+        usable_for_read = True
+    reason = (
+        f"selected {selected_variant} because crop diagnostics improved from {base_score:.3f} to {selected_score:.3f}"
+        if apply_best
+        else "kept the localized crop because no deterministic crop variant improved diagnostics enough"
+    )
+
+    payload = {
+        "attempted": True,
+        "applied": apply_best,
+        "display_kind_hint": display_kind_hint,
+        "candidate_count": len(evaluated),
+        "base_variant": base["variant"],
+        "selected_variant": selected_variant,
+        "base_score": base_score,
+        "selected_score": selected_score,
+        "usable_for_read": usable_for_read,
+        "base_led_crop": (
+            base["led_crop"].to_payload()
+            if display_kind_hint == "led" and base.get("led_crop") is not None
+            else {"available": False}
+        ),
+        "selected_led_crop": (
+            selected["led_crop"].to_payload()
+            if display_kind_hint == "led" and selected.get("led_crop") is not None
+            else {"available": False}
+        ),
+        "base_box_norm_1000": pixels_to_norm1000(base["box"], original_img.size),
+        "selected_box_norm_1000": pixels_to_norm1000(selected_box, original_img.size),
+        "base_diagnostics": _serialize_crop_diagnostics(base_diagnostics),
+        "selected_diagnostics": _serialize_crop_diagnostics(selected_diagnostics),
+        "reason": (
+            f"{reason}; selected crop rejected for primary read"
+            if not usable_for_read
+            else reason
+        ),
+    }
+    return selected_box, selected_diagnostics, payload
+
+
 def _maybe_run_local_decoder(
     crop_img: Image.Image,
     crop_diagnostics: CropDiagnostics,
-) -> LocalDecodeResult | None:
-    if not crop_diagnostics.is_reliable or crop_diagnostics.mode != "led":
-        return None
+    *,
+    display_kind: str,
+) -> tuple[LocalDecodeResult | None, LedDecodeArtifact | None]:
+    if display_kind != "led":
+        return None, None
+    if not crop_diagnostics.is_reliable:
+        return None, None
     try:
-        return decode_display_crop(crop_img)
+        led_decode = decode_led_display(crop_img)
+        if not (
+            _crop_has_led_like_evidence(crop_diagnostics, display_kind=display_kind)
+            or _led_crop_artifact_is_plausible(led_decode)
+            or led_decode.crop_score.score >= 0.64
+        ):
+            return None, led_decode
+        local_decode = led_decode.to_local_decode_result()
+        if not local_decode.ok:
+            return None, led_decode
+        return local_decode, led_decode
     except Exception as e:
         logger.warning("local_decoder_exception error=%s", e)
-        return None
+        return None, None
 
 
 # ----------------------------
@@ -1927,13 +2667,13 @@ def call_gemini_with_instructions(
     contents: list[object] = [prompt, instructions]
 
     if primary_source == "crop":
-        contents.extend([load_prompt_text("reader_primary_crop_label.txt"), crop_img])
+        contents.extend([load_prompt_label("reader_primary_crop"), crop_img])
         if include_secondary:
-            contents.extend([load_prompt_text("reader_context_original_label.txt"), original_img])
+            contents.extend([load_prompt_label("reader_context_original"), original_img])
     else:
-        contents.extend([load_prompt_text("reader_primary_original_label.txt"), original_img])
+        contents.extend([load_prompt_label("reader_primary_original"), original_img])
         if include_secondary:
-            contents.extend([load_prompt_text("reader_context_crop_label.txt"), crop_img])
+            contents.extend([load_prompt_label("reader_context_crop"), crop_img])
 
     selected_model = model_name or MODEL_NAME
     try:
@@ -1993,11 +2733,14 @@ def _build_read_verifier_instructions(
     used_full_image_fallback: bool,
 ) -> str:
     candidate_text = primary_candidate or "no numeric candidate"
-    prompt_name = (
-        "read_verifier_full_image.txt"
-        if used_full_image_fallback
-        else "read_verifier_crop.txt"
-    )
+    if used_full_image_fallback:
+        prompt_name = "read_verifier_full_image.txt"
+    elif display_kind == "led":
+        prompt_name = "read_verifier_led_crop.txt"
+    elif display_kind == "lcd":
+        prompt_name = "read_verifier_lcd_crop.txt"
+    else:
+        prompt_name = "read_verifier_crop.txt"
     return render_prompt_template(
         prompt_name,
         {
@@ -2036,11 +2779,11 @@ def call_gemini_decimal_verifier(
     )
     contents: list[object] = [
         instructions,
-        load_prompt_text("decimal_verifier_primary_label.txt"),
+        load_prompt_label("decimal_verifier_primary"),
         primary_img,
-        load_prompt_text("decimal_verifier_secondary_label.txt"),
+        load_prompt_label("decimal_verifier_secondary"),
         enhanced_primary_img,
-        load_prompt_text("decimal_verifier_context_label.txt"),
+        load_prompt_label("decimal_verifier_context"),
         original_img,
     ]
 
@@ -2087,13 +2830,17 @@ def call_gemini_read_verifier(
     )
     contents: list[object] = [instructions]
     if used_full_image_fallback:
-        contents.extend([load_prompt_text("verifier_primary_original_label.txt"), original_img])
+        contents.extend([load_prompt_label("verifier_primary_original"), original_img])
     else:
         contents.extend(
             [
-                load_prompt_text("verifier_primary_crop_label.txt"),
+                load_prompt_label("verifier_primary_crop"),
                 primary_img,
-                load_prompt_text("verifier_context_original_support_label.txt"),
+            ]
+        )
+        contents.extend(
+            [
+                load_prompt_label("verifier_context_original_support"),
                 original_img,
             ]
         )
@@ -2131,6 +2878,7 @@ def _resolve_verified_result(
     *,
     crop_diagnostics: CropDiagnostics | None,
     local_decode: LocalDecodeResult | None,
+    led_decode: LedDecodeArtifact | None,
     verification: ReadVerificationResult | None,
     support_result: ReadingResult | None,
     decimal_verification: DecimalVerificationResult | None,
@@ -2144,6 +2892,33 @@ def _resolve_verified_result(
         crop_diagnostics,
         expected_digit_count=None,
     )
+    primary_text = primary_result.value_text if primary_result.status == "ok" else None
+    led_structured = (
+        resolve_led_read(
+            primary_text,
+            led_decode.slots,
+            led_decode.decimal_info,
+            led_decode.leading_one_info,
+        )
+        if display_kind == "led" and led_decode is not None and led_decode.slots
+        else None
+    )
+    led_structured_result = (
+        _reading_from_candidate_text(
+            led_structured.value_text,
+            confidence=max(
+                led_structured.confidence,
+                led_decode.confidence if led_decode is not None else 0.0,
+            ),
+            reason=(
+                f"{led_structured.reason} LED slot structure resolved the display layout."
+                if led_structured is not None
+                else ""
+            ),
+        )
+        if led_structured is not None and led_structured.value_text
+        else None
+    )
     local_result = (
         _reading_from_candidate_text(
             local_decode.value_text,
@@ -2153,6 +2928,14 @@ def _resolve_verified_result(
         if local_decode is not None and local_decode.ok and local_decode.value_text
         else None
     )
+    if (
+        led_structured_result is not None
+        and (
+            local_result is None
+            or led_structured_result.confidence >= local_result.confidence
+        )
+    ):
+        local_result = led_structured_result
     verifier_result = (
         _reading_from_candidate_text(
             verification.suggested_value_text,
@@ -2168,7 +2951,6 @@ def _resolve_verified_result(
         else None
     )
 
-    primary_text = primary_result.value_text if primary_result.status == "ok" else None
     local_text = local_result.value_text if local_result is not None else None
     verifier_text = verifier_result.value_text if verifier_result is not None else None
     support_text = support_candidate.value_text if support_candidate is not None else None
@@ -2203,10 +2985,20 @@ def _resolve_verified_result(
         else True
     )
     local_override_allowed = (
-        local_decode is not None
-        and local_decode.ok
-        and local_decode.confidence >= LOCAL_DECODER_MIN_CONFIDENCE
-        and local_decode.decimal_count <= 1
+        (
+            local_decode is not None
+            and local_decode.ok
+            and local_decode.confidence >= LOCAL_DECODER_MIN_CONFIDENCE
+            and local_decode.decimal_count <= 1
+        )
+        or (
+            led_decode is not None
+            and local_result is not None
+            and local_result.status == "ok"
+            and local_result.value_text
+            and led_decode.confidence >= LOCAL_DECODER_MIN_CONFIDENCE
+            and led_decode.decimal_count <= 1
+        )
     )
 
     if verifier_result is not None and primary_result.status != "ok":
@@ -2257,6 +3049,35 @@ def _resolve_verified_result(
         return resolved
 
     if (
+        display_kind == "led"
+        and primary_result.status == "ok"
+        and primary_text
+        and local_result is not None
+        and local_text
+        and local_text != primary_text
+        and led_decode is not None
+        and led_decode.leading_one_info.present
+        and (
+            _is_leading_one_shortening(local_text, primary_text)
+            or _is_leading_one_shortening(primary_text, local_text)
+            or (primary_text.startswith(("0.", "7.", "8.")) and local_text.startswith("1"))
+        )
+    ):
+        resolved = local_result.model_copy(deep=True)
+        resolved.confidence = min(
+            0.97,
+            max(
+                resolved.confidence,
+                led_decode.confidence,
+                led_decode.leading_one_info.confidence,
+            ),
+        )
+        resolved.reason = (
+            f"{resolved.reason} LED slot structure preserved the left-side active digit."
+        )
+        return resolved
+
+    if (
         primary_result.status == "ok"
         and primary_text
         and primary_suspicious
@@ -2303,6 +3124,25 @@ def _resolve_verified_result(
         resolved.reason = (
             f"{resolved.reason} Structured verifier proposed dropping the leading '1' during "
             "full-image fallback, but no stronger supporting read existed."
+        )
+        return resolved
+
+    if (
+        verifier_result is not None
+        and verification is not None
+        and verification.verdict == "corrected"
+        and primary_result.status == "ok"
+        and primary_text
+        and verifier_text
+        and _is_leading_one_shortening(primary_text, verifier_text)
+        and display_kind == "led"
+        and (support_candidate is None or support_suspicious)
+    ):
+        resolved = primary_result.model_copy(deep=True)
+        resolved.confidence = min(resolved.confidence, 0.82)
+        resolved.reason = (
+            f"{resolved.reason} Structured verifier proposed dropping the leading '1' on an LED read, "
+            "but no stronger supporting read confirmed that correction."
         )
         return resolved
 
@@ -2451,6 +3291,7 @@ def run_scale_reader_pipeline(
     target_key: str | None = None,
 ) -> dict[str, Any]:
     t_start = time.monotonic()
+    target_family = _target_family_for_target(target_key)
     log_context = _pipeline_log_context(
         trace_id=trace_id,
         source=source,
@@ -2480,14 +3321,35 @@ def run_scale_reader_pipeline(
     localizer_enhanced_img = make_enhanced_display_image(
         localizer_img, max_dim=LOCALIZER_MAX_DIMENSION
     )
+    localizer_display_hint = _expected_display_kind_for_target(target_family, "unknown")
+    localizer_support_img = make_localizer_support_variant(
+        localizer_img,
+        display_kind=localizer_display_hint,
+        max_dim=LOCALIZER_MAX_DIMENSION,
+    )
+    localizer_candidate_boxes = propose_display_candidate_boxes(
+        localizer_support_img,
+        display_kind=localizer_display_hint,
+        max_candidates=2,
+    )
+    localizer_candidate_crops = [
+        crop_from_box(localizer_support_img, box)
+        for box in localizer_candidate_boxes
+    ]
+    localizer_candidate_summary = _candidate_summary_text(
+        localizer_candidate_boxes,
+        localizer_img.size,
+    )
     enhanced_full_img = make_enhanced_display_image(original_img, max_dim=MAX_DIMENSION)
     logger.info(
-        "pipeline_images_prepared %s localizer_size=%sx%s enhanced_full_size=%sx%s",
+        "pipeline_images_prepared %s localizer_size=%sx%s enhanced_full_size=%sx%s localizer_candidates=%s display_hint=%s",
         log_context,
         localizer_img.size[0],
         localizer_img.size[1],
         enhanced_full_img.size[0],
         enhanced_full_img.size[1],
+        len(localizer_candidate_boxes),
+        localizer_display_hint,
     )
 
     crop_img: Image.Image = make_placeholder_preview((720, 180), "No localized ROI")
@@ -2495,8 +3357,6 @@ def run_scale_reader_pipeline(
     result: ReadingResult
     localization_payload: dict[str, object]
     skipped_refine = False
-    quality_recrop_attempted = False
-    quality_recrop_applied = False
 
     best_box_pixels: tuple[int, int, int, int] | None = None
     best_localization: LocalizationResult | None = None
@@ -2512,6 +3372,10 @@ def run_scale_reader_pipeline(
         primary_localization = call_gemini_localizer(
             localizer_img,
             localizer_enhanced_img,
+            target_family=target_family,
+            localizer_support_img=localizer_support_img,
+            candidate_crops=localizer_candidate_crops,
+            candidate_summary=localizer_candidate_summary,
             previous=None,
         )
         logger.info(
@@ -2530,7 +3394,7 @@ def run_scale_reader_pipeline(
                     raw_box,
                     original_img.size,
                     primary_localization.display_kind,
-                ):
+                ) and primary_localization.wrong_region_risk != "high":
                     expanded = expand_localization_box(
                         raw_box,
                         original_img.size,
@@ -2548,7 +3412,7 @@ def run_scale_reader_pipeline(
                 original_img.size,
                 best_confidence,
                 primary_localization.display_kind,
-            ):
+            ) and not _localization_requires_caution(best_localization):
                 skipped_refine = True
                 logger.info(
                     "localizer_refine_skipped %s confidence=%.3f",
@@ -2590,7 +3454,7 @@ def run_scale_reader_pipeline(
                             mapped,
                             original_img.size,
                             refined.display_kind,
-                        ):
+                        ) and refined.wrong_region_risk != "high":
                             expanded_mapped = expand_localization_box(
                                 mapped,
                                 original_img.size,
@@ -2616,53 +3480,10 @@ def run_scale_reader_pipeline(
                 tentative_crop_diagnostics.reason,
             )
             if not tentative_crop_diagnostics.is_reliable:
-                quality_recrop_attempted = True
-                search_box = make_search_region_box(best_box_pixels, original_img.size)
-                search_original = crop_from_box(original_img, search_box)
-                search_enhanced = crop_from_box(enhanced_full_img, search_box)
                 logger.info(
-                    "localizer_quality_recrop_start %s search_box=%s",
+                    "localizer_quality_recrop_skipped %s reason=single_extra_localizer_policy",
                     log_context,
-                    search_box,
                 )
-                quality_refined = call_gemini_region_localizer(
-                    search_original,
-                    search_enhanced,
-                    display_kind_hint=best_localization.display_kind if best_localization is not None else "unknown",
-                    primary_cy_frac=((best_box_pixels[1] + best_box_pixels[3]) / 2.0) / max(original_img.size[1], 1),
-                )
-                logger.info(
-                    "localizer_quality_recrop_result %s found=%s confidence=%.3f display_kind=%s reason=%s",
-                    log_context,
-                    quality_refined.found,
-                    quality_refined.confidence,
-                    quality_refined.display_kind,
-                    quality_refined.reason,
-                )
-                if quality_refined.found and quality_refined.confidence >= LOCALIZER_MIN_CONFIDENCE:
-                    quality_refined_local_box = localization_box_to_pixels(
-                        quality_refined,
-                        search_original.size,
-                    )
-                    if quality_refined_local_box and is_valid_localization_box(
-                        quality_refined_local_box,
-                        search_original.size,
-                    ):
-                        mapped = map_child_box_to_parent(search_box, quality_refined_local_box)
-                        if not _is_bad_localization_box(
-                            mapped,
-                            original_img.size,
-                            quality_refined.display_kind,
-                        ):
-                            best_box_pixels = expand_localization_box(
-                                mapped,
-                                original_img.size,
-                                quality_refined.display_kind,
-                            )
-                            best_localization = quality_refined
-                            best_confidence = max(best_confidence, quality_refined.confidence)
-                            skipped_refine = False
-                            quality_recrop_applied = True
 
     except Exception as e:
         logger.exception("localizer_exception %s error=%s", log_context, e)
@@ -2674,20 +3495,65 @@ def run_scale_reader_pipeline(
         )
         best_localization = primary_localization
 
-    display_kind = best_localization.display_kind if best_localization else "unknown"
     local_decode: LocalDecodeResult | None = None
+    led_decode: LedDecodeArtifact | None = None
     verification: ReadVerificationResult | None = None
     support_result: ReadingResult | None = None
     decimal_verification: DecimalVerificationResult | None = None
     decimal_candidate_texts: list[str] = []
     decimal_resolved_text: str | None = None
+    enhanced_crop_img: Image.Image | None = None
+    verified_crop_diagnostics: CropDiagnostics | None = None
+    crop_verified_for_read = False
+    crop_verification_payload: dict[str, object] = {
+        "attempted": False,
+        "applied": False,
+        "display_kind_hint": "unknown",
+        "candidate_count": 0,
+        "usable_for_read": False,
+        "reason": "Crop verification was not attempted because localization did not produce a crop.",
+    }
+
+    localized_display_kind = best_localization.display_kind if best_localization else "unknown"
+    display_kind = _expected_display_kind_for_target(target_family, localized_display_kind)
 
     if best_box_pixels is not None and best_localization is not None:
-        crop_img = crop_from_box(original_img, best_box_pixels)
-        crop_diagnostics = _safe_analyze_crop_diagnostics(
-            crop_img,
-            fallback_mode=display_kind,
+        best_box_pixels, verified_crop_diagnostics, crop_verification_payload = _verify_localized_crop(
+            original_img,
+            best_box_pixels,
+            display_kind_hint=display_kind,
         )
+        logger.info(
+            "crop_verification %s applied=%s usable_for_read=%s selected_variant=%s base_score=%.3f selected_score=%.3f selected_mode=%s reliable=%s reason=%s",
+            log_context,
+            crop_verification_payload["applied"],
+            crop_verification_payload["usable_for_read"],
+            crop_verification_payload["selected_variant"],
+            crop_verification_payload["base_score"],
+            crop_verification_payload["selected_score"],
+            crop_verification_payload["selected_diagnostics"]["mode"],
+            crop_verification_payload["selected_diagnostics"]["is_reliable"],
+            crop_verification_payload["reason"],
+        )
+        crop_verified_for_read = bool(crop_verification_payload["usable_for_read"])
+        if _localization_requires_caution(best_localization):
+            crop_verified_for_read = False
+            caution_bits: list[str] = []
+            if best_localization.is_complete_window is False:
+                caution_bits.append("localizer reported incomplete window")
+            if best_localization.left_clipped:
+                caution_bits.append("localizer reported left clipping")
+            if best_localization.right_clipped:
+                caution_bits.append("localizer reported right clipping")
+            if best_localization.wrong_region_risk == "high":
+                caution_bits.append("localizer reported high wrong-region risk")
+            caution_text = ", ".join(caution_bits) or "localizer flags required fallback"
+            crop_verification_payload["usable_for_read"] = False
+            crop_verification_payload["reason"] = (
+                f"{crop_verification_payload['reason']}; {caution_text}"
+            )
+        crop_img = crop_from_box(original_img, best_box_pixels)
+        crop_diagnostics = verified_crop_diagnostics
         debug_img = draw_localization_debug(
             original_img,
             best_box_pixels,
@@ -2699,15 +3565,20 @@ def run_scale_reader_pipeline(
             3,
         )
         localization_payload = {
-            "source": "vlm_quality_recrop" if quality_recrop_applied else ("vlm_pass1" if skipped_refine else "vlm_pass2"),
+            "source": "vlm_pass1" if skipped_refine else "vlm_pass2",
             "model": LOCALIZER_MODEL_NAME,
             "found": True,
             "confidence": round(best_confidence, 3),
             "display_kind": display_kind,
             "reason": best_localization.reason,
             "skipped_refine": skipped_refine,
-            "quality_recrop_attempted": quality_recrop_attempted,
-            "quality_recrop_applied": quality_recrop_applied,
+            "quality_recrop_attempted": False,
+            "quality_recrop_applied": False,
+            "resolved_display_kind": display_kind,
+            "is_complete_window": best_localization.is_complete_window,
+            "left_clipped": best_localization.left_clipped,
+            "right_clipped": best_localization.right_clipped,
+            "wrong_region_risk": best_localization.wrong_region_risk,
             "box_cy_frac": _box_cy,
             "box_norm_1000": pixels_to_norm1000(best_box_pixels, original_img.size),
             "box_pixels": {
@@ -2717,7 +3588,11 @@ def run_scale_reader_pipeline(
                 "y2": best_box_pixels[3],
             },
         }
-        local_decode = _maybe_run_local_decoder(crop_img, crop_diagnostics)
+        local_decode, led_decode = _maybe_run_local_decoder(
+            crop_img,
+            crop_diagnostics,
+            display_kind=display_kind,
+        )
         logger.info(
             "crop_diagnostics %s reliable=%s mode=%s quality_score=%.3f reason=%s",
             log_context,
@@ -2735,6 +3610,23 @@ def run_scale_reader_pipeline(
                 local_decode.confidence,
                 local_decode.reason,
             )
+        if led_decode is not None:
+            logger.info(
+                "led_decoder_result %s ok=%s value_text=%s confidence=%.3f slot_count=%s decimal_visible=%s leading_one=%s reason=%s",
+                log_context,
+                led_decode.ok,
+                led_decode.value_text,
+                led_decode.confidence,
+                len(led_decode.slots),
+                led_decode.decimal_info.visible,
+                led_decode.leading_one_info.present,
+                led_decode.reason,
+            )
+        enhanced_crop_img = make_risky_display_variant(
+            crop_img,
+            display_kind=display_kind,
+            max_dim=MAX_DIMENSION,
+        )
     else:
         debug_img = draw_fallback_debug(original_img, "localization failed — full image read")
         localization_payload = {
@@ -2747,6 +3639,11 @@ def run_scale_reader_pipeline(
             "skipped_refine": False,
             "quality_recrop_attempted": False,
             "quality_recrop_applied": False,
+            "resolved_display_kind": display_kind,
+            "is_complete_window": None,
+            "left_clipped": None,
+            "right_clipped": None,
+            "wrong_region_risk": None,
         }
         crop_diagnostics = CropDiagnostics(
             is_reliable=False,
@@ -2769,7 +3666,7 @@ def run_scale_reader_pipeline(
         localization_payload["confidence"],
     )
 
-    if best_box_pixels is not None:
+    if best_box_pixels is not None and crop_verified_for_read:
         logger.info(
             "reader_start %s mode=crop display_kind=%s",
             log_context,
@@ -2777,12 +3674,12 @@ def run_scale_reader_pipeline(
         )
         primary_result = call_gemini_with_instructions(
             render_prompt_template(
-                "crop_read_overlay.txt",
+                _primary_read_instruction_template(display_kind, target_family),
                 {
                     "DISPLAY_KIND_LABEL": _display_kind_label(display_kind),
                 },
             ),
-            crop_img,
+            enhanced_crop_img or crop_img,
             original_img,
             model_name=MODEL_NAME,
             primary_source="crop",
@@ -2794,9 +3691,12 @@ def run_scale_reader_pipeline(
             log_context,
             display_kind,
         )
+        fallback_reason = localization_payload.get("reason", "localization failed")
+        if best_box_pixels is not None and not crop_verified_for_read:
+            fallback_reason = str(crop_verification_payload.get("reason") or fallback_reason)
         primary_result = call_gemini_on_full_image(
             original_img,
-            localization_payload.get("reason", "localization failed"),
+            fallback_reason,
             display_kind=display_kind,
         )
 
@@ -2805,11 +3705,7 @@ def run_scale_reader_pipeline(
         crop_diagnostics,
         expected_digit_count=None,
     )
-    if is_suspicious_read(
-        primary_result,
-        crop_diagnostics,
-        expected_digit_count=None,
-    ):
+    if primary_suspicious:
         logger.warning(
             "reader_suspicious %s value_text=%s reason=%s",
             log_context,
@@ -2817,29 +3713,47 @@ def run_scale_reader_pipeline(
             primary_result.reason,
         )
 
-    verification_primary_img = crop_img if best_box_pixels is not None else original_img
-    try:
-        verification = call_gemini_read_verifier(
-            verification_primary_img,
-            original_img,
-            primary_candidate=primary_result.value_text,
-            display_kind=display_kind,
-            used_full_image_fallback=best_box_pixels is None,
-        )
+    used_full_image_fallback = best_box_pixels is None or not crop_verified_for_read
+    easy_primary_case = _primary_read_looks_easy(
+        primary_result,
+        crop_diagnostics,
+        local_decode,
+        display_kind=display_kind,
+        used_full_image_fallback=used_full_image_fallback,
+    )
+    verification_primary_img = (
+        enhanced_crop_img
+        if enhanced_crop_img is not None and not used_full_image_fallback
+        else (crop_img if best_box_pixels is not None else original_img)
+    )
+    if not easy_primary_case:
+        try:
+            verification = call_gemini_read_verifier(
+                verification_primary_img,
+                original_img,
+                primary_candidate=primary_result.value_text,
+                display_kind=display_kind,
+                used_full_image_fallback=used_full_image_fallback,
+            )
+            logger.info(
+                "reader_verification %s verdict=%s suggested_value_text=%s confidence=%.3f agrees_with_primary=%s edge_clipped=%s decimal_visible=%s leftmost_digit_fully_visible=%s reason=%s",
+                log_context,
+                verification.verdict,
+                verification.suggested_value_text,
+                verification.confidence,
+                verification.agrees_with_primary,
+                verification.crop_edge_clipped,
+                verification.decimal_visible,
+                verification.leftmost_digit_fully_visible,
+                verification.reason,
+            )
+        except Exception as e:
+            logger.warning("reader_verification_exception %s error=%s", log_context, e)
+    else:
         logger.info(
-            "reader_verification %s verdict=%s suggested_value_text=%s confidence=%.3f agrees_with_primary=%s edge_clipped=%s decimal_visible=%s leftmost_digit_fully_visible=%s reason=%s",
+            "reader_verification_skipped %s reason=easy_primary_case",
             log_context,
-            verification.verdict,
-            verification.suggested_value_text,
-            verification.confidence,
-            verification.agrees_with_primary,
-            verification.crop_edge_clipped,
-            verification.decimal_visible,
-            verification.leftmost_digit_fully_visible,
-            verification.reason,
         )
-    except Exception as e:
-        logger.warning("reader_verification_exception %s error=%s", log_context, e)
 
     verifier_candidate_text = (
         verification.suggested_value_text
@@ -2852,10 +3766,14 @@ def run_scale_reader_pipeline(
         None,
         display_kind=display_kind,
     )
-    if decimal_signature is not None:
+    if decimal_signature is not None and _should_run_decimal_verifier(
+        decimal_candidate_texts,
+        primary_result=primary_result,
+        verification=verification,
+    ):
         try:
             decimal_primary_img = crop_img if best_box_pixels is not None else original_img
-            decimal_enhanced_img = make_enhanced_display_image(
+            decimal_enhanced_img = enhanced_crop_img or make_enhanced_display_image(
                 decimal_primary_img,
                 max_dim=MAX_DIMENSION,
             )
@@ -2885,31 +3803,18 @@ def run_scale_reader_pipeline(
         except Exception as e:
             logger.warning("decimal_verification_exception %s error=%s", log_context, e)
 
-    support_read_needed = (
-        best_box_pixels is not None
-        and (
-            primary_suspicious
-            or _is_led_single_digit_risk(
-                primary_result,
-                crop_diagnostics,
-                display_kind=display_kind,
-            )
-            or (
-                verification is not None
-                and (
-                    verification.crop_edge_clipped
-                    or not verification.agrees_with_primary
-                    or verification.verdict != "confirmed"
-                )
-            )
-            or (
-                decimal_verification is not None
-                and (
-                    decimal_verification.decimal_visible == "uncertain"
-                    or decimal_resolved_text is None and len(decimal_candidate_texts) >= 2
-                )
-            )
-        )
+    support_read_needed = _should_run_support_read(
+        best_box_pixels=best_box_pixels,
+        used_full_image_fallback=used_full_image_fallback,
+        primary_suspicious=primary_suspicious,
+        primary_result=primary_result,
+        crop_diagnostics=crop_diagnostics,
+        local_decode=local_decode,
+        verification=verification,
+        decimal_verification=decimal_verification,
+        decimal_candidate_texts=decimal_candidate_texts,
+        decimal_resolved_text=decimal_resolved_text,
+        display_kind=display_kind,
     )
     if support_read_needed:
         try:
@@ -2946,15 +3851,17 @@ def run_scale_reader_pipeline(
         post_support_signature is not None
         and (
             decimal_verification is None
-            or (
-                decimal_resolved_text is None
-                and len(post_support_candidate_texts) >= len(decimal_candidate_texts)
-            )
+            or decimal_resolved_text is None
+        )
+        and _should_run_decimal_verifier(
+            post_support_candidate_texts,
+            primary_result=primary_result,
+            verification=verification,
         )
     ):
         try:
             decimal_primary_img = crop_img if best_box_pixels is not None else original_img
-            decimal_enhanced_img = make_enhanced_display_image(
+            decimal_enhanced_img = enhanced_crop_img or make_enhanced_display_image(
                 decimal_primary_img,
                 max_dim=MAX_DIMENSION,
             )
@@ -2996,6 +3903,7 @@ def run_scale_reader_pipeline(
         primary_result,
         crop_diagnostics=crop_diagnostics,
         local_decode=local_decode,
+        led_decode=led_decode,
         verification=verification,
         support_result=support_result,
         decimal_verification=decimal_verification,
@@ -3055,19 +3963,10 @@ def run_scale_reader_pipeline(
     return {
         "final": result.model_dump(),
         "localization": localization_payload,
-        "crop_diagnostics": {
-            "is_reliable": crop_diagnostics.is_reliable,
-            "mode": crop_diagnostics.mode,
-            "quality_score": crop_diagnostics.quality_score,
-            "lit_ratio": crop_diagnostics.lit_ratio,
-            "green_ratio": crop_diagnostics.green_ratio,
-            "component_count": crop_diagnostics.component_count,
-            "active_span_ratio": crop_diagnostics.active_span_ratio,
-            "active_band_height_ratio": crop_diagnostics.active_band_height_ratio,
-            "leading_blank_ratio": crop_diagnostics.leading_blank_ratio,
-            "reason": crop_diagnostics.reason,
-        },
+        "crop_diagnostics": _serialize_crop_diagnostics(crop_diagnostics),
+        "crop_verification": crop_verification_payload,
         "local_decoder": _serialize_local_decode(local_decode),
+        "led_decoder": _serialize_led_decode(led_decode),
         "verification": _serialize_read_verification(verification),
         "decimal_verification": _serialize_decimal_verification(
             decimal_verification,

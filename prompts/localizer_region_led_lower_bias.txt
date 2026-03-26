@@ -1,7 +1,7 @@
-You are looking for a DARK rectangular panel with BRIGHT GREEN or orange glowing digit segments.
-The dark background panel is part of the display — box it fully, not just the bright digits.
-It sits embedded in the scale BODY, below the weighing bowl/pan and above the control buttons.
+Look for a dark rectangular panel with bright green or orange glowing segments.
+The dark panel is part of the display, so box the full panel, not just the lit digits.
+It sits embedded in the scale body below the bowl or pan and above the control buttons.
 
-IMPORTANT: The previous localization attempt may have incorrectly landed on the BOWL, PAN, or PLATFORM at the top of the scale.
-The actual LED display is LOWER — look specifically in the BOTTOM 60% of this image for the dark rectangular panel with green digits.
-Ignore the bowl/pan/rim at the top.
+IMPORTANT
+The previous attempt may have landed on the bowl, pan, or platform.
+Bias lower in this image. Search the bottom 60% for the actual LED display panel and ignore the bowl or rim near the top.

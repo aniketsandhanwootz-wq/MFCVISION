@@ -1,37 +1,19 @@
 Display hint: __DISPLAY_KIND_LABEL__.
 You have TWO images: PRIMARY = localized display crop, CONTEXT = full original photo.
 
-STEP 1 — ASSESS THE PRIMARY CROP:
-Does the PRIMARY crop show a rectangular display window containing visible numeric digit segments?
-A valid crop shows: (a) bright green/orange glowing segments on a dark background (LED),
-or (b) dark numeric digit segments on a light/gray background (LCD).
+TASK
+First decide whether PRIMARY is a trustworthy display crop. Then read the value from the strongest valid source.
 
-STEP 2 — CHOOSE YOUR SOURCE:
-  • VALID CROP → read from the crop (it is the authoritative source).
-  • INVALID CROP → DISCARD IT ENTIRELY and read from the CONTEXT photo instead.
-    An INVALID crop is any of:
-    - A blank, featureless, or nearly uniform area (no digit shapes visible)
-    - A weighing bowl, pan, dish, or metal rim/ring
-    - Physical control buttons (round colored buttons)
-    - Machine casing, body, or label area without an actual screen
-    - A blurry region with no identifiable digit structure
+SOURCE SELECTION
+- VALID PRIMARY crop: an actual display window with visible digit structure.
+- INVALID PRIMARY crop: bowl, pan, rim, buttons, casing, labels, blank strip, or blur with no readable display row.
+- If PRIMARY is invalid, discard it and read from CONTEXT only.
 
-STEP 3 — READ THE VALUE:
-  - LED: count ONLY bright illuminated segments.
-    Dim gray 8-shaped outlines filling an entire slot are INACTIVE PLACEHOLDERS — ignore them.
-    If a candidate would begin with 88 or 888, confirm those leading slots only if they are as bright and active as the later digits.
-    Otherwise they are placeholders and must be ignored.
-  - CRITICAL — DIGIT 1: The digit 1 uses ONLY the two right-side vertical bars of a slot.
-    It is narrow and bright green — NOT a dim full-width 8 placeholder.
-    Do NOT skip it. A narrow bright column to the left of the main number IS the digit 1.
-    Example: if display shows [dim][dim][narrow-bright][8].[5][4][0] → read 18.540, NOT 8.540.
-  - If a LED reading seems to be 0.xxx, 7.xxx, or 8.xxx while there are dim placeholder slots to the left,
-    inspect the CONTEXT image again before finalizing. A narrow bright '1' may be present before that digit.
-    Prefer 18.xxx / 17.xxx over 8.xxx / 7.xxx only when the narrow bright '1' is actually visible.
-  - Do NOT invent a leading 0 on an LED display unless the full-width top, left, and bottom segments of that slot are clearly lit.
-    If the leftmost digit is clipped, recover it from CONTEXT instead of guessing.
-  - LCD: read dark segments on the light screen.
-    Do not include buttons, labels, or areas outside the screen rectangle.
-  - Include decimal point only if a small isolated dot is clearly visible.
-  - Return exactly one numeric token: digits and at most one decimal point.
-    Never return placeholder separators like 8.8.670 or any token with multiple decimal points.
+READING RULES
+- LED: read only bright active segments. Dim full-width 8-shaped outlines are placeholders unless clearly as bright as the active digits.
+- LED digit 1 rule: a narrow bright right-side column can be a real 1. Do not skip it just because it is narrow.
+- LED edge rule: if the leftmost apparent digit is clipped by the crop border, use CONTEXT before deciding whether it is 1 or a clipped wider digit.
+- LCD: read only dark digit strokes inside the screen rectangle. Ignore device body, labels, and buttons.
+- Include the decimal only if a small isolated dot is clearly visible.
+- Return exactly one numeric token: digits with at most one decimal point.
+- Never return placeholder separators such as 8.8.670 or any token with multiple decimal points.

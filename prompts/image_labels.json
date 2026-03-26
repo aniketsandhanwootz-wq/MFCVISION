@@ -1,0 +1,16 @@
+{
+  "decimal_verifier_context": "CONTEXT image: original full photo for display context only.",
+  "decimal_verifier_primary": "PRIMARY image: best current display view for decimal inspection.",
+  "decimal_verifier_secondary": "SECONDARY image: enhanced version of the same display view for decimal inspection.",
+  "localizer_context_image": "CONTEXT image: ENHANCED full photo. Use this only to help visibility of the display window, not to invent a location.",
+  "localizer_support_image": "SUPPORT image: structure-enhanced full photo. Use this only to highlight likely display regions and edges, not to override the original image.",
+  "localizer_candidate_crop": "CANDIDATE crop: locally proposed possible display region. This is only a hint. Verify it against the full image before using it.",
+  "localizer_primary_image": "PRIMARY image: ORIGINAL full photo. Use this as the source of truth for physical display location.",
+  "reader_context_crop": "CONTEXT image: LOCALIZED display crop.",
+  "reader_context_original": "CONTEXT image: ORIGINAL full photo.",
+  "reader_primary_crop": "PRIMARY image: LOCALIZED display crop.",
+  "reader_primary_original": "PRIMARY image: ORIGINAL full photo.",
+  "verifier_context_original_support": "CONTEXT image: ORIGINAL full photo for support only.",
+  "verifier_primary_crop": "PRIMARY image: LOCALIZED display crop under verification.",
+  "verifier_primary_original": "PRIMARY image: ORIGINAL full photo."
+}

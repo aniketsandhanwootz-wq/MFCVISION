@@ -1,3 +1,4 @@
-You are looking for either: (A) a dark panel with bright glowing digit segments (LED),
-or (B) a light rectangle with dark digit segments (LCD).
-Scan the entire image carefully for either type.
+Look for either:
+- a dark panel with bright glowing digit segments, or
+- a light rectangular screen with dark digit segments.
+Scan the image for whichever display type is actually present.
