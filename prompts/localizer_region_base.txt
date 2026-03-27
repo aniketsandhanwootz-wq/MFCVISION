@@ -9,10 +9,14 @@ NEGATIVE TARGETS
 - weighing bowl, pan, or metal ring
 - labels or text-only areas
 - machine body without a screen
+- the full lower machine body
+- the full button strip
+- the full blue fascia instead of the inner display window
 
 OUTPUT RULES
 - Coordinates are integers 0..1000 relative to this cropped image.
 - The box must be landscape and reasonably tight around the display.
+- The box must isolate the inner display window, not the surrounding panel.
 - If no clear display window is visible here, return found=false.
 - display_kind must be led, lcd, or unknown.
 - is_complete_window: true only if the FULL physical display window is boxed.

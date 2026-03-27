@@ -49,6 +49,14 @@ def _normalize_gray(arr: np.ndarray) -> np.ndarray:
     return cv2.normalize(arr, None, 0, 255, cv2.NORM_MINMAX)
 
 
+def _color_dodge(base: np.ndarray, blend: np.ndarray) -> np.ndarray:
+    base_u16 = base.astype(np.uint16)
+    blend_u16 = blend.astype(np.uint16)
+    safe = np.maximum(1, 255 - blend_u16)
+    dodged = np.minimum(255, (base_u16 * 255) // safe)
+    return dodged.astype(np.uint8)
+
+
 def make_enhanced_display_image(img: Image.Image, max_dim: int = 1600) -> Image.Image:
     """
     Conservative enhancement only.
@@ -102,6 +110,53 @@ def _to_three_channel(gray: np.ndarray) -> np.ndarray:
     return gray
 
 
+def make_led_prelocalizer_image(img: Image.Image, max_dim: int = 1600) -> Image.Image:
+    """
+    LED-only pre-localization filter.
+    Goal:
+    - make the display strip stand out before crop selection
+    - strengthen green active segments without turning the whole frame artificial
+    - keep enough global structure for Gemini/local CV localization
+    """
+    img = _resize_keep_aspect(img, max_dim=max_dim)
+    bgr = _pil_to_bgr(img)
+    denoised = cv2.bilateralFilter(bgr, d=5, sigmaColor=18, sigmaSpace=18)
+    hsv = cv2.cvtColor(denoised, cv2.COLOR_BGR2HSV)
+    h, s, v = cv2.split(hsv)
+
+    clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(6, 6))
+    v_eq = clahe.apply(v)
+    v_gamma = _apply_gamma(v_eq, 0.90)
+
+    green_dominance = denoised[:, :, 1].astype(np.int16) - np.maximum(
+        denoised[:, :, 0],
+        denoised[:, :, 2],
+    ).astype(np.int16)
+    green_dominance = np.clip(green_dominance, 0, 255).astype(np.uint8)
+    green_soft = cv2.GaussianBlur(green_dominance, (0, 0), 1.0)
+    green_mask = cv2.threshold(green_soft, 14, 255, cv2.THRESH_BINARY)[1]
+    green_mask = cv2.morphologyEx(
+        green_mask,
+        cv2.MORPH_CLOSE,
+        np.ones((3, 3), np.uint8),
+        iterations=1,
+    )
+
+    boosted_v = cv2.addWeighted(v_eq, 0.60, v_gamma, 0.40, 0)
+    boosted_v = cv2.addWeighted(boosted_v, 0.84, green_soft, 0.24, 0)
+    background_v = cv2.addWeighted(v_eq, 0.88, v_gamma, 0.12, 0)
+    boosted_v = np.where(green_mask > 0, boosted_v, background_v)
+
+    dodge_support = cv2.convertScaleAbs(green_soft, alpha=0.95, beta=0)
+    dodged_v = _color_dodge(v_eq, dodge_support)
+    boosted_v = cv2.addWeighted(boosted_v, 0.84, dodged_v, 0.16, 0)
+
+    s = cv2.addWeighted(s, 0.92, green_mask, 0.08, 0)
+    out = cv2.cvtColor(cv2.merge([h, s, boosted_v.astype(np.uint8)]), cv2.COLOR_HSV2BGR)
+    out = _unsharp_mask(out, sigma=0.8, amount=0.18)
+    return _bgr_to_pil(out)
+
+
 def make_led_risk_display_image(img: Image.Image, max_dim: int = 1600) -> Image.Image:
     """
     Stronger LED-specific variant used only for risky cases.
@@ -146,10 +201,22 @@ def make_led_risk_display_image(img: Image.Image, max_dim: int = 1600) -> Image.
     )
     segment_support = cv2.bitwise_and(segment_support, green_soft)
 
-    boosted_v = cv2.addWeighted(v_eq, 0.35, v_gamma, 0.65, 0)
-    boosted_v = cv2.addWeighted(boosted_v, 0.78, green_dominance, 0.36, 0)
+    boosted_v = cv2.addWeighted(v_eq, 0.28, v_gamma, 0.72, 0)
+    boosted_v = cv2.addWeighted(boosted_v, 0.68, green_dominance, 0.52, 0)
     boosted_v = np.where(green_mask > 0, boosted_v, cv2.addWeighted(v_eq, 0.72, v_gamma, 0.28, 0))
-    boosted_v = cv2.addWeighted(boosted_v, 0.88, segment_support, 0.16, 0)
+    boosted_v = cv2.addWeighted(boosted_v, 0.80, segment_support, 0.24, 0)
+
+    # LED-only color dodge: lift genuinely lit segments without globally brightening
+    # the whole crop. This is intentionally fed by the green-dominance / segment
+    # support maps so faint active slots get a local contrast boost.
+    dodge_support = cv2.addWeighted(green_dominance, 0.92, segment_support, 0.58, 0)
+    dodge_support = cv2.GaussianBlur(dodge_support, (0, 0), 0.8)
+    dodge_support = cv2.convertScaleAbs(dodge_support, alpha=1.85, beta=14)
+    dodge_support = cv2.max(dodge_support, green_soft)
+    dodged_seed = cv2.addWeighted(v_eq, 0.18, v_gamma, 0.82, 0)
+    dodged_v = _color_dodge(dodged_seed, dodge_support)
+    boosted_v = cv2.addWeighted(boosted_v, 0.50, dodged_v, 0.50, 0)
+
     hsv2 = cv2.merge([h, s, boosted_v.astype(np.uint8)])
     out = cv2.cvtColor(hsv2, cv2.COLOR_HSV2BGR)
     out = _unsharp_mask(out, sigma=0.8, amount=0.28)
@@ -229,21 +296,7 @@ def make_localizer_support_variant(
 ) -> Image.Image:
     img = _resize_keep_aspect(img, max_dim=max_dim)
     if display_kind == "led":
-        bgr = _pil_to_bgr(img)
-        hsv = cv2.cvtColor(bgr, cv2.COLOR_BGR2HSV)
-        h, s, v = cv2.split(hsv)
-        v = cv2.createCLAHE(clipLimit=2.2, tileGridSize=(6, 6)).apply(v)
-        v = _apply_gamma(v, 0.72)
-        green_dominance = bgr[:, :, 1].astype(np.int16) - np.maximum(
-            bgr[:, :, 0],
-            bgr[:, :, 2],
-        ).astype(np.int16)
-        green_dominance = np.clip(green_dominance, 0, 255).astype(np.uint8)
-        green_dominance = cv2.GaussianBlur(green_dominance, (0, 0), 1.0)
-        v = cv2.addWeighted(v, 0.74, green_dominance, 0.46, 0)
-        out = cv2.cvtColor(cv2.merge([h, s, v]), cv2.COLOR_HSV2BGR)
-        out = _unsharp_mask(out, sigma=0.8, amount=0.22)
-        return _bgr_to_pil(out)
+        return make_led_prelocalizer_image(img, max_dim=max_dim)
 
     if display_kind == "lcd":
         bgr = _pil_to_bgr(img)

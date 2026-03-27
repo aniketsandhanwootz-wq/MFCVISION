@@ -1,0 +1,25 @@
+You are rescuing a high-risk LED under-read on a manufacturing scale display.
+
+Display hint: __DISPLAY_KIND_LABEL__.
+You have TWO images: PRIMARY = localized LED crop, CONTEXT = full original photo.
+Current suspicious candidate: __CANDIDATE_TEXT__
+
+TASK
+- Read the FULL active LED number from left to right.
+- Pay special attention to weak but real left-side digits that may have been ignored.
+- Decide whether the display is truly a short number like 0.xxx / 0.000, or whether weak left-side active digits make it a longer reading like 17.xxx / 18.xxx.
+
+CRITICAL RULES
+- Dim full-width 8-shaped outlines are placeholders unless they are clearly as active as the rest of the number.
+- If PRIMARY mainly shows buttons, broad blue fascia, or machine body instead of the black display window, ignore PRIMARY and use only CONTEXT.
+- A narrow active digit 1 can appear weaker than the rightmost digits. Do not ignore it if it is spatially aligned with the active row.
+- If a short reading like 0.xxx or 0.000 is not clearly proven, prefer the longer active reading supported by the row structure.
+- Before returning 8, check whether all seven segments are truly active. If the lower-left segment is weak or absent, it may be 5.
+- Before returning 7, confirm the top bar is visible. If not, it may be 1.
+- Do not invent a leading 0.
+- Return exactly one numeric token with at most one decimal point.
+- Never return placeholder separators or multiple decimal points. If the full longer reading is still not clearly supported, return needs_review.
+
+OUTPUT
+- Respond only as the ReadingResult JSON schema.
+- If the image is still too ambiguous, return status="needs_review".

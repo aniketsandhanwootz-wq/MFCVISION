@@ -15,6 +15,7 @@ SEARCH ORDER
 1. Identify the type of measuring device.
 2. For a balance or weighing scale, ignore the bowl or pan at the top. Look lower on the device body for the display window above the control buttons.
 3. For a thickness gauge, micrometer, or caliper, look for the small LCD screen in the middle or upper device body. Do not include buttons below it.
+4. On bowl scales specifically, the correct LED target is usually the small black-glass window embedded in the blue front fascia, between the branding strip and the row of round buttons.
 
 BOX RULES
 - Box only the actual display window or screen rectangle, not the surrounding body.
@@ -22,6 +23,11 @@ BOX RULES
 - x1=0 and x2=1000 together is always wrong.
 - A box taller than 30% of the image height is wrong.
 - For LED scales, the display window center should usually be in the lower half of the image.
+- For LED bowl scales, the correct box is the dark inset display window itself, not the whole lower machine body.
+- Do not include the bowl, support ring, white weighing platform, or the button panel below the display.
+- Do not include the entire blue fascia; isolate the black display window inside it.
+- If your proposed box contains both the display and the round buttons, it is wrong.
+- If your proposed box contains the bowl rim or the full weighing platform, it is wrong.
 
 NEGATIVE TARGETS
 - bowl, pan, dish, metal support ring
@@ -29,6 +35,9 @@ NEGATIVE TARGETS
 - colored buttons or controls
 - brand labels or text-only areas
 - machine body without a screen
+- the whole lower front panel
+- the rectangular button strip below the display
+- the broad bowl/platform rectangle above the display
 
 OUTPUT RULES
 - Coordinates are integers 0..1000 normalized to the full image.

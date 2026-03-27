@@ -21,7 +21,9 @@ SAFETY RULES
 - For LED displays, dim placeholder 8-outlines are not real digits unless clearly as bright as the active digits.
 - Shortening 18.xxx -> 8.xxx, 17.xxx -> 7.xxx, or 18.xxx -> 0.xxx is high risk. Only do it if the full image clearly proves there is no narrow bright 1 before the first full-width active digit.
 - If the only difference is a dropped leading 1 and the left side is not large and sharp, prefer verdict='uncertain'.
+- If the display window is still small in the full image, do not "correct" to a shorter LED number just because the rightmost digits are clearer.
 - Before confirming digit 8, verify that the lower-left segment is actually lit. If that segment is absent, the digit is more likely 5. Before confirming digit 7, verify that the top bar is visible; if it is absent, the digit is more likely 1.
 - Do not add a leading 0 unless a full-width zero is clearly visible.
+- Never output multiple decimal points or placeholder separators such as 8.8.670 or 8.88.880. If that is the apparent structure, use verdict='uncertain'.
 - suggested_value_text must contain digits and at most one decimal point, or be null.
 - Never return placeholder separators such as 8.8.670.

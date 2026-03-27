@@ -13,26 +13,30 @@ EVIDENCE ORDER
 2. If PRIMARY is a complete localized crop, trust it over CONTEXT.
 3. Use CONTEXT only to recover missing parts, reject a bad crop, or resolve edge clipping.
 4. If the images do not clearly support one exact numeric token, return needs_review.
+5. If PRIMARY is off-target, mostly shows buttons/body/panel instead of the dark display window, treat PRIMARY as bad evidence and rely on CONTEXT or return needs_review.
 
 GENERAL READING RULES
 - Return exactly one numeric token: digits with at most one decimal point.
 - Read only the actual display row. Ignore device body, labels, branding, buttons, units, timestamps, reflections, and nearby text.
+- Reject any interpretation that uses placeholder separators, repeated decimal-like separators, or multiple decimal points. Tokens like 8.8.670 or 8.88.880 are never valid readings.
 - A decimal point must be a small isolated dot near the numeric baseline.
 - Closed loops inside 0 or 8 are not decimal points.
 - Do not invent digits, delete digits, shift the decimal, or guess from likely values.
 
 LED DISPLAY RULES
 1. Treat the display as a fixed row of equal-width digit slots.
-2. Find the first truly ACTIVE slot from the left.
-3. ACTIVE means clearly brighter illuminated segments. INACTIVE placeholders are dim full-width 8-shaped outlines.
-4. Once the first active slot is found, read every active slot from left to right.
-5. Digit 1 rule: a real 1 is narrow and bright, usually only the two right-side vertical segments. Do not drop it just because it is narrow.
-6. Placeholder rule: dim full-width 8 outlines are not digits unless they are clearly as bright and active as the rest of the number.
-7. Short-read rule: do not collapse a complete LED row into 0.xxx, 0.000, 7.xxx, or 8.xxx unless the left side is truly inactive. Weaker left-side segments can still be real digits.
-8. Edge-clipping rule: if the leftmost apparent digit touches the left crop border, treat it as potentially clipped. Use CONTEXT before deciding it is a true 1 or a clipped wider digit such as 0 or 8.
-9. Do not invent a leading 0 on an LED display unless a full-width zero is clearly lit.
-10. Segment-confusion rule: before returning 8, confirm all seven segments are really active. A 5 is missing the lower-left vertical segment. A 7 has the top bar plus right verticals; a 1 has only the two right verticals.
-11. For this LED workflow, the final token normally has three digits after the decimal. If the visible row is complete and you only read 0.xxx or a 3-digit token like 8.80, recheck the left side before finalizing.
+2. On this scale, the true target is the narrow black display window embedded in the blue fascia above the round control buttons. If PRIMARY mainly shows buttons, the broad blue fascia, or machine body, it is off-target.
+3. Find the first truly ACTIVE slot from the left.
+4. ACTIVE means clearly brighter illuminated segments. INACTIVE placeholders are dim full-width 8-shaped outlines.
+5. Once the first active slot is found, read every active slot from left to right as one contiguous numeric token.
+6. Digit 1 rule: a real 1 is narrow and bright, usually only the two right-side vertical segments. Do not drop it just because it is narrow.
+7. Placeholder rule: dim full-width 8 outlines are not digits unless they are clearly as bright and active as the rest of the number.
+8. Short-read rule: do not collapse a complete LED row into 0.xxx, 0.000, 7.xxx, or 8.xxx unless the left side is truly inactive. Weaker left-side segments can still be real digits.
+9. Edge-clipping rule: if the leftmost apparent digit touches the left crop border, treat it as potentially clipped. Use CONTEXT before deciding it is a true 1 or a clipped wider digit such as 0 or 8.
+10. Do not invent a leading 0 on an LED display unless a full-width zero is clearly lit.
+11. Segment-confusion rule: before returning 8, confirm all seven segments are really active. A 5 is missing the lower-left vertical segment. A 7 has the top bar plus right verticals; a 1 has only the two right verticals.
+12. If a supposed reading would require counting dim separators or splitting the row into multiple decimal groups, reject that interpretation and keep only one contiguous numeric token.
+13. For this LED workflow, the final token normally has three digits after the decimal. If the visible row is complete and you only read 0.xxx or a short token like 8.80, recheck the left side before finalizing.
 
 LCD DISPLAY RULES
 1. Read only dark LCD strokes inside the actual screen window.
@@ -43,6 +47,7 @@ LCD DISPLAY RULES
 
 FAIL-SAFE
 - If PRIMARY and CONTEXT disagree, prefer the interpretation supported by the more complete display view.
+- If CONTEXT is the only image that clearly shows the display but the left side is still too small or weak to distinguish 1 vs placeholder, return needs_review instead of shortening the number.
 - If the leftmost digit is clipped or the decimal remains ambiguous, return needs_review instead of guessing.
 - reason must be short, evidence-based, and about what was visible.
 

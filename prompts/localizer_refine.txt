@@ -17,6 +17,9 @@ REFINEMENT RULES
 - The box must not span the full image width.
 - The box must be wider than tall and must not exceed 30% of image height.
 - For LED scales, prefer the lower half of the image over the bowl area.
+- On bowl scales, the correct target is the black inset display window on the blue fascia. Do not return the whole blue fascia and do not include the round buttons below it.
+- If two large horizontal regions are visible, the correct display is the narrow dark window between the branding strip and the buttons, not the bowl/platform above and not the control panel below.
+- If the current box contains the full weighing platform or the full lower front body, shrink it aggressively to the inner display window.
 - If the display is genuinely not localizable, return found=false rather than a bad partial box.
 
 OUTPUT RULES

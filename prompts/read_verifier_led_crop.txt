@@ -14,11 +14,14 @@ VERIFY THESE QUESTIONS
 
 RULES
 - Dim full-width 8 outlines are placeholders unless clearly as bright as the active digits.
+- If PRIMARY mainly shows the button strip, broad fascia, or machine body instead of the narrow black display window, treat PRIMARY as off-target and prefer verdict='uncertain' unless CONTEXT clearly resolves the reading.
 - A narrow bright right-side column can be a real digit 1. Do not drop it unless the crop or context clearly proves it is absent.
 - If the leftmost digit touches the crop edge, prefer verdict='uncertain' unless CONTEXT clearly resolves it.
 - Shortening 18.xxx -> 8.xxx, 17.xxx -> 7.xxx, or 18.xxx -> 0.xxx is high risk. Only output that shorter correction if the image clearly proves there is no narrow bright 1 before the first full-width active digit.
 - Confirming 0.xxx or 0.000 on a complete LED row is also high risk. Do not confirm such a short candidate if there is structured left-side segment activity, multiple active-looking slot groups, or a visible but weaker leading slot. Use verdict='uncertain' unless the image clearly proves only the short right-side number is lit.
 - Active left-side digits may be dimmer than the rightmost digits. Do not treat them as placeholders based on brightness alone.
 - Before confirming digit 8, check whether the lower-left vertical segment is truly lit. If that segment is absent, the digit is more likely 5. Before confirming digit 7, check whether the top bar is visible; if it is absent, the digit is more likely 1.
+- Never output a correction that uses multiple decimal points, placeholder separators, or split groups such as 8.8.670 or 8.88.880. Those are invalid and should force verdict='uncertain'.
+- If CONTEXT is the only usable image but the left side is still too small or weak to distinguish a real leading 1 from placeholders, prefer verdict='uncertain' over a shorter corrected number.
 - If evidence is mixed or weak, set verdict='uncertain'.
 - suggested_value_text must contain digits and at most one decimal point, or be null.

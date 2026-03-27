@@ -4,6 +4,7 @@ import asyncio
 import io
 import json
 import logging
+import numpy as np
 import os
 import re
 import sys
@@ -26,6 +27,7 @@ from pydantic import AliasChoices, BaseModel, ConfigDict, Field, ValidationError
 
 from image_enhance import (
     make_enhanced_display_image,
+    make_led_prelocalizer_image,
     make_localizer_support_variant,
     make_risky_display_variant,
     propose_display_candidate_boxes,
@@ -84,6 +86,7 @@ LOCALIZER_SKIP_REFINE_THRESHOLD = float(os.getenv("LOCALIZER_SKIP_REFINE_THRESHO
 VERIFIER_EASY_QUALITY_SCORE = float(os.getenv("VERIFIER_EASY_QUALITY_SCORE", "0.72"))
 SUPPORT_READ_MAX_QUALITY_SCORE = float(os.getenv("SUPPORT_READ_MAX_QUALITY_SCORE", "0.68"))
 CROP_VERIFICATION_MIN_IMPROVEMENT = float(os.getenv("CROP_VERIFICATION_MIN_IMPROVEMENT", "0.10"))
+FORCE_FULL_IMAGE_READ = (os.getenv("FORCE_FULL_IMAGE_READ", "").strip().lower() in {"1", "true", "yes", "on"})
 CLAPPIA_API_KEY = (os.getenv("CLAPPIA_API_KEY") or "").strip()
 CLAPPIA_APP_ID = (os.getenv("CLAPPIA_APP_ID") or "MFC182090").strip()
 CLAPPIA_WORKPLACE_ID = (os.getenv("CLAPPIA_WORKPLACE_ID") or "").strip()
@@ -1270,6 +1273,22 @@ def pixels_to_norm1000(
     }
 
 
+def map_box_between_sizes(
+    box: tuple[int, int, int, int],
+    source_size: tuple[int, int],
+    target_size: tuple[int, int],
+) -> tuple[int, int, int, int]:
+    src_w, src_h = source_size
+    dst_w, dst_h = target_size
+    x1, y1, x2, y2 = box
+    return (
+        int(round((x1 / max(src_w, 1)) * dst_w)),
+        int(round((y1 / max(src_h, 1)) * dst_h)),
+        int(round((x2 / max(src_w, 1)) * dst_w)),
+        int(round((y2 / max(src_h, 1)) * dst_h)),
+    )
+
+
 def is_valid_localization_box(
     box: tuple[int, int, int, int] | None,
     image_size: tuple[int, int],
@@ -1714,9 +1733,14 @@ def _is_led_single_digit_risk(
 ) -> bool:
     if display_kind != "led" or result.status != "ok" or not result.value_text:
         return False
-    if "." not in result.value_text or count_integer_digits(result.value_text) != 1:
-        return False
-    left_digit = result.value_text.split(".", 1)[0]
+    if "." in result.value_text:
+        if count_integer_digits(result.value_text) != 1:
+            return False
+        left_digit = result.value_text.split(".", 1)[0]
+    else:
+        if len(result.value_text) != 1:
+            return False
+        left_digit = result.value_text
     if result.ignored_text_present:
         return True
     if left_digit in {"0", "7", "8"}:
@@ -1838,6 +1862,40 @@ def _is_leading_one_shortening(longer_text: str, shorter_text: str) -> bool:
         if len(longer_right) != len(shorter_right):
             return False
     return longer_text[1:] == shorter_text
+
+
+def _is_small_led_override(
+    primary_text: str | None,
+    candidate_text: str | None,
+) -> bool:
+    if not primary_text or not candidate_text:
+        return False
+    if not re.fullmatch(r"\d+(\.\d+)?", primary_text):
+        return False
+    if not re.fullmatch(r"\d+(\.\d+)?", candidate_text):
+        return False
+
+    primary_digits = digits_only(primary_text)
+    candidate_digits = digits_only(candidate_text)
+    if not primary_digits or not candidate_digits:
+        return False
+    if primary_digits == candidate_digits:
+        return True
+    if abs(len(candidate_digits) - len(primary_digits)) > 1:
+        return False
+    if candidate_digits.endswith(primary_digits) or primary_digits.endswith(candidate_digits):
+        return True
+    if _is_leading_one_shortening(candidate_text, primary_text):
+        return True
+    if _is_leading_one_shortening(primary_text, candidate_text):
+        return True
+    if (
+        count_integer_digits(primary_text) == count_integer_digits(candidate_text)
+        and "." in primary_text
+        and "." in candidate_text
+    ):
+        return primary_text.split(".", 1)[1] == candidate_text.split(".", 1)[1]
+    return False
 
 
 def _support_should_win_led_conflict(
@@ -2315,6 +2373,25 @@ def _serialize_crop_diagnostics(crop_diagnostics: CropDiagnostics) -> dict[str, 
     }
 
 
+def _estimate_led_row_center_fraction(crop_img: Image.Image) -> float | None:
+    arr = np.asarray(crop_img.convert("RGB"), dtype=np.int16)
+    if arr.ndim != 3 or arr.shape[0] == 0 or arr.shape[1] == 0:
+        return None
+    green_dominance = arr[:, :, 1] - np.maximum(arr[:, :, 0], arr[:, :, 2])
+    green_dominance = np.clip(green_dominance, 0, None)
+    row_strength = green_dominance.sum(axis=1).astype(np.float64)
+    if not np.any(row_strength > 0):
+        return None
+    if np.count_nonzero(row_strength > 0) < 3:
+        return None
+    total = float(row_strength.sum())
+    if total <= 0.0:
+        return None
+    row_indices = np.arange(arr.shape[0], dtype=np.float64)
+    center = float(np.dot(row_indices, row_strength) / total)
+    return center / float(max(arr.shape[0] - 1, 1))
+
+
 def _score_crop_verification_candidate(
     box: tuple[int, int, int, int],
     crop_diagnostics: CropDiagnostics,
@@ -2322,6 +2399,7 @@ def _score_crop_verification_candidate(
     display_kind_hint: str,
     image_size: tuple[int, int],
     led_crop_score: LedDecodeArtifact | None = None,
+    led_row_center_frac: float | None = None,
 ) -> float:
     img_w, img_h = image_size
     x1, y1, x2, y2 = box
@@ -2346,6 +2424,8 @@ def _score_crop_verification_candidate(
             score += 0.09
         else:
             score -= min(0.18, (0.50 - cy_frac) * 0.80)
+        if cy_frac > 0.80:
+            score -= min(0.26, 0.08 + (cy_frac - 0.80) * 0.90)
         if 0.18 <= bw_frac <= 0.78:
             score += 0.06
         elif bw_frac > 0.85:
@@ -2354,14 +2434,27 @@ def _score_crop_verification_candidate(
             score += 0.07
         else:
             score -= 0.04
+        if crop_diagnostics.green_ratio >= 0.045:
+            score += 0.04
         if crop_diagnostics.leading_blank_ratio <= 0.34:
             score += 0.05
         if bw_frac > 0.75 and crop_diagnostics.leading_blank_ratio <= 0.01:
             score -= 0.08
         if crop_diagnostics.active_band_height_ratio >= 0.10:
             score += 0.04
+        if crop_diagnostics.active_band_height_ratio > 0.38:
+            score -= min(0.28, 0.08 + (crop_diagnostics.active_band_height_ratio - 0.38) * 0.90)
         if bw_frac >= 0.16:
             score += 0.03
+        if bh_frac > 0.22:
+            score -= min(0.16, (bh_frac - 0.22) * 0.80)
+        if led_row_center_frac is not None:
+            if 0.30 <= led_row_center_frac <= 0.68:
+                score += 0.10
+            elif led_row_center_frac < 0.24:
+                score -= min(0.34, 0.14 + (0.24 - led_row_center_frac) * 1.10)
+            elif led_row_center_frac > 0.76:
+                score -= min(0.24, 0.08 + (led_row_center_frac - 0.76) * 0.90)
         if led_crop_score is not None:
             if _led_crop_artifact_is_plausible(led_crop_score):
                 score += float(led_crop_score.crop_score.score) * 0.24
@@ -2371,6 +2464,8 @@ def _score_crop_verification_candidate(
                     score += min(0.05, led_crop_score.decimal_info.confidence * 0.05)
             else:
                 score -= 0.10
+        if crop_diagnostics.mode == "lcd":
+            score -= 0.18
     elif display_kind_hint == "lcd":
         if crop_diagnostics.green_ratio <= 0.025:
             score += 0.05
@@ -2392,26 +2487,88 @@ def _verify_localized_crop(
     box: tuple[int, int, int, int],
     *,
     display_kind_hint: str,
+    allow_led_downward_shifts: bool = True,
 ) -> tuple[tuple[int, int, int, int], CropDiagnostics, dict[str, object]]:
     bw = box[2] - box[0]
     bh = box[3] - box[1]
     candidate_specs: list[tuple[str, tuple[int, int, int, int]]] = [("localized_box", box)]
 
     if display_kind_hint == "led":
-        led_candidates = [
-            ("led_lower_10", adjust_localization_box(box, original_img.size, dy=int(round(bh * 0.10)))),
-            ("led_lower_18", adjust_localization_box(box, original_img.size, dy=int(round(bh * 0.18)))),
-            ("led_lower_26", adjust_localization_box(box, original_img.size, dy=int(round(bh * 0.26)))),
+        led_candidates = []
+        if allow_led_downward_shifts:
+            led_candidates.extend([
+                ("led_lower_10", adjust_localization_box(box, original_img.size, dy=int(round(bh * 0.10)))),
+                ("led_lower_18", adjust_localization_box(box, original_img.size, dy=int(round(bh * 0.18)))),
+                ("led_lower_26", adjust_localization_box(box, original_img.size, dy=int(round(bh * 0.26)))),
+                (
+                    "led_lower_tighter",
+                    adjust_localization_box(
+                        box,
+                        original_img.size,
+                        dy=int(round(bh * 0.12)),
+                        left_pad=-int(round(bw * 0.04)),
+                        right_pad=-int(round(bw * 0.04)),
+                        top_pad=-int(round(bh * 0.06)),
+                        bottom_pad=-int(round(bh * 0.10)),
+                    ),
+                ),
+            ])
+        led_candidates.extend([
             (
-                "led_lower_tighter",
+                "led_upper_10",
                 adjust_localization_box(
                     box,
                     original_img.size,
-                    dy=int(round(bh * 0.12)),
+                    dy=-int(round(bh * 0.10)),
+                    bottom_pad=-int(round(bh * 0.12)),
+                ),
+            ),
+            (
+                "led_display_window",
+                adjust_localization_box(
+                    box,
+                    original_img.size,
+                    dy=-int(round(bh * 0.10)),
+                    left_pad=-int(round(bw * 0.02)),
+                    right_pad=-int(round(bw * 0.02)),
+                    top_pad=int(round(bh * 0.04)),
+                    bottom_pad=-int(round(bh * 0.22)),
+                ),
+            ),
+            (
+                "led_upper_tighter",
+                adjust_localization_box(
+                    box,
+                    original_img.size,
+                    dy=-int(round(bh * 0.14)),
+                    left_pad=-int(round(bw * 0.03)),
+                    right_pad=-int(round(bw * 0.03)),
+                    top_pad=int(round(bh * 0.06)),
+                    bottom_pad=-int(round(bh * 0.26)),
+                ),
+            ),
+            (
+                "led_window_strict",
+                adjust_localization_box(
+                    box,
+                    original_img.size,
+                    dy=-int(round(bh * 0.18)),
                     left_pad=-int(round(bw * 0.04)),
                     right_pad=-int(round(bw * 0.04)),
-                    top_pad=-int(round(bh * 0.06)),
-                    bottom_pad=-int(round(bh * 0.10)),
+                    top_pad=int(round(bh * 0.08)),
+                    bottom_pad=-int(round(bh * 0.34)),
+                ),
+            ),
+            (
+                "led_window_ultra",
+                adjust_localization_box(
+                    box,
+                    original_img.size,
+                    dy=-int(round(bh * 0.22)),
+                    left_pad=-int(round(bw * 0.05)),
+                    right_pad=-int(round(bw * 0.05)),
+                    top_pad=int(round(bh * 0.12)),
+                    bottom_pad=-int(round(bh * 0.42)),
                 ),
             ),
             (
@@ -2437,7 +2594,7 @@ def _verify_localized_crop(
                     bottom_pad=-int(round(bh * 0.12)),
                 ),
             ),
-        ]
+        ])
         candidate_specs.extend(
             (name, candidate_box)
             for name, candidate_box in led_candidates
@@ -2519,17 +2676,20 @@ def _verify_localized_crop(
             fallback_mode=display_kind_hint,
         )
         led_crop_artifact = None
+        led_row_center_frac = None
         if display_kind_hint == "led":
             try:
                 led_crop_artifact = decode_led_display(candidate_crop)
             except Exception as e:
                 logger.warning("crop_led_decode_exception variant=%s error=%s", variant_name, e)
+            led_row_center_frac = _estimate_led_row_center_fraction(candidate_crop)
         score = _score_crop_verification_candidate(
             candidate_box,
             diagnostics,
             display_kind_hint=display_kind_hint,
             image_size=original_img.size,
             led_crop_score=led_crop_artifact,
+            led_row_center_frac=led_row_center_frac,
         )
         evaluated.append(
             {
@@ -2538,6 +2698,7 @@ def _verify_localized_crop(
                 "diagnostics": diagnostics,
                 "score": score,
                 "led_crop": led_crop_artifact,
+                "led_row_center_frac": led_row_center_frac,
             }
         )
 
@@ -2612,6 +2773,8 @@ def _verify_localized_crop(
         ),
         "base_box_norm_1000": pixels_to_norm1000(base["box"], original_img.size),
         "selected_box_norm_1000": pixels_to_norm1000(selected_box, original_img.size),
+        "base_led_row_center_frac": base.get("led_row_center_frac"),
+        "selected_led_row_center_frac": selected.get("led_row_center_frac"),
         "base_diagnostics": _serialize_crop_diagnostics(base_diagnostics),
         "selected_diagnostics": _serialize_crop_diagnostics(selected_diagnostics),
         "reason": (
@@ -2765,6 +2928,20 @@ def _build_decimal_verifier_instructions(
     )
 
 
+def _build_led_short_read_rescue_instructions(
+    *,
+    primary_candidate: Optional[str],
+    display_kind: str,
+) -> str:
+    return render_prompt_template(
+        "led_short_read_rescue.txt",
+        {
+            "DISPLAY_KIND_LABEL": _display_kind_label(display_kind),
+            "CANDIDATE_TEXT": primary_candidate or "no numeric candidate",
+        },
+    )
+
+
 def call_gemini_decimal_verifier(
     primary_img: Image.Image,
     enhanced_primary_img: Image.Image,
@@ -2813,6 +2990,26 @@ def call_gemini_decimal_verifier(
         return DecimalVerificationResult(**payload)
     except (json.JSONDecodeError, ValidationError) as e:
         raise HTTPException(status_code=502, detail=f"Invalid Gemini decimal verifier JSON response: {e}")
+
+
+def call_gemini_led_short_read_rescue(
+    primary_img: Image.Image,
+    original_img: Image.Image,
+    *,
+    primary_candidate: Optional[str],
+    display_kind: str,
+) -> ReadingResult:
+    return call_gemini_with_instructions(
+        _build_led_short_read_rescue_instructions(
+            primary_candidate=primary_candidate,
+            display_kind=display_kind,
+        ),
+        primary_img,
+        original_img,
+        model_name=MODEL_NAME,
+        primary_source="crop",
+        include_secondary=True,
+    )
 
 
 def call_gemini_read_verifier(
@@ -2879,6 +3076,7 @@ def _resolve_verified_result(
     crop_diagnostics: CropDiagnostics | None,
     local_decode: LocalDecodeResult | None,
     led_decode: LedDecodeArtifact | None,
+    led_rescue_result: ReadingResult | None,
     verification: ReadVerificationResult | None,
     support_result: ReadingResult | None,
     decimal_verification: DecimalVerificationResult | None,
@@ -2953,6 +3151,11 @@ def _resolve_verified_result(
 
     local_text = local_result.value_text if local_result is not None else None
     verifier_text = verifier_result.value_text if verifier_result is not None else None
+    led_rescue_text = (
+        led_rescue_result.value_text
+        if led_rescue_result is not None and led_rescue_result.status == "ok"
+        else None
+    )
     support_text = support_candidate.value_text if support_candidate is not None else None
     decimal_candidate = (
         _reading_from_candidate_text(
@@ -3000,6 +3203,28 @@ def _resolve_verified_result(
             and led_decode.decimal_count <= 1
         )
     )
+
+    if (
+        display_kind == "led"
+        and led_rescue_result is not None
+        and led_rescue_result.status == "ok"
+        and led_rescue_text
+        and primary_result.status == "ok"
+        and primary_text
+        and led_rescue_text != primary_text
+        and _is_led_single_digit_risk(
+            primary_result,
+            crop_diagnostics,
+            display_kind=display_kind,
+        )
+        and count_integer_digits(led_rescue_text) >= 2
+    ):
+        resolved = led_rescue_result.model_copy(deep=True)
+        resolved.confidence = min(0.94, max(resolved.confidence, 0.80))
+        resolved.reason = (
+            f"{resolved.reason} LED short-read rescue kept the longer left-side active reading."
+        )
+        return resolved
 
     if verifier_result is not None and primary_result.status != "ok":
         resolved = verifier_result.model_copy(deep=True)
@@ -3055,6 +3280,7 @@ def _resolve_verified_result(
         and local_result is not None
         and local_text
         and local_text != primary_text
+        and _is_small_led_override(primary_text, local_text)
         and led_decode is not None
         and led_decode.leading_one_info.present
         and (
@@ -3172,6 +3398,10 @@ def _resolve_verified_result(
         and local_text != primary_text
         and primary_suspicious
         and local_override_allowed
+        and (
+            display_kind != "led"
+            or _is_small_led_override(primary_text, local_text)
+        )
     ):
         resolved = local_result.model_copy(deep=True)
         resolved.reason = (
@@ -3317,11 +3547,18 @@ def run_scale_reader_pipeline(
         original_img.size[1],
     )
 
-    localizer_img = resize_keep_aspect(original_img, max_dim=LOCALIZER_MAX_DIMENSION)
-    localizer_enhanced_img = make_enhanced_display_image(
-        localizer_img, max_dim=LOCALIZER_MAX_DIMENSION
-    )
     localizer_display_hint = _expected_display_kind_for_target(target_family, "unknown")
+    localizer_img = resize_keep_aspect(original_img, max_dim=LOCALIZER_MAX_DIMENSION)
+    if localizer_display_hint == "led":
+        localizer_enhanced_img = make_led_prelocalizer_image(
+            localizer_img,
+            max_dim=LOCALIZER_MAX_DIMENSION,
+        )
+    else:
+        localizer_enhanced_img = make_enhanced_display_image(
+            localizer_img,
+            max_dim=LOCALIZER_MAX_DIMENSION,
+        )
     localizer_support_img = make_localizer_support_variant(
         localizer_img,
         display_kind=localizer_display_hint,
@@ -3361,6 +3598,7 @@ def run_scale_reader_pipeline(
     best_box_pixels: tuple[int, int, int, int] | None = None
     best_localization: LocalizationResult | None = None
     best_confidence: float = 0.0
+    localization_source_override: str | None = None
     primary_localization: LocalizationResult
 
     try:
@@ -3485,6 +3723,79 @@ def run_scale_reader_pipeline(
                     log_context,
                 )
 
+        if (
+            best_box_pixels is None
+            and localizer_display_hint == "led"
+            and localizer_candidate_boxes
+        ):
+            candidate_fallbacks: list[tuple[float, tuple[int, int, int, int]]] = []
+            for candidate_box in localizer_candidate_boxes[:2]:
+                mapped_box = map_box_between_sizes(
+                    candidate_box,
+                    localizer_img.size,
+                    original_img.size,
+                )
+                if not is_valid_localization_box(mapped_box, original_img.size):
+                    continue
+                candidate_crop = crop_from_box(original_img, mapped_box)
+                candidate_diag = _safe_analyze_crop_diagnostics(
+                    candidate_crop,
+                    fallback_mode="led",
+                )
+                bw_frac = (mapped_box[2] - mapped_box[0]) / max(original_img.size[0], 1)
+                candidate_score = float(candidate_diag.quality_score)
+                if candidate_diag.is_reliable:
+                    candidate_score += 0.30
+                if candidate_diag.mode == "led":
+                    candidate_score += 0.20
+                if candidate_diag.green_ratio >= 0.02:
+                    candidate_score += 0.08
+                if candidate_diag.active_band_height_ratio >= 0.08:
+                    candidate_score += 0.05
+                if candidate_diag.component_count >= 4:
+                    candidate_score += 0.04
+                cy_frac = ((mapped_box[1] + mapped_box[3]) / 2.0) / max(original_img.size[1], 1)
+                if cy_frac >= 0.55:
+                    candidate_score += 0.05
+                elif cy_frac < 0.48:
+                    continue
+                if (
+                    candidate_diag.mode == "led"
+                    and candidate_diag.quality_score >= 0.72
+                ) or (
+                    candidate_diag.is_reliable
+                    and candidate_diag.green_ratio >= 0.02
+                    and candidate_diag.component_count >= 4
+                ) or (
+                    cy_frac >= 0.50
+                    and bw_frac >= 0.45
+                    and candidate_diag.green_ratio >= 0.06
+                    and candidate_diag.quality_score >= 0.68
+                ):
+                    candidate_fallbacks.append((candidate_score, mapped_box))
+
+            if candidate_fallbacks:
+                candidate_fallbacks.sort(key=lambda item: item[0], reverse=True)
+                best_box_pixels = candidate_fallbacks[0][1]
+                best_localization = LocalizationResult(
+                    found=True,
+                    confidence=0.56,
+                    display_kind="led",
+                    is_complete_window=True,
+                    left_clipped=False,
+                    right_clipped=False,
+                    wrong_region_risk="medium",
+                    reason="LED candidate-box fallback selected after Gemini localization did not survive box gating.",
+                )
+                best_confidence = 0.56
+                localization_source_override = "local_led_candidate"
+                logger.info(
+                    "localizer_candidate_fallback %s selected_box=%s score=%.3f",
+                    log_context,
+                    best_box_pixels,
+                    candidate_fallbacks[0][0],
+                )
+
     except Exception as e:
         logger.exception("localizer_exception %s error=%s", log_context, e)
         primary_localization = LocalizationResult(
@@ -3498,6 +3809,7 @@ def run_scale_reader_pipeline(
     local_decode: LocalDecodeResult | None = None
     led_decode: LedDecodeArtifact | None = None
     verification: ReadVerificationResult | None = None
+    led_rescue_result: ReadingResult | None = None
     support_result: ReadingResult | None = None
     decimal_verification: DecimalVerificationResult | None = None
     decimal_candidate_texts: list[str] = []
@@ -3522,6 +3834,7 @@ def run_scale_reader_pipeline(
             original_img,
             best_box_pixels,
             display_kind_hint=display_kind,
+            allow_led_downward_shifts=localization_source_override != "local_led_candidate",
         )
         logger.info(
             "crop_verification %s applied=%s usable_for_read=%s selected_variant=%s base_score=%.3f selected_score=%.3f selected_mode=%s reliable=%s reason=%s",
@@ -3565,7 +3878,7 @@ def run_scale_reader_pipeline(
             3,
         )
         localization_payload = {
-            "source": "vlm_pass1" if skipped_refine else "vlm_pass2",
+            "source": localization_source_override or ("vlm_pass1" if skipped_refine else "vlm_pass2"),
             "model": LOCALIZER_MODEL_NAME,
             "found": True,
             "confidence": round(best_confidence, 3),
@@ -3666,6 +3979,15 @@ def run_scale_reader_pipeline(
         localization_payload["confidence"],
     )
 
+    if FORCE_FULL_IMAGE_READ:
+        crop_verified_for_read = False
+        local_decode = None
+        led_decode = None
+        crop_verification_payload["usable_for_read"] = False
+        crop_verification_payload["reason"] = (
+            f"{crop_verification_payload.get('reason', '')}; full-image-only mode forced."
+        ).strip("; ")
+
     if best_box_pixels is not None and crop_verified_for_read:
         logger.info(
             "reader_start %s mode=crop display_kind=%s",
@@ -3754,6 +4076,36 @@ def run_scale_reader_pipeline(
             "reader_verification_skipped %s reason=easy_primary_case",
             log_context,
         )
+
+    led_short_read_rescue_needed = (
+        display_kind == "led"
+        and best_box_pixels is not None
+        and crop_verified_for_read
+        and primary_result.status == "ok"
+        and _is_led_single_digit_risk(
+            primary_result,
+            crop_diagnostics,
+            display_kind=display_kind,
+        )
+    )
+    if led_short_read_rescue_needed:
+        try:
+            led_rescue_result = call_gemini_led_short_read_rescue(
+                enhanced_crop_img or crop_img,
+                original_img,
+                primary_candidate=primary_result.value_text,
+                display_kind=display_kind,
+            )
+            logger.info(
+                "led_short_read_rescue %s status=%s value_text=%s confidence=%.3f reason=%s",
+                log_context,
+                led_rescue_result.status,
+                led_rescue_result.value_text,
+                led_rescue_result.confidence,
+                led_rescue_result.reason,
+            )
+        except Exception as e:
+            logger.warning("led_short_read_rescue_exception %s error=%s", log_context, e)
 
     verifier_candidate_text = (
         verification.suggested_value_text
@@ -3904,6 +4256,7 @@ def run_scale_reader_pipeline(
         crop_diagnostics=crop_diagnostics,
         local_decode=local_decode,
         led_decode=led_decode,
+        led_rescue_result=led_rescue_result,
         verification=verification,
         support_result=support_result,
         decimal_verification=decimal_verification,

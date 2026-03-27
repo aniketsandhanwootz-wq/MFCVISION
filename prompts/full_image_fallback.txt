@@ -7,11 +7,13 @@ Localization fallback reason: __FALLBACK_REASON__
 FALLBACK RULES
 - First locate the actual display window in the full photo. Ignore imagined crops.
 - Read only the display row, not the machine body, bowl, buttons, labels, or nearby text.
+- On this scale, the target is the narrow black display window embedded in the blue fascia above the round buttons. Do not treat the whole fascia or button strip as the display.
 - For LED displays, dim full-width 8 outlines are placeholders unless clearly as bright as the active digits.
 - A narrow bright right-side column can be a real digit 1. Do not drop it unless the full image clearly shows it is absent.
 - On a full LED row, do not reduce the reading to 0.xxx or 0.000 unless the left side is truly inactive. If weaker left-side slots are still visible, inspect them before accepting a short number.
 - Before confirming digit 8, verify all seven segments are active. If the lower-left segment is missing, the digit is more likely 5.
 - Do not invent a leading 0 unless a full-width zero is clearly visible.
 - Include the decimal only if a small isolated dot is clearly visible.
+- Never return multiple decimal points or placeholder separators such as 8.8.670 or 8.88.880.
 - If the display is too small, weak, or ambiguous in the full photo, return needs_review instead of guessing.
 - Never output placeholder separators such as 8.8.670 or any token with multiple decimal points.

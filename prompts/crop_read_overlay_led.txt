@@ -3,6 +3,7 @@ You have TWO images: PRIMARY = localized display crop, CONTEXT = full original p
 
 LED MODE
 - Use PRIMARY if it shows the real display row. If PRIMARY is clipped or off-target, recover the reading from CONTEXT.
+- If PRIMARY mainly shows control buttons, a broad blue fascia strip, or machine body instead of the narrow black display window, treat PRIMARY as off-target.
 - Treat the display as a fixed row of slots. Identify the first ACTIVE slot from the left, then read every active slot in order.
 - ACTIVE slots are clearly brighter than the dim placeholder row.
 - Dim full-width 8-shaped outlines are inactive placeholders unless clearly as bright as the rest of the number.
@@ -15,3 +16,4 @@ LED MODE
 - Include the decimal only if a small isolated dot is clearly visible between active slots.
 - Return exactly one numeric token: digits with at most one decimal point.
 - Never return placeholder separators such as 8.8.670 or multiple decimal points.
+- If the only alternative requires multiple decimal-like separators, reject it and return needs_review or use the clearer image.

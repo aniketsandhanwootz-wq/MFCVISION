@@ -1,7 +1,15 @@
-Look for a dark rectangular panel with bright green or orange glowing segments.
-The dark panel is part of the display, so box the full panel, not just the lit digits.
-It sits embedded in the scale body below the bowl or pan and above the control buttons.
+Look for the narrow black inset display window that contains the dim placeholder 8s and the bright green or orange active digits.
+Box the full inner display window only. Do not box the whole blue fascia or the whole front face of the machine.
+It sits below the bowl or pan and above the round control buttons.
 
 IMPORTANT
-The previous attempt may have landed on the bowl, pan, or platform.
-Bias lower in this image. Search the bottom 60% for the actual LED display panel and ignore the bowl or rim near the top.
+The previous attempt may have landed on the bowl, pan, platform, or lower machine body.
+Bias lower in this image. Search the bottom 60% for the actual black inset LED window and ignore the bowl or rim near the top.
+
+ANTI-TARGETS
+- Do not include the bowl, pan, or metal platform above.
+- Do not include the round control buttons below.
+- Do not include the full lower machine body.
+- Do not include the full blue fascia if the black inset window is smaller inside it.
+
+The correct box should tightly isolate the dark glass window that contains the LED digits and placeholder segments.
