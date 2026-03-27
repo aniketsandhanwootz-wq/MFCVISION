@@ -10,6 +10,7 @@ import sys
 import threading
 import time
 import requests
+from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
 from pathlib import Path
 from typing import Any, Literal, Optional
 from urllib.parse import urlsplit
@@ -98,6 +99,7 @@ if MFC_WRITEBACK_MODE not in {"sync", "async"}:
 # the Clappia app schema changes. Keep writes explicit; do not fall back to
 # auto-writing unknown AI keys into Clappia.
 CLAPPIA_FIELD_CONFIG: dict[str, dict[str, Optional[str]]] = {
+    # Line 1 moisture
     "ai_pre_weight_1": {"value": "pre_weight", "status": None, "reason": None},
     "ai_pre_weight_2": {"value": "pre_weight_1", "status": None, "reason": None},
     "ai_pre_weight_3": {"value": "pre_weight_2", "status": None, "reason": None},
@@ -114,7 +116,37 @@ CLAPPIA_FIELD_CONFIG: dict[str, dict[str, Optional[str]]] = {
     "ai_centre_wall_2": {"value": "pre_weight_9", "status": None, "reason": None},
     "ai_centre_wall_3": {"value": "side_wall__2", "status": None, "reason": None},
     "ai_centre_wall_4": {"value": "centre_wal_1", "status": None, "reason": None},
+    # Line 2 moisture
+    "ai_pre_weight_1_line_2": {"value": "pre_weight_10_line_2", "status": None, "reason": None},
+    "ai_pre_weight_2_line_2": {"value": "pre_weight_11_line_2", "status": None, "reason": None},
+    "ai_pre_weight_3_line_2": {"value": "pre_weight_12_line_2", "status": None, "reason": None},
+    "ai_pre_weight_4_line_2": {"value": "pre_weight_13_line_2", "status": None, "reason": None},
+    # NOTE: these post-weight Line 2 field ids are inferred from the current Clappia naming pattern.
+    "ai_post_weight_1_line_2": {"value": "post_weigh_line_2", "status": None, "reason": None},
+    "ai_post_weight_2_line_2": {"value": "post_weigh_1_line_2", "status": None, "reason": None},
+    "ai_post_weight_3_line_2": {"value": "post_weigh_2_line_2", "status": None, "reason": None},
+    "ai_post_weight_4_line_2": {"value": "post_weigh_3_line_2", "status": None, "reason": None},
+    # Line 2 thickness
+    "ai_side_wall_1_line_2": {"value": "side_wall_1_line_2", "status": None, "reason": None},
+    "ai_side_wall_2_line_2": {"value": "side_wall_2_line_2", "status": None, "reason": None},
+    "ai_side_wall_3_line_2": {"value": "side_wall_3_line_2", "status": None, "reason": None},
+    "ai_side_wall_4_line_2": {"value": "side_wall_4_line_2", "status": None, "reason": None},
+    "ai_centre_wall_1_line_2": {"value": "centre_wall_1_line_2", "status": None, "reason": None},
+    "ai_centre_wall_2_line_2": {"value": "centre_wall_2_line_2", "status": None, "reason": None},
+    "ai_centre_wall_3_line_2": {"value": "centre_wall_3_line_2", "status": None, "reason": None},
+    "ai_centre_wall_4_line_2": {"value": "centre_wall_4_line_2", "status": None, "reason": None},
 }
+
+CLAPPIA_DERIVED_MOISTURE_FIELDS: tuple[tuple[str, str, str], ...] = (
+    ("num", "pre_weight", "pre_weight_4"),
+    ("num2", "pre_weight_1", "pre_weight_5"),
+    ("moisture_c_1", "pre_weight_2", "pre_weight_6"),
+    ("moisture_c", "pre_weight_3", "pre_weight_7"),
+    ("moisture_content_sample_1_line_2", "pre_weight_10_line_2", "post_weigh_line_2"),
+    ("moisture_content_sample_2_line_2", "pre_weight_11_line_2", "post_weigh_1_line_2"),
+    ("moisture_content_sample_3_line_2", "pre_weight_12_line_2", "post_weigh_2_line_2"),
+    ("moisture_content_sample_4_line_2", "pre_weight_13_line_2", "post_weigh_3_line_2"),
+)
 
 MFC_QUEUE = MFCQueueClient(
     MFCQueueConfig(
@@ -433,6 +465,24 @@ def _compact_clappia_field_mapping() -> dict[str, Optional[str]]:
     }
 
 
+def _to_decimal_or_none(value: Any) -> Decimal | None:
+    if value is None:
+        return None
+    try:
+        return Decimal(str(value).strip())
+    except (InvalidOperation, ValueError):
+        return None
+
+
+def _calculate_moisture_percent(pre_value: Any, post_value: Any) -> float | None:
+    pre_decimal = _to_decimal_or_none(pre_value)
+    post_decimal = _to_decimal_or_none(post_value)
+    if pre_decimal is None or post_decimal is None or pre_decimal == 0:
+        return None
+    moisture = ((pre_decimal - post_decimal) * Decimal("100")) / pre_decimal
+    return float(moisture.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP))
+
+
 def build_clappia_writeback_data(
     results: dict[str, dict[str, Any]],
 ) -> tuple[dict[str, Any], dict[str, str], dict[str, Any]]:
@@ -502,6 +552,15 @@ def build_clappia_writeback_data(
         reason_field = field_config.get("reason")
         if reason_field and reason:
             writeback_data[reason_field] = reason
+
+    for destination_field, pre_field, post_field in CLAPPIA_DERIVED_MOISTURE_FIELDS:
+        moisture_percent = _calculate_moisture_percent(
+            writeback_data.get(pre_field),
+            writeback_data.get(post_field),
+        )
+        if moisture_percent is None:
+            continue
+        writeback_data[destination_field] = moisture_percent
 
     return writeback_data, target_field_map, skipped_targets
 
