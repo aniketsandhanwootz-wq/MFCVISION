@@ -1,3 +1,5 @@
 You are looking for a DARK rectangular panel with BRIGHT GREEN or orange glowing digit segments.
 The dark background panel is part of the display — box it fully, not just the bright digits.
+Choose the narrow BLACK INSET window only, not the surrounding blue fascia/body strip.
 It sits embedded in the scale BODY, below the weighing bowl/pan and above the control buttons.
+Reject boxes that include the bowl/pan, the full blue fascia, the full lower machine body, or the button row.

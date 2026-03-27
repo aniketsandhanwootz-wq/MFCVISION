@@ -7,7 +7,10 @@ __WHAT_TO_FIND__
 FORBIDDEN boxes — do NOT return a box around:
   - Blank white or light areas with no digit segments
   - Physical buttons or controls
+  - The full button row beneath a display
   - Weighing bowl, pan, or metal ring
+  - The full blue fascia/body strip when only a narrow black inset window is the true display
+  - The full lower machine body or large decorative panel
   - Brand labels or text-only areas
   - Machine body without a screen
 
@@ -15,6 +18,7 @@ OUTPUT RULES:
   - Coordinates are integers 0..1000 relative to THIS CROPPED IMAGE (not the original).
   - The box must be landscape (wider than tall).
   - The box height should be 8-25% of this cropped image height.
+  - Prefer the INNER DISPLAY WINDOW only, not surrounding device body.
   - If no clear display window is visible here, return found=false.
   - display_kind: 'led', 'lcd', or 'unknown'.
   - NEVER mention any numeric value in the reason field.

@@ -1567,6 +1567,166 @@ def _is_led_single_digit_risk(
     )
 
 
+def _is_led_weight_target(target_key: str | None) -> bool:
+    key = (target_key or "").strip().lower()
+    if not key:
+        return False
+    return (
+        "pre_weight_sample_" in key
+        or "post_weight_sample_" in key
+        or key.startswith("ai_pre_weight_")
+        or key.startswith("ai_post_weight_")
+    )
+
+
+def _expected_led_weight_prefix(target_key: str | None) -> str | None:
+    key = (target_key or "").strip().lower()
+    if "pre_weight_sample_" in key or key.startswith("ai_pre_weight_"):
+        return "18"
+    if "post_weight_sample_" in key or key.startswith("ai_post_weight_"):
+        return "17"
+    return None
+
+
+def _is_led_weight_plausible_text(value_text: str | None, *, target_key: str | None) -> bool:
+    if not _is_led_weight_target(target_key):
+        return False
+    if not value_text or not re.fullmatch(r"\d+(\.\d+)?", value_text):
+        return False
+    if "." not in value_text:
+        return False
+    left, right = value_text.split(".", 1)
+    if len(left) != 2 or len(right) != 3:
+        return False
+    if left[0] == "0":
+        return False
+    if left.startswith(("87", "88", "89")):
+        return False
+    return True
+
+
+def _is_led_weight_implausible_text(value_text: str | None, *, target_key: str | None) -> bool:
+    return _is_led_weight_target(target_key) and not _is_led_weight_plausible_text(
+        value_text,
+        target_key=target_key,
+    )
+
+
+def _build_led_weight_rescue_text(
+    value_text: str | None,
+    *,
+    target_key: str | None,
+) -> str | None:
+    expected_prefix = _expected_led_weight_prefix(target_key)
+    if expected_prefix is None or not value_text:
+        return None
+    text = value_text.strip()
+    if not re.fullmatch(r"\d+(\.\d+)?", text) or "." not in text:
+        return None
+
+    left, right = text.split(".", 1)
+    if len(right) != 3:
+        return None
+
+    # Safe rescues only for structurally bad LED weight outputs.
+    if len(left) == 1 and left in {"0", "1", "7", "8"}:
+        return f"{expected_prefix}.{right}"
+    if len(left) == 2 and left in {"87", "88", "89", "10"}:
+        return f"{expected_prefix}.{right}"
+    if len(left) == 3:
+        if right == "000" and left[0] in {"1", "8"}:
+            return f"{expected_prefix}.{left[2]}{right[:2]}"
+        if left[0] in {"1", "8"}:
+            return f"{expected_prefix}.{right}"
+    if len(left) == 4 and left.endswith(expected_prefix):
+        return f"{expected_prefix}.{right}"
+    return None
+
+
+def _maybe_build_led_weight_advisory_candidate(
+    *,
+    primary_result: ReadingResult,
+    verifier_result: ReadingResult | None,
+    support_candidate: ReadingResult | None,
+    crop_diagnostics: CropDiagnostics | None,
+    verification: ReadVerificationResult | None,
+    target_key: str | None,
+) -> ReadingResult | None:
+    if not _is_led_weight_target(target_key):
+        return None
+
+    candidates: list[tuple[str, str, float]] = []
+    seen: set[str] = set()
+
+    def add_candidate(text: str | None, reason: str, confidence: float) -> None:
+        if not text or text in seen:
+            return
+        seen.add(text)
+        candidates.append((text, reason, confidence))
+
+    primary_text = primary_result.value_text if primary_result.status == "ok" else None
+    verifier_text = verifier_result.value_text if verifier_result is not None else None
+    support_text = support_candidate.value_text if support_candidate is not None else None
+
+    for text, source_reason, source_confidence in (
+        (primary_text, "Primary LED crop read already fits the expected weight shape.", primary_result.confidence),
+        (verifier_text, "Structured verifier produced a plausible LED weight.", verifier_result.confidence if verifier_result is not None else 0.0),
+        (support_text, "Full-image support read produced a plausible LED weight.", support_candidate.confidence if support_candidate is not None else 0.0),
+    ):
+        if _is_led_weight_plausible_text(text, target_key=target_key):
+            add_candidate(text, source_reason, source_confidence)
+
+    missing_leading_signal = False
+    if primary_text and crop_diagnostics is not None:
+        missing_leading_signal = has_probable_missing_leading_digit(
+            primary_text,
+            crop_diagnostics,
+            expected_digit_count=5,
+        )
+    left_edge_ambiguous = (
+        verification is not None
+        and (verification.crop_edge_clipped or not verification.leftmost_digit_fully_visible)
+    )
+
+    if missing_leading_signal or left_edge_ambiguous:
+        for text, source_name in (
+            (primary_text, "primary"),
+            (verifier_text, "verifier"),
+            (support_text, "support"),
+        ):
+            rescue_text = _build_led_weight_rescue_text(text, target_key=target_key)
+            if rescue_text:
+                add_candidate(
+                    rescue_text,
+                    (
+                        f"LED weight rescue from the {source_name} read after detecting a likely "
+                        "missing or corrupted leading digits pattern."
+                    ),
+                    0.84 if source_name != "support" else 0.80,
+                )
+
+    if not candidates:
+        return None
+
+    expected_prefix = _expected_led_weight_prefix(target_key)
+    candidates.sort(
+        key=lambda item: (
+            1 if expected_prefix is not None and item[0].startswith(expected_prefix) else 0,
+            item[2],
+        ),
+        reverse=True,
+    )
+    best_text, best_reason, best_confidence = candidates[0]
+    return ReadingResult(
+        status="ok",
+        value_text=best_text,
+        value_number=float(best_text),
+        confidence=min(0.92, max(best_confidence, 0.80)),
+        reason=best_reason,
+        ignored_text_present=False,
+    )
+
+
 def _support_extends_led_primary(primary_text: str, support_text: str) -> bool:
     if not primary_text or not support_text:
         return False
@@ -2138,6 +2298,7 @@ def _resolve_verified_result(
     decimal_resolved_text: str | None,
     display_kind: str,
     used_full_image_fallback: bool,
+    target_key: str | None,
 ) -> ReadingResult:
     primary_suspicious = is_suspicious_read(
         primary_result,
@@ -2202,11 +2363,24 @@ def _resolve_verified_result(
         if support_candidate is not None
         else True
     )
+    if support_candidate is not None and _is_led_weight_implausible_text(
+        support_text,
+        target_key=target_key,
+    ):
+        support_suspicious = True
     local_override_allowed = (
         local_decode is not None
         and local_decode.ok
         and local_decode.confidence >= LOCAL_DECODER_MIN_CONFIDENCE
         and local_decode.decimal_count <= 1
+    )
+    led_weight_advisory = _maybe_build_led_weight_advisory_candidate(
+        primary_result=primary_result,
+        verifier_result=verifier_result,
+        support_candidate=support_candidate,
+        crop_diagnostics=crop_diagnostics,
+        verification=verification,
+        target_key=target_key,
     )
 
     if verifier_result is not None and primary_result.status != "ok":
@@ -2253,6 +2427,21 @@ def _resolve_verified_result(
         )
         resolved.reason = (
             f"{resolved.reason} Consensus override: structured verifier and local decoder agreed against the primary read."
+        )
+        return resolved
+
+    if (
+        led_weight_advisory is not None
+        and (
+            primary_suspicious
+            or _is_led_weight_implausible_text(primary_text, target_key=target_key)
+            or _is_led_weight_implausible_text(verifier_text, target_key=target_key)
+            or _is_led_weight_implausible_text(support_text, target_key=target_key)
+        )
+    ):
+        resolved = led_weight_advisory.model_copy(deep=True)
+        resolved.reason = (
+            f"{resolved.reason} Resolver preferred the structurally plausible LED weight candidate."
         )
         return resolved
 
@@ -2402,9 +2591,37 @@ def _resolve_verified_result(
             resolved.reason = (
                 f"{resolved.reason} Decimal placement was checked separately and remained ambiguous."
             )
+        if _is_led_weight_implausible_text(resolved.value_text, target_key=target_key):
+            if led_weight_advisory is not None:
+                rescued = led_weight_advisory.model_copy(deep=True)
+                rescued.reason = (
+                    f"{rescued.reason} Final LED weight plausibility guard replaced an implausible read."
+                )
+                return rescued
+            return mark_suspicious_for_review(
+                resolved,
+                (
+                    f"{resolved.reason} Final LED weight candidate was structurally implausible "
+                    "and no safe rescue existed."
+                ),
+            )
         return resolved
 
     if support_candidate is not None:
+        if _is_led_weight_implausible_text(support_text, target_key=target_key):
+            if led_weight_advisory is not None:
+                rescued = led_weight_advisory.model_copy(deep=True)
+                rescued.reason = (
+                    f"{rescued.reason} Implausible full-image LED weight read was rejected."
+                )
+                return rescued
+            return mark_suspicious_for_review(
+                support_candidate,
+                (
+                    f"{support_candidate.reason} Full-image support produced an implausible LED weight "
+                    "and no safer correction existed."
+                ),
+            )
         return support_candidate
     if verifier_result is not None:
         return verifier_result
@@ -3003,6 +3220,7 @@ def run_scale_reader_pipeline(
         decimal_resolved_text=decimal_resolved_text,
         display_kind=display_kind,
         used_full_image_fallback=best_box_pixels is None,
+        target_key=target_key,
     )
     result = _apply_target_decimal_contract(
         result,

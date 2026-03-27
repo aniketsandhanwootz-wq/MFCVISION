@@ -13,10 +13,11 @@ HOW TO LOCATE IT:
 2. For a PRECISION BALANCE / WEIGHING SCALE with a bowl or pan on top:
    - The bowl/pan is at the TOP. Ignore it.
    - The LED display is BELOW the bowl, embedded in the scale body.
-   - Look for a dark rectangular cutout in the scale body with glowing green digits.
+   - Look for the NARROW BLACK INSET display window/cutout with glowing green digits.
+   - The correct box is the INNER BLACK DISPLAY WINDOW only, not the full blue fascia around it.
    - It is ABOVE the control buttons.
    - It is in the LOWER half of the overall image, not the upper half.
-   - The box height should be ONLY the display panel — do NOT include the bowl or buttons.
+   - The box height should be ONLY the inner black display panel — do NOT include the bowl, blue fascia, or buttons.
 3. For a THICKNESS GAUGE / MICROMETER / CALIPER:
    - The LCD screen is a small rectangle, usually in the upper or middle section of the device.
    - It has dark digits on a light gray/silver background.
@@ -31,7 +32,10 @@ CRITICAL BOX SIZE RULES:
 FORBIDDEN — your box must NOT cover:
   - The weighing bowl, pan, dish, or its metal support ring
   - Any blank white, gray, or light-colored strip without visible digit segments
+  - The blue fascia/body strip around the display if it extends beyond the inner black window
+  - The full lower machine body or control panel area
   - Physical push buttons (round/oval colored buttons)
+  - The full button row beneath the display
   - Brand name, model number, or label text areas
   - The blue or black machine body without a screen
 
@@ -40,6 +44,7 @@ OUTPUT RULES:
   - x1,y1 = top-left corner of the display window. x2,y2 = bottom-right corner.
   - The box must be WIDER than it is tall (landscape rectangle).
   - For LED scales: the display window center y-coordinate should be BELOW 400.
+  - For LED scales: prefer a tight box on the black inset window even if the surrounding blue panel is more visually obvious.
   - For LCD gauges: box ONLY the screen, stop BEFORE any buttons below it.
   - If you cannot find a clear display window, return found=false.
   - display_kind: 'led' for glowing segments, 'lcd' for dark-on-light segments, 'unknown' if unsure.
