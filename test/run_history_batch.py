@@ -29,6 +29,7 @@ VENV_PYTHON = REPO_ROOT / ".venv" / "bin" / "python"
 CLAPPIA_FILE_DOWNLOAD_URL = (
     os.getenv("CLAPPIA_FILE_DOWNLOAD_URL") or "https://apiv2.clappia.com/file/generateFileDownloadUrl"
 ).strip()
+DEFAULT_HISTORY_BATCH_WORKERS = max(1, int((os.getenv("MFC_HISTORY_BATCH_WORKERS") or "12").strip()))
 
 
 NS = {"a": "http://schemas.openxmlformats.org/spreadsheetml/2006/main"}
@@ -634,6 +635,52 @@ def _summary_counts(rows: list[dict[str, Any]], *, adjusted_last_decimal: bool =
     }
 
 
+def _truncate_two_decimals(value_text: str) -> str | None:
+    text = (value_text or "").strip()
+    if not text:
+        return None
+    negative = text.startswith("-")
+    if negative:
+        text = text[1:]
+    if "." in text:
+        whole, fraction = text.split(".", 1)
+        normalized = f"{whole}.{(fraction + '00')[:2]}"
+    else:
+        normalized = f"{text}.00"
+    return f"-{normalized}" if negative else normalized
+
+
+def _is_last_decimal_table_variation(row: dict[str, Any]) -> bool:
+    if _summary_status(row) != "mismatch":
+        return False
+    expected_value = str(row.get("expected_value") or "")
+    system_value = str(row.get("system_value") or row.get("final_value") or "")
+    if not expected_value or not system_value:
+        return False
+    return _truncate_two_decimals(expected_value) == _truncate_two_decimals(system_value)
+
+
+def _last_decimal_count(rows: list[dict[str, Any]]) -> int:
+    return sum(1 for row in rows if _is_last_decimal_table_variation(row))
+
+
+def _daily_table_counts(rows: list[dict[str, Any]]) -> dict[str, Any]:
+    raw_counts = _summary_counts(rows)
+    lastdec = _last_decimal_count(rows)
+    adjusted_accuracy = round(((raw_counts["correct"] + lastdec) / raw_counts["evaluated"]) * 100, 2) if raw_counts["evaluated"] else 0.0
+    return {
+        "cases": raw_counts["total_cases"],
+        "blocked": raw_counts["blocked"],
+        "correct": raw_counts["correct"],
+        "mismatch": raw_counts["mismatch"],
+        "lastdec": lastdec,
+        "raw_percent": raw_counts["accuracy_percent"],
+        "adjusted_percent": adjusted_accuracy,
+        "evaluated": raw_counts["evaluated"],
+        "needs_review": raw_counts["needs_review"],
+    }
+
+
 def _guess_image_extension(url: str, content_type: str) -> str:
     guessed_from_type = mimetypes.guess_extension((content_type or "").split(";", 1)[0].strip())
     if guessed_from_type in {".jpe", ".jpeg", ".jpg", ".png", ".webp"}:
@@ -701,13 +748,14 @@ def write_report_workbook(workbook_path: Path, case_rows: list[dict[str, Any]]) 
 
     summary_ws = wb.create_sheet("daily_summary")
     summary_headers = [
-        "batch_day",
-        "total_cases",
-        "correct",
-        "mismatch",
-        "needs_review",
-        "blocked",
-        "accuracy_percent",
+        "Day",
+        "Cases",
+        "Blocked",
+        "Correct",
+        "Mismatch",
+        "LastDec",
+        "Raw%",
+        "Adj%",
     ]
     summary_ws.append(summary_headers)
 
@@ -716,15 +764,16 @@ def write_report_workbook(workbook_path: Path, case_rows: list[dict[str, Any]]) 
         grouped.setdefault(str(row["batch_day"]), []).append(row)
     for batch_day in sorted(grouped):
         rows = grouped[batch_day]
-        counts = _summary_counts(rows)
+        counts = _daily_table_counts(rows)
         summary_ws.append([
             batch_day,
-            counts["total_cases"],
+            counts["cases"],
+            counts["blocked"],
             counts["correct"],
             counts["mismatch"],
-            counts["needs_review"],
-            counts["blocked"],
-            counts["accuracy_percent"],
+            counts["lastdec"],
+            counts["raw_percent"],
+            counts["adjusted_percent"],
         ])
 
     overall_ws = wb.create_sheet("overall_summary")
@@ -1488,6 +1537,9 @@ def _build_window_summary_payload(
     results_dir: Path,
     workers: int,
 ) -> dict[str, Any]:
+    grouped: dict[str, list[dict[str, Any]]] = {}
+    for row in rows:
+        grouped.setdefault(str(row["batch_day"]), []).append(row)
     return {
         "window_start": window_start,
         "window_end": window_end,
@@ -1495,6 +1547,10 @@ def _build_window_summary_payload(
         "processed_days": processed_days,
         "pending_days": [day for day in target_days if day not in set(processed_days)],
         "counts": _summary_counts(rows),
+        "daily_summary": [
+            {"day": batch_day, **_daily_table_counts(grouped[batch_day])}
+            for batch_day in sorted(grouped)
+        ],
         "report_xlsx": str(report_xlsx),
         "overall_json": str(overall_json_path),
         "overall_html": str(overall_html_path),
@@ -1516,7 +1572,16 @@ def main() -> int:
     parser.add_argument("--overall-json", type=Path, default=None, help="Combined case results JSON for the full last 2-week run.")
     parser.add_argument("--overall-html", type=Path, default=None, help="Combined HTML report for the full last 2-week run.")
     parser.add_argument("--summary-json", type=Path, default=None, help="Window summary JSON output.")
-    parser.add_argument("--workers", type=int, default=8, help="Number of parallel worker threads for case execution.")
+    parser.add_argument(
+        "--workers",
+        type=int,
+        default=DEFAULT_HISTORY_BATCH_WORKERS,
+        help=(
+            "Number of parallel worker threads for case execution. "
+            f"Defaults to {DEFAULT_HISTORY_BATCH_WORKERS} and can be overridden with "
+            "MFC_HISTORY_BATCH_WORKERS."
+        ),
+    )
     parser.add_argument("--rebuild-results-json", type=Path, default=None, help="Rebuild report HTML from an existing day/window results JSON without rerunning Gemini.")
     parser.add_argument("--cache-report-images", action="store_true", help="Download report images locally so the HTML remains viewable after signed URLs expire.")
     parser.add_argument("--adjust-last-decimal", action="store_true", help="Treat last-decimal-only mismatches as correct in the rendered report.")
@@ -1723,6 +1788,7 @@ def main() -> int:
         batch_day = target_days[0]
         day_rows = refreshed_day_results.get(batch_day, [])
         counts = _summary_counts(day_rows)
+        day_table = _daily_table_counts(day_rows)
         print(
             json.dumps(
                 {
@@ -1736,6 +1802,8 @@ def main() -> int:
                     "blocked": counts["blocked"],
                     "evaluated": counts["evaluated"],
                     "accuracy_percent": counts["accuracy_percent"],
+                    "lastdec": day_table["lastdec"],
+                    "adjusted_accuracy_percent": day_table["adjusted_percent"],
                     "report_xlsx": str(args.report_xlsx),
                     "results_json": str((args.results_json or (args.report_xlsx.parent / f"day_{batch_day}_results.json")).resolve()),
                     "report_html": str((args.report_html or (args.report_xlsx.parent / f"day_{batch_day}_report.html")).resolve()),
