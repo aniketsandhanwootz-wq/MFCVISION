@@ -9,6 +9,7 @@ import os
 import re
 import subprocess
 import sys
+import time
 from dataclasses import asdict, dataclass
 from datetime import date, datetime, timedelta
 from decimal import Decimal, InvalidOperation
@@ -414,18 +415,27 @@ def run_batch(
     workers: int,
 ) -> list[dict[str, Any]]:
     run_timestamp = datetime.now().strftime("%Y-%m-%d %I:%M:%S %p")
+    batch_started_at = time.monotonic()
+    total_cases = len(cases)
     max_workers = max(1, min(workers, len(cases)))
     if max_workers == 1:
-        return [
-            _run_single_case(
+        results: list[dict[str, Any]] = []
+        for index, case in enumerate(cases, start=1):
+            row = _run_single_case(
                 case,
                 run_timestamp=run_timestamp,
                 source_workbook=source_workbook,
                 window_start=window_start,
                 window_end=window_end,
             )
-            for case in cases
-        ]
+            results.append(row)
+            print(
+                f"[batch {case.batch_day}] {index}/{total_cases} "
+                f"{case.case_id} {row.get('result_label') or row.get('system_status') or 'unknown'} "
+                f"elapsed={time.monotonic() - batch_started_at:.1f}s",
+                flush=True,
+            )
+        return results
 
     results_by_case_id: dict[str, dict[str, Any]] = {}
     with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
@@ -440,9 +450,18 @@ def run_batch(
             ): case.case_id
             for case in cases
         }
+        completed_count = 0
         for future in concurrent.futures.as_completed(future_map):
             case_id = future_map[future]
-            results_by_case_id[case_id] = future.result()
+            row = future.result()
+            results_by_case_id[case_id] = row
+            completed_count += 1
+            print(
+                f"[batch {row.get('batch_day') or ''}] {completed_count}/{total_cases} "
+                f"{case_id} {row.get('result_label') or row.get('system_status') or 'unknown'} "
+                f"elapsed={time.monotonic() - batch_started_at:.1f}s",
+                flush=True,
+            )
 
     return [results_by_case_id[case.case_id] for case in cases]
 

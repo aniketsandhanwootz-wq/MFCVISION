@@ -1598,6 +1598,9 @@ def _is_led_weight_plausible_text(value_text: str | None, *, target_key: str | N
     left, right = value_text.split(".", 1)
     if len(left) != 2 or len(right) != 3:
         return False
+    expected_prefix = _expected_led_weight_prefix(target_key)
+    if expected_prefix is not None and left != expected_prefix:
+        return False
     if left[0] == "0":
         return False
     if left.startswith(("87", "88", "89")):
@@ -3244,7 +3247,10 @@ def run_scale_reader_pipeline(
         else:
             fallback_result = _best_ok_result(support_result, primary_result)
             if fallback_result is not None:
-                result = fallback_result
+                result = _apply_target_decimal_contract(
+                    fallback_result,
+                    target_key=target_key,
+                )
                 result.confidence = min(result.confidence, 0.62)
                 result.reason = (
                     f"{result.reason} Suspicious resolution fell back to the best available numeric candidate."
